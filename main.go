@@ -44,7 +44,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "ERROR: Failed to init logger: %v\n", err)
 			os.Exit(1)
 		}
-		log.L().Info("loaded configuration", zap.Any("config", cfg))
+		log.L().Debug("loaded configuration", zap.Any("config", cfg))
 		return nil
 	}
 	app.Commands = []*cli.Command{
@@ -52,6 +52,6 @@ func main() {
 		cmd.Plugin,
 	}
 	if err := app.Run(os.Args); err != nil {
-		log.L().Fatal("Failed to start application", zap.Error(err))
+		log.L().Error("Failed to start application", zap.Error(err))
 	}
 }

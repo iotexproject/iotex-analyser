@@ -3,22 +3,29 @@ package main
 import (
 	"context"
 	"fmt"
+
+	"github.com/iotexproject/iotex-core/blockchain/block"
 )
 
-type block struct{}
+type blockPlugin struct{}
 
-func (b block) Name() string {
+func (b blockPlugin) Name() string {
 	return "block"
 }
-func (b block) Start(ctx context.Context) error {
+func (b blockPlugin) Start(ctx context.Context) error {
 	fmt.Println("block plugin start")
 	return nil
 }
 
-func (b block) Stop(ctx context.Context) error {
+func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	fmt.Println("block plugin putblock")
+	return nil
+}
+
+func (b blockPlugin) Stop(ctx context.Context) error {
 	fmt.Println("block plugin stop")
 	return nil
 }
 
 // exported
-var Plugin block
+var Plugin blockPlugin

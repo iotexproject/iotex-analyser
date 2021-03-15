@@ -43,7 +43,7 @@ type Service struct {
 func NewService() *Service {
 	s := &Service{
 		logger:    log.Logger("pluginsService"),
-		ctx:       context.TODO(),
+		ctx:       context.Background(),
 		pluginMap: make(map[string]pluginRunning),
 	}
 	go s.run()
@@ -108,33 +108,57 @@ func (s *Service) registerPlugin(plugin Plugin) error {
 	return nil
 }
 
+func (s *Service) unRegisterPlugin(plugin Plugin) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, found := s.pluginMap[plugin.Name()]
+	if !found {
+		return errors.Errorf("the plugin `%s` has not been registered", plugin.Name())
+	}
+	//unloaded plugin
+	s.pluginMap[plugin.Name()] = pluginRunning{
+		status: PluginStatusUnload,
+		Plugin: v,
+	}
+	return nil
+}
+
 func (s *Service) Load(args *Args, reply *Reply) error {
-	symbol, err := LoadPlugin(args.Path, "Plugin")
+	plugin, err := LoadPlugin(args.Path, "Plugin")
 	if err != nil {
 		return errors.Wrap(err, "failed to load plugin")
-	}
-	plugin, ok := symbol.(Plugin)
-	if !ok {
-		return errors.New("unexpected type from module symbol")
 	}
 	if err := s.registerPlugin(plugin); err != nil {
 		return errors.Wrap(err, "failed to register plugin")
 	}
-	reply.Message = "ok, return service"
 	return nil
 }
 
-func LoadPlugin(path string, symbol string) (interface{}, error) {
+func (s *Service) UnLoad(args *Args, reply *Reply) error {
+	plugin, err := LoadPlugin(args.Path, "Plugin")
+	if err != nil {
+		return errors.Wrap(err, "failed to load plugin")
+	}
+	if err := s.unRegisterPlugin(plugin); err != nil {
+		return errors.Wrap(err, "failed to unregister plugin")
+	}
+	return nil
+}
+
+func LoadPlugin(path string, symbol string) (Plugin, error) {
 	loadedPlugin, err := plugin.Open(path)
 
 	if err != nil {
 		return nil, err
 	}
-
 	funcSymbol, err := loadedPlugin.Lookup(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("Can't find '%s' symbol in plugin %s %v", symbol, path, err)
 	}
 
-	return funcSymbol, nil
+	plugin, ok := funcSymbol.(Plugin)
+	if !ok {
+		return nil, errors.New("unexpected type from module symbol")
+	}
+	return plugin, nil
 }

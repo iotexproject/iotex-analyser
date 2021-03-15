@@ -35,7 +35,8 @@ var (
 
 type (
 	Server struct {
-		Addr string `yaml:"addr"`
+		Addr    string   `yaml:"addr"`
+		Plugins []string `yaml:"plugins"`
 	}
 	Database struct {
 		Dsn string `yaml:"dsn"`

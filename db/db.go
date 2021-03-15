@@ -24,3 +24,17 @@ func GetDB() *sql.DB {
 	})
 	return conn
 }
+
+func Transaction(txFunc func(*sql.Tx) error) (err error) {
+	tx, err := conn.Begin()
+	if err != nil {
+		return
+	}
+	defer tx.Rollback()
+	err = txFunc(tx)
+	if err != nil {
+		return
+	}
+	err = tx.Commit()
+	return err
+}

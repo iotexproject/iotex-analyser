@@ -5,6 +5,7 @@ import (
 	"net/rpc"
 
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/plugins"
 	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/urfave/cli/v2"
@@ -28,5 +29,10 @@ func runPlugin(c *cli.Context) error {
 	client.Call("RPC.Load", rpcArgs, rpcReply)
 
 	fmt.Printf("Load Plugin!  %v = %v.\n", rpcArgs, rpcReply)
+	pluginArgs := "&server.RPCArgs{}"
+	pluginReply := &plugins.Reply{}
+	client.Call("Service.Load", rpcArgs, pluginReply)
+
+	fmt.Printf("Load Plugin!  %v = %v.\n", pluginArgs, pluginReply)
 	return nil
 }

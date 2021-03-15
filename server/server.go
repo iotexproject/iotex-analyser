@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/plugins"
 )
 
 type Server struct {
@@ -30,6 +31,15 @@ func (srv *Server) Start() error {
 		return err
 	}
 	rpc.Register(&RPC{})
+	pluginService := plugins.NewService()
+	for _, pluginFile := range config.Default.Server.Plugins {
+		pluginArgs := &plugins.Args{Path: pluginFile}
+		pluginReply := &plugins.Reply{}
+		if err := pluginService.Load(pluginArgs, pluginReply); err != nil {
+			return err
+		}
+	}
+	rpc.Register(pluginService)
 	rpc.Accept(listener)
 	return nil
 }

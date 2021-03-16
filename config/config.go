@@ -16,6 +16,7 @@ var (
 	// Default is the default config
 	Default = Config{
 		Server: Server{
+			Http: "",
 			Addr: "/tmp/iotex-analyser.sock",
 		},
 		BlockDB: coreconfig.DB{
@@ -35,6 +36,7 @@ var (
 
 type (
 	Server struct {
+		Http    string   `yaml:"http"`
 		Addr    string   `yaml:"addr"`
 		Plugins []string `yaml:"plugins"`
 	}

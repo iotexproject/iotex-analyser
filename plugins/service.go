@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -34,28 +35,31 @@ type pluginRunning struct {
 	Plugin
 }
 type Service struct {
+	dao       blockdao.BlockDAO
 	logger    *zap.Logger
 	ctx       context.Context
-	pluginMap map[string]pluginRunning
+	pluginMap map[string]*runner
 	mu        sync.RWMutex
 }
 
-func NewService() *Service {
+func NewService(ctx context.Context, dao blockdao.BlockDAO) *Service {
 	s := &Service{
+		dao:       dao,
 		logger:    log.Logger("pluginsService"),
-		ctx:       context.Background(),
-		pluginMap: make(map[string]pluginRunning),
+		ctx:       ctx,
+		pluginMap: make(map[string]*runner),
 	}
-	go s.run()
+	go s.run(ctx)
 	return s
 }
 
-func (s *Service) run() {
+func (s *Service) run(ctx context.Context) {
 	refreshTicker := time.NewTicker(time.Second * 5)
 	defer refreshTicker.Stop()
 	for {
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
+			s.stop()
 			return
 		case <-refreshTicker.C:
 			if err := s.pluginRefresh(); err != nil {
@@ -65,25 +69,37 @@ func (s *Service) run() {
 	}
 }
 
+func (s *Service) stop() error {
+	var plugins map[string]*runner
+	s.mu.RLock()
+	plugins = s.pluginMap
+	s.mu.RUnlock()
+	for _, plugin := range plugins {
+		if err := plugin.Stop(s.ctx); err != nil {
+			log.L().Error("failed to stop plugin", zap.Error(err))
+		}
+	}
+	return nil
+}
+
 func (s *Service) pluginRefresh() error {
-	var plugins map[string]pluginRunning
+	var plugins map[string]*runner
 	s.mu.RLock()
 	plugins = s.pluginMap
 	s.mu.RUnlock()
 	for name, plugin := range plugins {
-		switch plugin.status {
+		switch plugin.Status() {
 		case PluginStatusUnload:
-			if err := plugin.Plugin.Stop(s.ctx); err != nil {
+			if err := plugin.Stop(s.ctx); err != nil {
 				s.logger.Error("failed to unload plugin", zap.String("name", name), zap.Error(err))
 			} else {
 				delete(plugins, name)
 			}
 		case PluginStatusLoaded:
-			if err := plugin.Plugin.Start(s.ctx); err != nil {
+			if err := plugin.Start(s.ctx); err != nil {
 				s.logger.Error("failed to load plugin", zap.String("name", name), zap.Error(err))
 			} else {
-				plugin.status = PluginStatusRunning
-				s.pluginMap[name] = plugin
+				plugin.UpdateStatus(PluginStatusRunning)
 			}
 		}
 	}
@@ -100,11 +116,12 @@ func (s *Service) registerPlugin(plugin Plugin) error {
 	if found {
 		return errors.Errorf("the plugin `%s` has been registered", plugin.Name())
 	}
-	//loaded plugin
-	s.pluginMap[plugin.Name()] = pluginRunning{
-		status: PluginStatusLoaded,
-		Plugin: plugin,
+	//load plugin
+	runner, err := newRunner(PluginStatusLoaded, plugin, s.dao)
+	if err != nil {
+		return err
 	}
+	s.pluginMap[plugin.Name()] = runner
 	return nil
 }
 
@@ -115,11 +132,8 @@ func (s *Service) unRegisterPlugin(plugin Plugin) error {
 	if !found {
 		return errors.Errorf("the plugin `%s` has not been registered", plugin.Name())
 	}
-	//unloaded plugin
-	s.pluginMap[plugin.Name()] = pluginRunning{
-		status: PluginStatusUnload,
-		Plugin: v,
-	}
+	//unload plugin
+	v.UpdateStatus(PluginStatusUnload)
 	return nil
 }
 

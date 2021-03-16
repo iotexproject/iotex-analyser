@@ -25,21 +25,21 @@ func runServer(c *cli.Context) error {
 
 	srv := server.New()
 	go func() {
-		if err := srv.Start(); err != nil {
+		if err := srv.Start(c.Context); err != nil {
 			log.L().Fatal("Failed to start the indexer", zap.Error(err))
 		}
 	}()
 
-	return handleShutdown(srv)
+	return handleShutdown(c.Context, srv)
 }
 
-func handleShutdown(service ...iface.Stopper) error {
+func handleShutdown(ctx context.Context, service ...iface.Stopper) error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	<-stop
 	log.L().Info("shutting down ...")
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	for _, s := range service {
 		if err := s.Stop(ctx); err != nil {

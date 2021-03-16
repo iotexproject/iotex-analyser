@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/iotexproject/iotex-analyser/iface"
 	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/urfave/cli/v2"
@@ -33,7 +32,11 @@ func runServer(c *cli.Context) error {
 	return handleShutdown(c.Context, srv)
 }
 
-func handleShutdown(ctx context.Context, service ...iface.Stopper) error {
+type Stopper interface {
+	Stop(context.Context) error
+}
+
+func handleShutdown(ctx context.Context, service ...Stopper) error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 

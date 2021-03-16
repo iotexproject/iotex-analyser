@@ -2,6 +2,7 @@ server:
 #  http: 127.0.0.1:8989
   plugins:
    - block.so
+   - blockmeta.so
 database:
   dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
 iotex:

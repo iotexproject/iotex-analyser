@@ -16,7 +16,7 @@ GOTEST=$(GOCMD) test
 
 .PHONY: run
 
-all : build
+all : plugin build
 
 plugin: plugins/*/**
 	go build -buildmode=plugin $^
@@ -25,5 +25,3 @@ build:
 	$(GOBUILD) -v .
 
 run: build
-
-	

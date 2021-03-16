@@ -46,16 +46,18 @@ func (srv *Server) Start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to start blockdao service")
 	}
 
-	go func() {
-		if err := srv.startHTTPService(); err != nil {
-			log.L().Fatal("failed to start http service", zap.Error(err))
-		}
-	}()
+	if config.Default.Server.Http != "" {
+		go func() {
+			if err := srv.startHTTPService(); err != nil {
+				log.L().Fatal("failed to start http service", zap.Error(err))
+			}
+		}()
+	}
+
 	log.L().Info("start RPC service")
 	if err := srv.startRPCService(ctx); err != nil {
 		return errors.Wrap(err, "failed to start RPC service")
 	}
-	log.L().Info("started RPC service")
 
 	return nil
 }
@@ -77,7 +79,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 	}
 	chainClient := kernel.GetChainClient()
 	for startHeight := lastHeight + 1; startHeight <= tipHeight; {
-		count := uint64(64)
+		count := config.Default.Iotex.BatchSize
 		if count > tipHeight-startHeight+1 {
 			count = tipHeight - startHeight + 1
 		}
@@ -132,7 +134,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			if err := srv.dao.PutBlock(ctx, blk); err != nil {
 				return errors.Wrap(err, "failed to build index for the block")
 			}
-			log.L().Info("putblock to dao", zap.Uint64("blkHeight", blk.Height()))
+			log.L().Debug("putblock to dao", zap.Uint64("blkHeight", blk.Height()))
 		}
 		startHeight += count
 	}

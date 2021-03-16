@@ -19,6 +19,9 @@ var (
 			Http: "",
 			Addr: "/tmp/iotex-analyser.sock",
 		},
+		Iotex: Iotex{
+			BatchSize: 64,
+		},
 		BlockDB: coreconfig.DB{
 			NumRetries:            3,
 			MaxCacheSize:          64,
@@ -45,14 +48,15 @@ type (
 	}
 	Iotex struct {
 		ChainEndPoint string `yaml:"chainEndPoint"`
+		BatchSize     uint64 `yaml:"batchSize"` //default 64, ~ 10 blocks
 	}
 	Config struct {
 		Server   Server                      `yaml:"server"`
 		Database Database                    `yaml:"database"`
 		Iotex    Iotex                       `yaml:"iotex"`
 		BlockDB  coreconfig.DB               `yaml:"blockDB"`
-		Log      log.GlobalConfig            `yaml:"log"`
-		SubLogs  map[string]log.GlobalConfig `yaml:"subLogs"`
+		Log      log.GlobalConfig            `yaml:"log" json:"-"`
+		SubLogs  map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
 	}
 )
 

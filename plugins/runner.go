@@ -124,7 +124,11 @@ func (r *runner) Start(ctx context.Context) error {
 					r.logger.Error("failed to get next height", zap.Error(err))
 					continue
 				}
-
+				log.L().Debug("succefully to fetch plugin meta",
+					zap.String("pluginName", r.plugin.Name()),
+					zap.Uint64("daoHeight", tipHeight),
+					zap.Uint64("nextHeight", nextHeight),
+				)
 				for nextHeight < tipHeight {
 					select {
 					case <-r.stop:
@@ -167,6 +171,10 @@ func (r *runner) Start(ctx context.Context) error {
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
 						r.logger.Panic("failed to put data to indexer", zap.Error(err))
 					}
+					log.L().Debug("putblock to plugin",
+						zap.String("pluginName", r.plugin.Name()),
+						zap.Uint64("blkHeight", blk.Height()),
+					)
 					r.vec.Set(float64(blk.Height()))
 					nextHeight++
 				}

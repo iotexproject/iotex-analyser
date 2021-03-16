@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
@@ -54,6 +55,16 @@ func NewService(ctx context.Context, dao blockdao.BlockDAO) *Service {
 }
 
 func (s *Service) run(ctx context.Context) {
+
+	createSql := "CREATE TABLE IF NOT EXISTS `index_heights` (" +
+		"`name` varchar(128) NOT NULL," +
+		"`height` bigint(20) unsigned NOT NULL DEFAULT '0'," +
+		"PRIMARY KEY (`name`)" +
+		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
+	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+		s.logger.Fatal("failed to create index_heights table", zap.Error(err))
+	}
+
 	refreshTicker := time.NewTicker(time.Second * 5)
 	defer refreshTicker.Stop()
 	for {

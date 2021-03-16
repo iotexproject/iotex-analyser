@@ -13,13 +13,16 @@ GOLINT=golint
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
+PLUGIN_DIRECTORIES = $(dir $(wildcard plugins/*/*))
 
 .PHONY: run
 
 all : plugin build
 
-plugin: plugins/*/**
-	go build -buildmode=plugin $^
+plugin:
+	for plugin in $(PLUGIN_DIRECTORIES) ; do \
+		$(GOBUILD) -buildmode=plugin $$plugin/*.go ; \
+	done
 
 build:
 	$(GOBUILD) -v .

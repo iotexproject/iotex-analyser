@@ -18,23 +18,25 @@ import (
 )
 
 type runner struct {
-	dao    blockdao.BlockDAO
-	status pluginStatus
-	plugin Plugin
-	logger *zap.Logger
-	stop   chan bool
-	once   *sync.Once
-	vec    prometheus.Gauge
+	dao       blockdao.BlockDAO
+	status    pluginStatus
+	plugin    Plugin
+	logger    *zap.Logger
+	stop      chan bool
+	once      *sync.Once
+	isRunning *kernel.AtomicBool
+	vec       prometheus.Gauge
 }
 
 func newRunner(status pluginStatus, p Plugin, dao blockdao.BlockDAO) (*runner, error) {
 	r := &runner{
-		dao:    dao,
-		status: status,
-		plugin: p,
-		logger: log.Logger("pluginRunner"),
-		stop:   make(chan bool, 1),
-		once:   new(sync.Once),
+		dao:       dao,
+		status:    status,
+		plugin:    p,
+		logger:    log.Logger("pluginRunner"),
+		stop:      make(chan bool, 1),
+		once:      new(sync.Once),
+		isRunning: new(kernel.AtomicBool),
 	}
 	r.vec = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -82,6 +84,7 @@ func (r *runner) Start(ctx context.Context) error {
 	if err := r.plugin.Start(ctx); err != nil {
 		return errors.Wrap(err, "failed to start runner")
 	}
+	r.isRunning.Set(true)
 	var nextHeight, tipHeight uint64
 	var err error
 
@@ -106,9 +109,10 @@ func (r *runner) Start(ctx context.Context) error {
 	}()
 	go func() {
 		for {
-			select {
-			case <-r.stop:
+			if !r.isRunning.Get() {
 				return
+			}
+			select {
 			case <-ctx.Done():
 				return
 			default:
@@ -130,10 +134,8 @@ func (r *runner) Start(ctx context.Context) error {
 					zap.Uint64("nextHeight", nextHeight),
 				)
 				for nextHeight < tipHeight {
-					select {
-					case <-r.stop:
-						return
-					default:
+					if !r.isRunning.Get() {
+						break
 					}
 					blk, err := r.dao.GetBlockByHeight(nextHeight)
 					if err != nil {
@@ -190,6 +192,7 @@ func (r *runner) Stop(ctx context.Context) error {
 	}
 	r.once.Do(func() {
 		r.logger.Info("stopping runner", zap.String("name", r.plugin.Name()))
+		r.isRunning.Set(false)
 		r.stop <- true
 	})
 	return nil

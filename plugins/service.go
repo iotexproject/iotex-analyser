@@ -31,62 +31,69 @@ type Reply struct {
 }
 
 type Service struct {
+	stop      chan bool
+	once      *sync.Once
 	dao       blockdao.BlockDAO
-	ctx       context.Context
 	logger    *zap.Logger
 	pluginMap map[string]*runner
 	mu        sync.RWMutex
 }
 
-func NewService(ctx context.Context, dao blockdao.BlockDAO) *Service {
+func NewService(dao blockdao.BlockDAO) *Service {
 	s := &Service{
+		stop:      make(chan bool, 1),
+		once:      new(sync.Once),
 		dao:       dao,
 		logger:    log.Logger("pluginsService"),
-		ctx:       ctx,
 		pluginMap: make(map[string]*runner),
 	}
-	go s.run(ctx)
 	return s
 }
 
-func (s *Service) run(ctx context.Context) {
-
+func (s *Service) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `index_heights` (" +
 		"`name` varchar(128) NOT NULL," +
 		"`height` bigint(20) unsigned NOT NULL DEFAULT '0'," +
 		"PRIMARY KEY (`name`)" +
 		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {
-		s.logger.Fatal("failed to create index_heights table", zap.Error(err))
+		return errors.Wrap(err, "failed to start plugin service")
 	}
 
-	refreshTicker := time.NewTicker(time.Second * 5)
-	defer refreshTicker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			s.stop()
-			return
-		case <-refreshTicker.C:
-			s.pluginRefresh()
+	go func() {
+		refreshTicker := time.NewTicker(time.Second * 5)
+		defer refreshTicker.Stop()
+		for {
+			select {
+			case <-s.stop:
+				return
+			case <-ctx.Done():
+				return
+			case <-refreshTicker.C:
+				s.pluginRefresh(ctx)
+			}
 		}
-	}
+	}()
+	return nil
 }
 
-func (s *Service) stop() error {
-	var plugins map[string]*runner
+func (s *Service) Stop(ctx context.Context) error {
+	s.once.Do(func() {
+		s.logger.Info("stopping plugin service")
+		s.stop <- true
+	})
 	s.mu.RLock()
-	plugins = s.pluginMap
+	plugins := s.pluginMap
 	s.mu.RUnlock()
 	for _, plugin := range plugins {
-		if err := plugin.Stop(s.ctx); err != nil {
+		if err := plugin.Stop(ctx); err != nil {
 			log.L().Error("failed to stop plugin", zap.Error(err))
 		}
 	}
 	return nil
 }
 
-func (s *Service) pluginRefresh() {
+func (s *Service) pluginRefresh(ctx context.Context) {
 	s.mu.RLock()
 	pluginMap := s.pluginMap
 	s.mu.RUnlock()
@@ -96,13 +103,13 @@ func (s *Service) pluginRefresh() {
 		plugins[name] = plugin
 		switch plugin.Status() {
 		case PluginStatusUnload:
-			if err := plugin.Stop(s.ctx); err != nil {
+			if err := plugin.Stop(ctx); err != nil {
 				s.logger.Error("failed to unload plugin", zap.String("name", name), zap.Error(err))
 			} else {
 				delete(plugins, name)
 			}
 		case PluginStatusLoaded:
-			if err := plugin.Start(s.ctx); err != nil {
+			if err := plugin.Start(ctx); err != nil {
 				s.logger.Error("failed to load plugin", zap.String("name", name), zap.Error(err))
 			} else {
 				plugin.UpdateStatus(PluginStatusRunning)

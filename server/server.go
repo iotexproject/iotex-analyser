@@ -29,10 +29,13 @@ import (
 type Server struct {
 	dao           blockdao.BlockDAO
 	pluginService *plugins.Service
+	logger        *zap.Logger
 }
 
 func New() *Server {
-	s := &Server{}
+	s := &Server{
+		logger: log.Logger("server"),
+	}
 	return s
 }
 
@@ -49,12 +52,12 @@ func (srv *Server) Start(ctx context.Context) error {
 	if config.Default.Server.Http != "" {
 		go func() {
 			if err := srv.startHTTPService(); err != nil {
-				log.L().Fatal("failed to start http service", zap.Error(err))
+				srv.logger.Fatal("failed to start http service", zap.Error(err))
 			}
 		}()
 	}
 
-	log.L().Info("start RPC service")
+	srv.logger.Info("start RPC service")
 	if err := srv.startRPCService(ctx); err != nil {
 		return errors.Wrap(err, "failed to start RPC service")
 	}
@@ -63,8 +66,10 @@ func (srv *Server) Start(ctx context.Context) error {
 }
 
 func (srv *Server) Stop(ctx context.Context) error {
-	defer srv.dao.Stop(ctx)
-	return nil
+	if err := srv.pluginService.Stop(ctx); err != nil {
+		return err
+	}
+	return srv.dao.Stop(ctx)
 }
 
 func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
@@ -78,6 +83,10 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get tip height from block dao")
 	}
+	srv.logger.Info("start rebuild blockdao",
+		zap.Uint64("daoHeight", lastHeight),
+		zap.Uint64("tipHeight", tipHeight),
+	)
 	for startHeight := lastHeight + 1; startHeight <= tipHeight; {
 		count := config.Default.Iotex.BatchSize
 		if count > tipHeight-startHeight+1 {
@@ -88,11 +97,19 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			Count:        count,
 			WithReceipts: true,
 		}
-
+		srv.logger.Debug("chain client get raw blocks start",
+			zap.Uint64("startHeight", startHeight),
+			zap.Uint64("count", count),
+		)
+		timeStart := time.Now()
 		getRawBlocksRes, err := chainClient.GetRawBlocks(context.Background(), rawRequest)
 		if err != nil {
 			return errors.Wrap(err, "failed to get raw blocks from the chain")
 		}
+		srv.logger.Debug("chain client get raw blocks end",
+			zap.Duration("timeSpent", time.Since(timeStart)),
+			zap.Int("blocks", len(getRawBlocksRes.GetBlocks())),
+		)
 		for _, blkInfo := range getRawBlocksRes.GetBlocks() {
 			blk := &block.Block{}
 			if err := blk.ConvertFromBlockPb(blkInfo.GetBlock()); err != nil {
@@ -134,7 +151,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			if err := srv.dao.PutBlock(ctx, blk); err != nil {
 				return errors.Wrap(err, "failed to build index for the block")
 			}
-			log.L().Debug("putblock to dao", zap.Uint64("blkHeight", blk.Height()))
+			srv.logger.Debug("putblock to dao", zap.Uint64("blkHeight", blk.Height()))
 		}
 		startHeight += count
 	}
@@ -175,16 +192,11 @@ func (srv *Server) startDaoService() error {
 	if err := dao.Start(ctxDao); err != nil {
 		return err
 	}
-	tipHeight, err := dao.Height()
-	if err != nil {
-		return err
-	}
-	log.L().Debug("currently blockdao height", zap.Uint64("height", tipHeight))
 	srv.dao = dao
 	go func() {
 		for {
 			if err := srv.startRebuildBlockDaoWorker(ctxDao); err != nil {
-				log.L().Error("failed to start http service", zap.Error(err))
+				srv.logger.Error("failed to start http service", zap.Error(err))
 			}
 			time.Sleep(time.Second * 4)
 		}
@@ -205,7 +217,10 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 		return err
 	}
 
-	pluginService := plugins.NewService(ctx, srv.dao)
+	pluginService := plugins.NewService(srv.dao)
+	if err := pluginService.Start(ctx); err != nil {
+		return err
+	}
 	for _, pluginFile := range config.Default.Server.Plugins {
 		pluginArgs := &plugins.Args{Path: pluginFile}
 		pluginReply := &plugins.Reply{}

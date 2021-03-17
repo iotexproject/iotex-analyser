@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
@@ -26,6 +27,7 @@ type runner struct {
 	stop      chan bool
 	once      *sync.Once
 	isRunning *kernel.AtomicBool
+	wg        sync.WaitGroup
 }
 
 func newRunner(status pluginStatus, p Plugin, dao blockdao.BlockDAO) (*runner, error) {
@@ -88,8 +90,10 @@ func (r *runner) Start(ctx context.Context) error {
 	var nextHeight, tipHeight uint64
 	var err error
 
+	r.wg.Add(2)
 	go func() {
-		ticker := time.NewTicker(time.Minute)
+		defer r.wg.Done()
+		ticker := time.NewTicker(config.Default.Iotex.PluginReportInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -108,6 +112,7 @@ func (r *runner) Start(ctx context.Context) error {
 		}
 	}()
 	go func() {
+		defer r.wg.Done()
 		for {
 			if !r.isRunning.Get() {
 				return
@@ -128,7 +133,7 @@ func (r *runner) Start(ctx context.Context) error {
 					r.logger.Error("failed to get next height", zap.Error(err))
 					continue
 				}
-				log.L().Debug("succefully to fetch plugin meta",
+				r.logger.Info("succefully to fetch plugin meta",
 					zap.String("pluginName", r.plugin.Name()),
 					zap.Uint64("daoHeight", tipHeight),
 					zap.Uint64("nextHeight", nextHeight),
@@ -178,7 +183,7 @@ func (r *runner) Start(ctx context.Context) error {
 						)
 						continue
 					}
-					log.L().Debug("putblock to plugin",
+					r.logger.Debug("putblock to plugin",
 						zap.String("pluginName", r.plugin.Name()),
 						zap.Uint64("blkHeight", blk.Height()),
 					)
@@ -197,6 +202,7 @@ func (r *runner) Stop(ctx context.Context) error {
 		r.isRunning.Set(false)
 		r.stop <- true
 	})
+	r.wg.Wait()
 	if err := r.plugin.Stop(ctx); err != nil {
 		return errors.Wrap(err, "failed to stop runner")
 	}

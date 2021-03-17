@@ -18,16 +18,15 @@ import (
 )
 
 type runner struct {
-	dao       blockdao.BlockDAO  `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 16 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	plugin    Plugin             `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 16 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	vec       prometheus.Gauge   `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 16 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	status    pluginStatus       `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	logger    *zap.Logger        `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	stop      chan bool          `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	once      *sync.Once         `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	isRunning *kernel.AtomicBool `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	_         [40]byte           `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 40 bytes; field align: 1 bytes; - 🌺 gopium @1pkg
-} // struct size: 128 bytes; struct align: 8 bytes; struct aligned size: 128 bytes; - 🌺 gopium @1pkg
+	dao       blockdao.BlockDAO
+	plugin    Plugin
+	vec       prometheus.Gauge
+	status    pluginStatus
+	logger    *zap.Logger
+	stop      chan bool
+	once      *sync.Once
+	isRunning *kernel.AtomicBool
+}
 
 func newRunner(status pluginStatus, p Plugin, dao blockdao.BlockDAO) (*runner, error) {
 	r := &runner{
@@ -172,7 +171,12 @@ func (r *runner) Start(ctx context.Context) error {
 						actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
-						r.logger.Fatal("failed to put data to indexer", zap.Error(err))
+						r.logger.Error("failed to put data to plugin",
+							zap.String("pluginName", r.plugin.Name()),
+							zap.Uint64("blkHeight", blk.Height()),
+							zap.Error(err),
+						)
+						continue
 					}
 					log.L().Debug("putblock to plugin",
 						zap.String("pluginName", r.plugin.Name()),
@@ -188,13 +192,13 @@ func (r *runner) Start(ctx context.Context) error {
 }
 
 func (r *runner) Stop(ctx context.Context) error {
-	if err := r.plugin.Stop(ctx); err != nil {
-		return errors.Wrap(err, "failed to stop runner")
-	}
 	r.once.Do(func() {
 		r.logger.Info("stopping runner", zap.String("name", r.plugin.Name()))
 		r.isRunning.Set(false)
 		r.stop <- true
 	})
+	if err := r.plugin.Stop(ctx); err != nil {
+		return errors.Wrap(err, "failed to stop runner")
+	}
 	return nil
 }

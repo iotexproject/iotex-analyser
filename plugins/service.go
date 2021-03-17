@@ -68,9 +68,7 @@ func (s *Service) run(ctx context.Context) {
 			s.stop()
 			return
 		case <-refreshTicker.C:
-			if err := s.pluginRefresh(); err != nil {
-				s.logger.Error("Cannot refresh plugin service", zap.Error(err))
-			}
+			s.pluginRefresh()
 		}
 	}
 }
@@ -88,12 +86,14 @@ func (s *Service) stop() error {
 	return nil
 }
 
-func (s *Service) pluginRefresh() error {
-	var plugins map[string]*runner
+func (s *Service) pluginRefresh() {
 	s.mu.RLock()
-	plugins = s.pluginMap
+	pluginMap := s.pluginMap
 	s.mu.RUnlock()
-	for name, plugin := range plugins {
+	plugins := make(map[string]*runner)
+
+	for name, plugin := range pluginMap {
+		plugins[name] = plugin
 		switch plugin.Status() {
 		case PluginStatusUnload:
 			if err := plugin.Stop(s.ctx); err != nil {
@@ -112,7 +112,6 @@ func (s *Service) pluginRefresh() error {
 	s.mu.Lock()
 	s.pluginMap = plugins
 	s.mu.Unlock()
-	return nil
 }
 
 func (s *Service) registerPlugin(plugin Plugin) error {
@@ -120,7 +119,7 @@ func (s *Service) registerPlugin(plugin Plugin) error {
 	defer s.mu.Unlock()
 	_, found := s.pluginMap[plugin.Name()]
 	if found {
-		return errors.Errorf("the plugin `%s` has been registered", plugin.Name())
+		return errors.Errorf("the plugin `%s(%s)` has been registered", plugin.Name(), plugin.Version())
 	}
 	//load plugin
 	runner, err := newRunner(PluginStatusLoaded, plugin, s.dao)
@@ -131,12 +130,12 @@ func (s *Service) registerPlugin(plugin Plugin) error {
 	return nil
 }
 
-func (s *Service) unRegisterPlugin(plugin Plugin) error {
+func (s *Service) deregisterPlugin(plugin Plugin) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, found := s.pluginMap[plugin.Name()]
 	if !found {
-		return errors.Errorf("the plugin `%s` has not been registered", plugin.Name())
+		return errors.Errorf("the plugin `%s(%s)` has not been registered", plugin.Name(), plugin.Version())
 	}
 	//unload plugin
 	v.UpdateStatus(PluginStatusUnload)
@@ -144,7 +143,7 @@ func (s *Service) unRegisterPlugin(plugin Plugin) error {
 }
 
 func (s *Service) Load(args *Args, reply *Reply) error {
-	plugin, err := LoadPlugin(args.Path, "Plugin")
+	plugin, err := loadPluginFile(args.Path)
 	if err != nil {
 		return errors.Wrap(err, "failed to load plugin")
 	}
@@ -155,17 +154,18 @@ func (s *Service) Load(args *Args, reply *Reply) error {
 }
 
 func (s *Service) UnLoad(args *Args, reply *Reply) error {
-	plugin, err := LoadPlugin(args.Path, "Plugin")
+	plugin, err := loadPluginFile(args.Path)
 	if err != nil {
 		return errors.Wrap(err, "failed to load plugin")
 	}
-	if err := s.unRegisterPlugin(plugin); err != nil {
-		return errors.Wrap(err, "failed to unregister plugin")
+	if err := s.deregisterPlugin(plugin); err != nil {
+		return errors.Wrap(err, "failed to deregister plugin")
 	}
 	return nil
 }
 
-func LoadPlugin(path string, symbol string) (Plugin, error) {
+func loadPluginFile(path string) (Plugin, error) {
+	symbol := "Plugin"
 	loadedPlugin, err := plugin.Open(path)
 
 	if err != nil {

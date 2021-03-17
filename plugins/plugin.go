@@ -8,6 +8,7 @@ import (
 
 type Plugin interface {
 	Name() string
+	Version() string
 	Start(context.Context) error
 	Stop(context.Context) error
 	PutBlock(context.Context, *block.Block) error

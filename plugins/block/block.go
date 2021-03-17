@@ -10,6 +10,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const VERSION = "1.0.1"
+
 type blockPlugin struct {
 	tableName string
 }
@@ -55,6 +57,10 @@ func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 
 func (b blockPlugin) Stop(ctx context.Context) error {
 	return nil
+}
+
+func (b blockPlugin) Version() string {
+	return VERSION
 }
 
 // exported

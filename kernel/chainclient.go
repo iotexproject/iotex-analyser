@@ -13,7 +13,7 @@ import (
 var chainClient iotexapi.APIServiceClient
 var chainClientOnce sync.Once
 
-func GetChainClient() iotexapi.APIServiceClient {
+func ChainClient() iotexapi.APIServiceClient {
 	chainClientOnce.Do(func() {
 		conn1, err := grpc.DialContext(context.Background(), config.Default.Iotex.ChainEndPoint, grpc.WithBlock(), grpc.WithInsecure())
 		if err != nil {

@@ -9,9 +9,10 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/ioctl/util"
 	"github.com/pkg/errors"
 )
+
+const VERSION = "1.0.1"
 
 type blockActionPlugin struct {
 	tableName string
@@ -20,6 +21,7 @@ type blockActionPlugin struct {
 func (b blockActionPlugin) Name() string {
 	return "blockaction"
 }
+
 func (b blockActionPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
 		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
@@ -52,10 +54,8 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 	err := kernel.Transaction(func(tx *sql.Tx) error {
 		for _, selp := range blk.Actions {
 			actionHash := selp.Hash()
-			callerAddr, err := address.FromBytes(selp.SrcPubkey().Hash())
-			if err != nil {
-				return err
-			}
+			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+
 			dst, _ := selp.Destination()
 			gasPrice := selp.GasPrice().String()
 			gasLimit := selp.GasLimit()
@@ -67,26 +67,26 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 
 			switch a := act.(type) {
 			case *action.Transfer:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			case *action.Execution:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			case *action.DepositToRewardingFund:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			case *action.ClaimFromRewardingFund:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			case *action.CreateStake:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			case *action.DepositToStake:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			case *action.CandidateRegister:
-				amount = util.RauToString(a.Amount(), util.IotxDecimalNum)
+				amount = a.Amount().String()
 			}
 			insertData := map[string]interface{}{
 				"block_height":     blk.Height(),
 				"action_hash":      hex.EncodeToString(actionHash[:]),
 				"action_type":      actionType,
 				"receipt_hash":     "",
-				"from":             callerAddr.String(),
+				"from":             sender.String(),
 				"to":               dst,
 				"gas_price":        gasPrice,
 				"gas_limit":        gasLimit,
@@ -98,6 +98,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			}
 			for _, receipt := range blk.Receipts {
 				if receipt.ActionHash == actionHash {
+					// gas := new(big.Int)
+					// gas = gas.Mul(selp.GasPrice(), big.NewInt(int64(receipt.GasConsumed)))
+
 					receiptHash := receipt.Hash()
 					insertData["receipt_hash"] = hex.EncodeToString(receiptHash[:])
 					insertData["gas_consumed"] = receipt.GasConsumed
@@ -118,6 +121,10 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 
 func (b blockActionPlugin) Stop(ctx context.Context) error {
 	return nil
+}
+
+func (b blockActionPlugin) Version() string {
+	return VERSION
 }
 
 // exported

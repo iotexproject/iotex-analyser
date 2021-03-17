@@ -27,9 +27,9 @@ import (
 )
 
 type Server struct {
-	dao           blockdao.BlockDAO `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 16 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-	pluginService *plugins.Service  `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
-} // struct size: 24 bytes; struct align: 8 bytes; struct aligned size: 24 bytes; - 🌺 gopium @1pkg
+	dao           blockdao.BlockDAO
+	pluginService *plugins.Service
+}
 
 func New() *Server {
 	s := &Server{}
@@ -63,12 +63,13 @@ func (srv *Server) Start(ctx context.Context) error {
 }
 
 func (srv *Server) Stop(ctx context.Context) error {
-
-	return srv.dao.Stop(ctx)
+	defer srv.dao.Stop(ctx)
+	return nil
 }
 
 func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
-	res, err := kernel.GetChainClient().GetChainMeta(ctx, &iotexapi.GetChainMetaRequest{})
+	chainClient := kernel.ChainClient()
+	res, err := chainClient.GetChainMeta(ctx, &iotexapi.GetChainMetaRequest{})
 	if err != nil {
 		return errors.Wrap(err, "failed to get chain meta")
 	}
@@ -77,7 +78,6 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get tip height from block dao")
 	}
-	chainClient := kernel.GetChainClient()
 	for startHeight := lastHeight + 1; startHeight <= tipHeight; {
 		count := config.Default.Iotex.BatchSize
 		if count > tipHeight-startHeight+1 {

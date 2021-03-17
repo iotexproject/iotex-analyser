@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"fmt"
 	"plugin"
 	"sync"
 	"time"
@@ -27,18 +26,14 @@ type Args struct {
 }
 
 type Reply struct {
-	Success bool
 	Message string
+	Success bool
 }
 
-type pluginRunning struct {
-	status pluginStatus
-	Plugin
-}
 type Service struct {
 	dao       blockdao.BlockDAO
-	logger    *zap.Logger
 	ctx       context.Context
+	logger    *zap.Logger
 	pluginMap map[string]*runner
 	mu        sync.RWMutex
 }
@@ -178,7 +173,7 @@ func LoadPlugin(path string, symbol string) (Plugin, error) {
 	}
 	funcSymbol, err := loadedPlugin.Lookup(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("Can't find '%s' symbol in plugin %s %v", symbol, path, err)
+		return nil, errors.Errorf("Can't find '%s' symbol in plugin %s %v", symbol, path, err)
 	}
 
 	plugin, ok := funcSymbol.(Plugin)

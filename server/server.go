@@ -27,9 +27,9 @@ import (
 )
 
 type Server struct {
-	dao           blockdao.BlockDAO
-	pluginService *plugins.Service
-}
+	dao           blockdao.BlockDAO `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 16 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
+	pluginService *plugins.Service  `gopium:"filter_pads,explicit_paddings_type_natural,cache_rounding_cpu_l1_discrete,fields_annotate_comment,struct_annotate_comment,add_tag_group_soft"` // field size: 8 bytes; field align: 8 bytes; - 🌺 gopium @1pkg
+} // struct size: 24 bytes; struct align: 8 bytes; struct aligned size: 24 bytes; - 🌺 gopium @1pkg
 
 func New() *Server {
 	s := &Server{}
@@ -179,7 +179,7 @@ func (srv *Server) startDaoService() error {
 	if err != nil {
 		return err
 	}
-	log.L().Info("succefully to get blockdao height", zap.Uint64("height", tipHeight))
+	log.L().Debug("currently blockdao height", zap.Uint64("height", tipHeight))
 	srv.dao = dao
 	go func() {
 		for {

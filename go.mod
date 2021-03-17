@@ -6,6 +6,7 @@ require (
 	github.com/dustinxie/gmsm v1.2.1 // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
+	github.com/iotexproject/iotex-address v0.2.4
 	github.com/iotexproject/iotex-core v1.1.4
 	github.com/iotexproject/iotex-proto v0.4.7
 	github.com/mitchellh/go-homedir v1.1.0

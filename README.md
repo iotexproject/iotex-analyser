@@ -5,8 +5,9 @@ async analyser for iotex
 
 ```
 make plugin #auto make plugin so file
-make build
+make build #server
 make run #build + run
+make #both plugin and plugin
 ```
 
 ## Usage
@@ -17,3 +18,12 @@ make run #build + run
 ./iotex-analyser -c config.yml plugin unload block.so #unload plugin
 ```
 
+### simple config.yml
+```
+database:
+  dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
+iotex:
+  chainEndPoint: api.testnet.iotex.one:80
+blockDB:
+  dbPath: chain.db
+```

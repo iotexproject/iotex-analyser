@@ -59,7 +59,7 @@ func (r *runner) Status() pluginStatus {
 }
 
 func (r *runner) nextHeight() (uint64, error) {
-	height, err := r.getHeight()
+	height, err := r.GetHeight()
 	if err != nil {
 		return 0, err
 	}
@@ -67,7 +67,7 @@ func (r *runner) nextHeight() (uint64, error) {
 	return nextHeight, nil
 }
 
-func (r *runner) getHeight() (uint64, error) {
+func (r *runner) GetHeight() (uint64, error) {
 
 	row := kernel.GetDB().QueryRow("SELECT height FROM index_heights WHERE name = ?", r.plugin.Name())
 

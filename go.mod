@@ -12,6 +12,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.3.0
+	github.com/rodaine/table v1.0.1
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b // indirect

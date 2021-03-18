@@ -44,7 +44,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "ERROR: Failed to init logger: %v\n", err)
 			os.Exit(1)
 		}
-		log.L().Debug("loaded configuration", zap.Any("config", cfg))
 		return nil
 	}
 	app.Commands = []*cli.Command{

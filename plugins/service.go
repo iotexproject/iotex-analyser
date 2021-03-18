@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
 	"plugin"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
+	"github.com/rodaine/table"
 	"go.uber.org/zap"
 )
 
@@ -168,6 +170,33 @@ func (s *Service) UnLoad(args *Args, reply *Reply) error {
 	if err := s.deregisterPlugin(plugin); err != nil {
 		return errors.Wrap(err, "failed to deregister plugin")
 	}
+	return nil
+}
+
+func (s *Service) Info(args *Args, reply *Reply) error {
+	s.mu.RLock()
+	pluginMap := s.pluginMap
+	s.mu.RUnlock()
+	showFields := []interface{}{
+		"Name",
+		"Version",
+		"PluginHeight",
+		"DaoHeight",
+	}
+	var b bytes.Buffer
+	tbl := table.New(showFields...).WithWriter(&b)
+	for _, m := range pluginMap {
+		height, _ := m.GetHeight()
+		daoHeight, _ := s.dao.Height()
+		tbl.AddRow(
+			m.plugin.Name(),
+			m.plugin.Version(),
+			height,
+			daoHeight,
+		)
+	}
+	tbl.Print()
+	reply.Message = b.String()
 	return nil
 }
 

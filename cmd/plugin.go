@@ -11,5 +11,6 @@ var Plugin = &cli.Command{
 	Subcommands: []*cli.Command{
 		plugin.Load,
 		plugin.UnLoad,
+		plugin.Info,
 	},
 }

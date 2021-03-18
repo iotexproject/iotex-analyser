@@ -34,7 +34,7 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 		"`gas_limit` int(11) UNSIGNED NOT NULL DEFAULT 0," +
 		"`gas_consumed` int(11) UNSIGNED NOT NULL," +
 		"`nonce` bigint(20) UNSIGNED NOT NULL DEFAULT 0," +
-		"`amount` DECIMAL(65, 0) UNSIGNED NOT NULL DEFAULT 0," +
+		"`amount` DECIMAL(42, 0) UNSIGNED NOT NULL DEFAULT 0," +
 		"`receipt_status` tinyint(3) unsigned NOT NULL DEFAULT 0," +
 		"`contract_address` varchar(41) NOT NULL DEFAULT ''," +
 		"PRIMARY KEY (`action_hash`)," +

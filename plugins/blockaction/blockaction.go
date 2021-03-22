@@ -24,6 +24,7 @@ func (b blockActionPlugin) Name() string {
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
+		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
 		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
 		"`action_type` enum('transfer','execution','startSubChain','stopSubChain','putBlock','createDeposit','settleDeposit','createPlumChain','terminatePlumChain','plumPutBlock','plumCreateDeposit','plumStartExit','plumChallengeExit','plumResponseChallengeExit','plumFinalizeExit','plumSettleDeposit','plumTransfer','depositToRewardingFund','claimFromRewardingFund','grantReward','stakeCreate','stakeUnstake','stakeWithdraw','stakeAddDeposit','stakeRestake','stakeChangeCandidate','stakeTransferOwnership','candidateRegister','candidateUpdate','putPollResult') NOT NULL," +
 		"`receipt_hash` varchar(64) NOT NULL DEFAULT ''," +
@@ -37,11 +38,12 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 		"`amount` DECIMAL(42, 0) UNSIGNED NOT NULL DEFAULT 0," +
 		"`receipt_status` tinyint(3) unsigned NOT NULL DEFAULT 0," +
 		"`contract_address` varchar(41) NOT NULL DEFAULT ''," +
-		"PRIMARY KEY (`action_hash`)," +
+		"PRIMARY KEY (`id`)," +
 		"KEY `from` (`from`)," +
 		"KEY `to` (`to`)," +
 		"KEY `action_type` (`action_type`)," +
-		"KEY `block_height` (`block_height`)" +
+		"KEY `block_height` (`block_height`)," +
+		"KEY `action_hash` (`action_hash`(9))" +
 		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {
 		return errors.Wrap(err, "failed to start blockaction plugin")

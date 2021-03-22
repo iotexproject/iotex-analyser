@@ -43,6 +43,7 @@ func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		"block_height":     blk.Height(),
 		"block_hash":       hex.EncodeToString(blkHash[:]),
 		"producer_address": blk.ProducerAddress(),
+		"num_actions":      len(blk.Actions),
 		"timestamp":        blk.Timestamp().Unix(),
 	}
 

@@ -21,7 +21,7 @@ func (b blockMetaPlugin) Name() string {
 func (b blockMetaPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
 		"`block_height` bigint(20) NOT NULL," +
-		"`gas_consumed` int(11) NOT NULL," +
+		"`gas_consumed` int(11) NOT NULL DEFAULT '0'," +
 		"`producer_name` varchar(42) NOT NULL DEFAULT ''," +
 		"PRIMARY KEY (`block_height`) USING BTREE" +
 		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"

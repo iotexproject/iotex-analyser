@@ -49,6 +49,7 @@ type (
 		Dsn string `yaml:"dsn"`
 	}
 	Iotex struct {
+		CatchUpMode          bool          `yaml:"catchUpMode"`
 		ChainEndPoint        string        `yaml:"chainEndPoint"`
 		ChainInsecure        bool          `yaml:"chainInsecure"`
 		BatchSize            uint64        `yaml:"batchSize"` //default 64, ~ 10 blocks

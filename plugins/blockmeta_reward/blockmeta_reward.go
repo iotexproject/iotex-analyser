@@ -77,6 +77,11 @@ func (b blockMetaRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 		"block_height": blk.Height(),
 	}
 	err := kernel.Transaction(func(tx *sql.Tx) error {
+		var count int
+		row := tx.QueryRow("SELECT count(1) FROM `"+b.tableName+"` WHERE block_height=?", blk.Height())
+		if err := row.Scan(&count); err != nil {
+			return err
+		}
 		if err := kernel.UpdateTableData(tx, b.tableName, updateMap, whereMap); err != nil {
 			return err
 		}

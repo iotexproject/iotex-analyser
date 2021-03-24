@@ -83,6 +83,24 @@ func (r *runner) GetHeight() (uint64, error) {
 
 func (r *runner) Start(ctx context.Context) error {
 	r.logger.Info("staring runner", zap.String("name", r.plugin.Name()))
+	if config.Default.Iotex.CatchUpMode {
+		if err := kernel.Transaction(func(tx *sql.Tx) error {
+			var daoHeight uint64
+			for i := 0; i < 5; i++ {
+				daoHeight, _ = r.dao.Height()
+				if daoHeight == 0 {
+					r.logger.Warn("retrying fetch dao height")
+					time.Sleep(time.Second)
+					continue
+				}
+				r.logger.Info("daoheight", zap.Uint64("daoheight", daoHeight))
+				break
+			}
+			return kernel.UpdateIndexHeight(tx, r.plugin.Name(), daoHeight)
+		}); err != nil {
+			return err
+		}
+	}
 	if err := r.plugin.Start(ctx); err != nil {
 		return errors.Wrap(err, "failed to start runner")
 	}

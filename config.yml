@@ -2,17 +2,18 @@ server:
 #  http: 127.0.0.1:8989
   plugins:
     - block.so
-    # - blockmeta.so
+    - blockmeta.so
     - blockmeta_reward.so
-    # - blockaction.so
+    - blockaction.so
 database:
   dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
 iotex:
-  chainEndPoint: api.testnet.iotex.one:80
+  catchUpMode: true
+  chainEndPoint: api.mainnet.iotex.one:80
   batchSize: 128
   pluginReportInterval: 50s
 blockDB:
-  dbPath: /media/millken/SAMSUNG/iotex-var/data/chain.db
+  dbPath: chainlive-mainnet.db
 log:
   zap:
     development: false

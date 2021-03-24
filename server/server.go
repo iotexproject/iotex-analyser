@@ -73,21 +73,27 @@ func (srv *Server) Stop(ctx context.Context) error {
 }
 
 func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
+	var daoHeight uint64
 	chainClient := kernel.ChainClient()
 	res, err := chainClient.GetChainMeta(ctx, &iotexapi.GetChainMetaRequest{})
 	if err != nil {
 		return errors.Wrap(err, "failed to get chain meta")
 	}
 	tipHeight := res.ChainMeta.Height
-	lastHeight, err := srv.dao.Height()
+
+	daoHeight, err = srv.dao.Height()
 	if err != nil {
 		return errors.Wrap(err, "failed to get tip height from block dao")
 	}
+	if config.Default.Iotex.CatchUpMode && daoHeight <= 0 {
+		daoHeight = tipHeight - 1
+	}
+
 	srv.logger.Info("start rebuild blockdao",
-		zap.Uint64("daoHeight", lastHeight),
+		zap.Uint64("daoHeight", daoHeight),
 		zap.Uint64("tipHeight", tipHeight),
 	)
-	for startHeight := lastHeight + 1; startHeight <= tipHeight; {
+	for startHeight := daoHeight + 1; startHeight <= tipHeight; {
 		count := config.Default.Iotex.BatchSize
 		if count > tipHeight-startHeight+1 {
 			count = tipHeight - startHeight + 1
@@ -184,8 +190,9 @@ func (srv *Server) startDaoService() error {
 	)
 	var indexers []blockdao.BlockIndexer
 	var dao blockdao.BlockDAO
-	if false {
-		dao = blockdao.NewBlockDAOInMemForTest(indexers)
+	if config.Default.Iotex.CatchUpMode {
+		srv.logger.Warn("currently in catch-up mode, it will be rebuild dao service in momery")
+		dao = kernel.NewVirtualDao()
 	} else {
 		dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB)
 	}

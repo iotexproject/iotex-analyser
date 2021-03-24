@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 
@@ -17,6 +18,13 @@ import (
 
 var db *sql.DB
 var dbOnce sync.Once
+
+func MySQLErrorCode(err error) uint16 {
+	if val, ok := err.(*mysql.MySQLError); ok {
+		return val.Number
+	}
+	return 0 // not a mysql error
+}
 
 func GetDB() *sql.DB {
 	dbOnce.Do(func() {
@@ -39,6 +47,31 @@ func InsertTableData(tx *sql.Tx, table string, data map[string]interface{}) erro
 		x = append(x, v)
 	}
 	query := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, table, strings.Join(cols, ","), strings.Join(vals, ","))
+	stmt, err := tx.Prepare(query)
+	if err != nil {
+		return errors.Wrapf(err, "failed to prepare query: %s", queryDebug(query, x...))
+	}
+	defer stmt.Close()
+	if _, err := stmt.Exec(x...); err != nil {
+		return errors.Wrapf(err, "failed to exec query: %s", queryDebug(query, x...))
+	}
+	return nil
+
+}
+
+func UpdateTableData(tx *sql.Tx, table string, fieldMap map[string]interface{}, whereMap map[string]interface{}) error {
+	var x []interface{}
+	var updateFields []string
+	var whereFields []string
+	for k, v := range fieldMap {
+		updateFields = append(updateFields, fmt.Sprintf("`%s`=?", k))
+		x = append(x, v)
+	}
+	for k, v := range whereMap {
+		whereFields = append(whereFields, fmt.Sprintf("`%s`=?", k))
+		x = append(x, v)
+	}
+	query := fmt.Sprintf(`UPDATE %s SET %s WHERE %s`, table, strings.Join(updateFields, ","), strings.Join(whereFields, " AND "))
 	stmt, err := tx.Prepare(query)
 	if err != nil {
 		return errors.Wrapf(err, "failed to prepare query: %s", queryDebug(query, x...))

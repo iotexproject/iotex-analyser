@@ -3,7 +3,8 @@ server:
   plugins:
     - block.so
     # - blockmeta.so
-    - blockaction.so
+    - blockmeta_reward.so
+    # - blockaction.so
 database:
   dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
 iotex:

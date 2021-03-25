@@ -35,7 +35,7 @@ CALL `?`();
 DROP PROCEDURE `?`;
 */
 func (b blockMetaRewardPlugin) Start(ctx context.Context) error {
-	createSql := "ALTER TABLE `block_meta` ADD COLUMN `block_reward` bigint(20) NOT NULL default '0';"
+	createSql := "ALTER TABLE `block_meta` ADD COLUMN `block_reward` bigint(20) unsigned NOT NULL DEFAULT '0';"
 	//skipping
 	if _, err := kernel.GetDB().Exec(createSql); err != nil && kernel.MySQLErrorCode(err) != 1060 {
 		return errors.Wrapf(err, "failed to start plugin: %s", b.Name())
@@ -81,6 +81,9 @@ func (b blockMetaRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 		row := tx.QueryRow("SELECT count(1) FROM `"+b.tableName+"` WHERE block_height=?", blk.Height())
 		if err := row.Scan(&count); err != nil {
 			return err
+		}
+		if count == 0 {
+			return errors.New("failed to find record in block_meta")
 		}
 		if err := kernel.UpdateTableData(tx, b.tableName, updateMap, whereMap); err != nil {
 			return err

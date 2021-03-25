@@ -26,7 +26,7 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
 		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
 		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
-		"`action_type` enum('transfer','execution','startSubChain','stopSubChain','putBlock','createDeposit','settleDeposit','createPlumChain','terminatePlumChain','plumPutBlock','plumCreateDeposit','plumStartExit','plumChallengeExit','plumResponseChallengeExit','plumFinalizeExit','plumSettleDeposit','plumTransfer','depositToRewardingFund','claimFromRewardingFund','grantReward','stakeCreate','stakeUnstake','stakeWithdraw','stakeAddDeposit','stakeRestake','stakeChangeCandidate','stakeTransferOwnership','candidateRegister','candidateUpdate','putPollResult','depositToStake') NOT NULL," +
+		"`action_type` enum('transfer','execution','startSubChain','stopSubChain','putBlock','createDeposit','settleDeposit','createPlumChain','terminatePlumChain','plumPutBlock','plumCreateDeposit','plumStartExit','plumChallengeExit','plumResponseChallengeExit','plumFinalizeExit','plumSettleDeposit','plumTransfer','depositToRewardingFund','claimFromRewardingFund','grantReward','createStake','withdrawStake','restake','changeCandidate','transferStake','candidateRegister','candidateUpdate','putPollResult','depositToStake','unstake') NOT NULL," +
 		"`receipt_hash` varchar(64) NOT NULL DEFAULT ''," +
 		"`block_height` bigint(20) UNSIGNED NOT NULL DEFAULT 0," +
 		"`from` varchar(41) NOT NULL DEFAULT ''," +

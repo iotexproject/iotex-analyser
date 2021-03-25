@@ -27,7 +27,7 @@ func NewVirtualDao() blockdao.BlockDAO {
 	return &virtualDAO{
 		mu:        sync.RWMutex{},
 		tipHeight: 0,
-		store:     cache.NewThreadSafeLruCache(100),
+		store:     cache.NewThreadSafeLruCache(32),
 	}
 }
 
@@ -81,7 +81,7 @@ func (vd *virtualDAO) FooterByHeight(height uint64) (*block.Footer, error) {
 func (vd *virtualDAO) GetReceipts(height uint64) ([]*action.Receipt, error) {
 	v, ok := vd.store.Get(height)
 	if !ok {
-		return nil, errors.New("block not exist")
+		return nil, ErrBlockNotExist
 	}
 	blk := v.(*block.Block)
 	return blk.Receipts, nil
@@ -94,7 +94,7 @@ func (vd *virtualDAO) ContainsTransactionLog() bool {
 func (vd *virtualDAO) TransactionLogs(height uint64) (*iotextypes.TransactionLogs, error) {
 	v, ok := vd.store.Get(height)
 	if !ok {
-		return nil, errors.New("block not exist")
+		return nil, ErrBlockNotExist
 	}
 	blk := v.(*block.Block)
 	log := blk.TransactionLog()

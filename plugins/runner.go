@@ -93,7 +93,7 @@ func (r *runner) Start(ctx context.Context) error {
 					time.Sleep(time.Second)
 					continue
 				}
-				r.logger.Info("daoheight", zap.Uint64("daoheight", daoHeight))
+				r.logger.Info("daoheight", zap.Uint64("daoheight", daoHeight), zap.String("name", r.plugin.Name()))
 				break
 			}
 			return kernel.UpdateIndexHeight(tx, r.plugin.Name(), daoHeight)
@@ -140,7 +140,7 @@ func (r *runner) Start(ctx context.Context) error {
 				return
 			default:
 				//prevent dead loop
-				time.Sleep(3 * time.Second)
+				time.Sleep(2 * time.Second)
 				tipHeight, err = r.dao.Height()
 				if err != nil {
 					r.logger.Error("failed to get blockdao height", zap.Error(err))
@@ -151,7 +151,7 @@ func (r *runner) Start(ctx context.Context) error {
 					r.logger.Error("failed to get next height", zap.Error(err))
 					continue
 				}
-				r.logger.Info("succefully to fetch plugin meta",
+				r.logger.Debug("succefully to fetch plugin meta",
 					zap.String("pluginName", r.plugin.Name()),
 					zap.Uint64("daoHeight", tipHeight),
 					zap.Uint64("nextHeight", nextHeight),
@@ -194,7 +194,7 @@ func (r *runner) Start(ctx context.Context) error {
 						actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
-						r.logger.Error("failed to put data to plugin",
+						r.logger.Warn("failed to put data to plugin, it will be retry in next time",
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("blkHeight", blk.Height()),
 							zap.Error(err),

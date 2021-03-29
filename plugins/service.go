@@ -111,6 +111,7 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 				delete(plugins, name)
 			}
 		case PluginStatusLoaded:
+			ctx = kernel.WithBlockDAOCtx(ctx, s.dao)
 			if err := plugin.Start(ctx); err != nil {
 				s.logger.Error("failed to load plugin", zap.String("name", name), zap.Error(err))
 			} else {

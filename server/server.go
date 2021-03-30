@@ -30,11 +30,13 @@ type Server struct {
 	dao           blockdao.BlockDAO
 	pluginService *plugins.Service
 	logger        *zap.Logger
+	isRunning     *kernel.AtomicBool
 }
 
 func New() *Server {
 	s := &Server{
-		logger: log.Logger("server"),
+		logger:    log.Logger("server"),
+		isRunning: new(kernel.AtomicBool),
 	}
 	return s
 }
@@ -44,6 +46,7 @@ func (srv *Server) Start(ctx context.Context) error {
 	if err := kernel.GetDB().Ping(); err != nil {
 		return errors.Wrap(err, "failed to ping DB")
 	}
+	srv.isRunning.Set(true)
 
 	if err := srv.startDaoService(); err != nil {
 		return errors.Wrap(err, "failed to start blockdao service")
@@ -61,11 +64,11 @@ func (srv *Server) Start(ctx context.Context) error {
 	if err := srv.startRPCService(ctx); err != nil {
 		return errors.Wrap(err, "failed to start RPC service")
 	}
-
 	return nil
 }
 
 func (srv *Server) Stop(ctx context.Context) error {
+	srv.isRunning.Set(false)
 	if err := srv.pluginService.Stop(ctx); err != nil {
 		return err
 	}
@@ -202,6 +205,9 @@ func (srv *Server) startDaoService() error {
 	srv.dao = dao
 	go func() {
 		for {
+			if !srv.isRunning.Get() {
+				break
+			}
 			if err := srv.startRebuildBlockDaoWorker(ctxDao); err != nil {
 				srv.logger.Error("failed to start http service", zap.Error(err))
 			}

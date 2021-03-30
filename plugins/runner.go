@@ -108,27 +108,7 @@ func (r *runner) Start(ctx context.Context) error {
 	var nextHeight, tipHeight uint64
 	var err error
 
-	r.wg.Add(2)
-	go func() {
-		defer r.wg.Done()
-		ticker := time.NewTicker(config.Default.Iotex.PluginReportInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-r.stop:
-				return
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				daoHeight, _ := r.dao.Height()
-				r.logger.Info("runner report",
-					zap.String("plugin", r.plugin.Name()),
-					zap.Uint64("daoHeight", daoHeight),
-					zap.Uint64("nextHeight", nextHeight),
-				)
-			}
-		}
-	}()
+	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
 		for {
@@ -218,7 +198,6 @@ func (r *runner) Stop(ctx context.Context) error {
 	r.once.Do(func() {
 		r.logger.Info("stopping runner", zap.String("name", r.plugin.Name()))
 		r.isRunning.Set(false)
-		r.stop <- true
 	})
 	r.wg.Wait()
 	if err := r.plugin.Stop(ctx); err != nil {

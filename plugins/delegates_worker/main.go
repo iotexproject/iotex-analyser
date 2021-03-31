@@ -41,7 +41,7 @@ func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
 		"`probated` tinyint(1) unsigned NOT NULL DEFAULT '0'," +
 		"PRIMARY KEY (`id`)," +
 		"KEY `block_height` (`block_height`)" +
-		") ENGINE=InnoDB AUTO_INCREMENT=273 DEFAULT CHARSET=latin1;"
+		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {
 		return errors.Wrap(err, "failed to start plugin")
 	}
@@ -58,7 +58,7 @@ func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
 		return err
 	}
 	go func() {
-		ticker := time.NewTicker(time.Second * 24)
+		ticker := time.NewTicker(time.Hour * 24)
 		defer ticker.Stop()
 		for {
 			select {

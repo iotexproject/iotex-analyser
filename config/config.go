@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"time"
 
 	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
@@ -21,8 +20,7 @@ var (
 			Addr: "/tmp/iotex-analyser.sock",
 		},
 		Iotex: Iotex{
-			BatchSize:            64,
-			PluginReportInterval: time.Minute,
+			BatchSize: 64,
 		},
 		BlockDB: coreconfig.DB{
 			NumRetries:            3,
@@ -49,11 +47,10 @@ type (
 		Dsn string `yaml:"dsn"`
 	}
 	Iotex struct {
-		CatchUpMode          bool          `yaml:"catchUpMode"`
-		ChainEndPoint        string        `yaml:"chainEndPoint"`
-		ChainInsecure        bool          `yaml:"chainInsecure"`
-		BatchSize            uint64        `yaml:"batchSize"` //default 64, ~ 10 blocks
-		PluginReportInterval time.Duration `yaml:"pluginReportInterval"`
+		CatchUpMode   bool   `yaml:"catchUpMode"`
+		ChainEndPoint string `yaml:"chainEndPoint"`
+		ChainInsecure bool   `yaml:"chainInsecure"`
+		BatchSize     uint64 `yaml:"batchSize"` //default 64, ~ 10 blocks
 	}
 	Config struct {
 		Server   Server                      `yaml:"server"`

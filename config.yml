@@ -12,7 +12,6 @@ iotex:
   catchUpMode: true
   chainEndPoint: api.mainnet.iotex.one:80
   batchSize: 128
-  pluginReportInterval: 50s
 blockDB:
   dbPath: chainlive-mainnet.db
 log:

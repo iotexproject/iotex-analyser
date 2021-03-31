@@ -24,8 +24,6 @@ type runner struct {
 	vec       prometheus.Gauge
 	status    pluginStatus
 	logger    *zap.Logger
-	stop      chan bool
-	once      *sync.Once
 	isRunning *kernel.AtomicBool
 	wg        sync.WaitGroup
 }
@@ -36,8 +34,6 @@ func newRunner(status pluginStatus, p Plugin, dao blockdao.BlockDAO) (*runner, e
 		status:    status,
 		plugin:    p,
 		logger:    log.Logger("pluginRunner"),
-		stop:      make(chan bool, 1),
-		once:      new(sync.Once),
 		isRunning: new(kernel.AtomicBool),
 	}
 	r.vec = prometheus.NewGauge(
@@ -96,6 +92,9 @@ func (r *runner) Start(ctx context.Context) error {
 				r.logger.Info("daoheight", zap.Uint64("daoheight", daoHeight), zap.String("name", r.plugin.Name()))
 				break
 			}
+			if daoHeight == 0 {
+				return errors.New("failed to fetch dao height")
+			}
 			return kernel.UpdateIndexHeight(tx, r.plugin.Name(), daoHeight)
 		}); err != nil {
 			return err
@@ -120,7 +119,7 @@ func (r *runner) Start(ctx context.Context) error {
 				return
 			default:
 				//prevent dead loop
-				time.Sleep(2 * time.Second)
+				time.Sleep(3 * time.Second)
 				tipHeight, err = r.dao.Height()
 				if err != nil {
 					r.logger.Error("failed to get blockdao height", zap.Error(err))
@@ -195,10 +194,8 @@ func (r *runner) Start(ctx context.Context) error {
 }
 
 func (r *runner) Stop(ctx context.Context) error {
-	r.once.Do(func() {
-		r.logger.Info("stopping runner", zap.String("name", r.plugin.Name()))
-		r.isRunning.Set(false)
-	})
+	r.logger.Info("stopping runner", zap.String("name", r.plugin.Name()))
+	r.isRunning.Set(false)
 	r.wg.Wait()
 	if err := r.plugin.Stop(ctx); err != nil {
 		return errors.Wrap(err, "failed to stop runner")

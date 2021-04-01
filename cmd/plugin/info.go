@@ -5,7 +5,7 @@ import (
 	"net/rpc"
 
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-analyser/plugins"
+	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -24,8 +24,8 @@ func runInfo(c *cli.Context) error {
 		return errors.Wrap(err, "failed to connect RPC server")
 	}
 
-	pluginArgs := &plugins.Args{}
-	pluginReply := &plugins.Reply{}
+	pluginArgs := &server.Args{}
+	pluginReply := &server.Reply{}
 	if err := client.Call("Service.Info", pluginArgs, pluginReply); err != nil {
 		return errors.Wrap(err, "failed to load plugin")
 	}

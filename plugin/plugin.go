@@ -1,4 +1,4 @@
-package plugins
+package plugin
 
 import (
 	"context"
@@ -6,9 +6,17 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/block"
 )
 
-type Plugin interface {
+type Type int
+
+const (
+	TypeStandard Type = iota
+	TypeWorker        //independence worker does not implement PutBlock
+)
+
+type Adapter interface {
 	Name() string
 	Version() string
+	Type() Type
 	Start(context.Context) error
 	Stop(context.Context) error
 	PutBlock(context.Context, *block.Block) error

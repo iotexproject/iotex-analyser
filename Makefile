@@ -15,7 +15,7 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 PLUGIN_DIRECTORIES = $(dir $(wildcard plugins/*/*))
 
-.PHONY: run
+.PHONY: plugin build all run
 
 all : plugin build
 

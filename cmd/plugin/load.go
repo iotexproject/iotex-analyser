@@ -5,7 +5,7 @@ import (
 	"net/rpc"
 
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-analyser/plugins"
+	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -27,10 +27,10 @@ func runLoad(c *cli.Context) error {
 		return err
 	}
 
-	pluginArgs := &plugins.Args{
+	pluginArgs := &server.Args{
 		Path: soPath,
 	}
-	pluginReply := &plugins.Reply{}
+	pluginReply := &server.Reply{}
 	if err := client.Call("Service.Load", pluginArgs, pluginReply); err != nil {
 		return errors.Wrap(err, "failed to load plugin")
 	}

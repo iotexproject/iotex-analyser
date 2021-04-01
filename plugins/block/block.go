@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 )
@@ -19,6 +20,11 @@ type blockPlugin struct {
 func (b blockPlugin) Name() string {
 	return "block"
 }
+
+func (b blockPlugin) Type() plugin.Type {
+	return plugin.TypeStandard
+}
+
 func (b blockPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
 		"`block_height` bigint(20) NOT NULL," +

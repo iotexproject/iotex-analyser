@@ -7,6 +7,7 @@ import (
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
@@ -20,6 +21,10 @@ type blockActionPlugin struct {
 
 func (b blockActionPlugin) Name() string {
 	return "blockaction"
+}
+
+func (b blockActionPlugin) Type() plugin.Type {
+	return plugin.TypeStandard
 }
 
 func (b blockActionPlugin) Start(ctx context.Context) error {

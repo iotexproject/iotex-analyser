@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 )
@@ -18,6 +19,11 @@ type blockMetaPlugin struct {
 func (b blockMetaPlugin) Name() string {
 	return "blockmeta"
 }
+
+func (b blockMetaPlugin) Type() plugin.Type {
+	return plugin.TypeStandard
+}
+
 func (b blockMetaPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
 		"`block_height` bigint(20) NOT NULL," +

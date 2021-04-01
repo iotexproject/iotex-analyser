@@ -13,7 +13,6 @@ import (
 	"github.com/iotexproject/go-pkgs/util/httputil"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-analyser/plugins"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -27,10 +26,10 @@ import (
 )
 
 type Server struct {
-	dao           blockdao.BlockDAO
-	pluginService *plugins.Service
-	logger        *zap.Logger
-	isRunning     *kernel.AtomicBool
+	dao       blockdao.BlockDAO
+	service   *Service
+	logger    *zap.Logger
+	isRunning *kernel.AtomicBool
 }
 
 func New() *Server {
@@ -69,7 +68,7 @@ func (srv *Server) Start(ctx context.Context) error {
 
 func (srv *Server) Stop(ctx context.Context) error {
 	srv.isRunning.Set(false)
-	if err := srv.pluginService.Stop(ctx); err != nil {
+	if err := srv.service.Stop(ctx); err != nil {
 		return err
 	}
 	return srv.dao.Stop(ctx)
@@ -230,21 +229,21 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 		return err
 	}
 
-	pluginService := plugins.NewService(srv.dao)
-	if err := pluginService.Start(ctx); err != nil {
+	service := NewService(srv.dao)
+	if err := service.Start(ctx); err != nil {
 		return err
 	}
 	for _, pluginFile := range config.Default.Server.Plugins {
-		pluginArgs := &plugins.Args{Path: pluginFile}
-		pluginReply := &plugins.Reply{}
-		if err := pluginService.Load(pluginArgs, pluginReply); err != nil {
+		pluginArgs := &Args{Path: pluginFile}
+		pluginReply := &Reply{}
+		if err := service.Load(pluginArgs, pluginReply); err != nil {
 			return err
 		}
 	}
-	if err := rpc.Register(pluginService); err != nil {
+	if err := rpc.Register(service); err != nil {
 		return err
 	}
-	srv.pluginService = pluginService
+	srv.service = service
 	rpc.Accept(listener)
 	return nil
 }

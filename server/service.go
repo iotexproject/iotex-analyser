@@ -1,4 +1,4 @@
-package plugins
+package server
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
+	iap "github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
@@ -46,7 +47,7 @@ func NewService(dao blockdao.BlockDAO) *Service {
 		stop:      make(chan bool, 1),
 		once:      new(sync.Once),
 		dao:       dao,
-		logger:    log.Logger("pluginsService"),
+		logger:    log.Logger("service"),
 		pluginMap: make(map[string]*runner),
 	}
 	return s
@@ -124,28 +125,28 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 	s.mu.Unlock()
 }
 
-func (s *Service) registerPlugin(plugin Plugin) error {
+func (s *Service) registerPlugin(plug iap.Adapter) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, found := s.pluginMap[plugin.Name()]
+	_, found := s.pluginMap[plug.Name()]
 	if found {
-		return errors.Errorf("the plugin `%s(%s)` has been registered", plugin.Name(), plugin.Version())
+		return errors.Errorf("the plugin `%s(%s)` has been registered", plug.Name(), plug.Version())
 	}
 	//load plugin
-	runner, err := newRunner(PluginStatusLoaded, plugin, s.dao)
+	runner, err := newRunner(PluginStatusLoaded, plug, s.dao)
 	if err != nil {
 		return err
 	}
-	s.pluginMap[plugin.Name()] = runner
+	s.pluginMap[plug.Name()] = runner
 	return nil
 }
 
-func (s *Service) deregisterPlugin(plugin Plugin) error {
+func (s *Service) deregisterPlugin(plug iap.Adapter) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	v, found := s.pluginMap[plugin.Name()]
+	v, found := s.pluginMap[plug.Name()]
 	if !found {
-		return errors.Errorf("the plugin `%s(%s)` has not been registered", plugin.Name(), plugin.Version())
+		return errors.Errorf("the plugin `%s(%s)` has not been registered", plug.Name(), plug.Version())
 	}
 	//unload plugin
 	v.UpdateStatus(PluginStatusUnload)
@@ -201,7 +202,7 @@ func (s *Service) Info(args *Args, reply *Reply) error {
 	return nil
 }
 
-func loadPluginFile(path string) (Plugin, error) {
+func loadPluginFile(path string) (iap.Adapter, error) {
 	symbol := "Plugin"
 	loadedPlugin, err := plugin.Open(path)
 
@@ -213,9 +214,9 @@ func loadPluginFile(path string) (Plugin, error) {
 		return nil, errors.Errorf("Can't find '%s' symbol in plugin %s %v", symbol, path, err)
 	}
 
-	plugin, ok := funcSymbol.(Plugin)
+	adapter, ok := funcSymbol.(iap.Adapter)
 	if !ok {
 		return nil, errors.New("unexpected type from module symbol")
 	}
-	return plugin, nil
+	return adapter, nil
 }

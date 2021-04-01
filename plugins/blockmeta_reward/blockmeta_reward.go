@@ -7,6 +7,7 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
@@ -20,6 +21,10 @@ type blockMetaRewardPlugin struct {
 
 func (b blockMetaRewardPlugin) Name() string {
 	return "blockmeta_reward"
+}
+
+func (b blockMetaRewardPlugin) Type() plugin.Type {
+	return plugin.TypeStandard
 }
 
 /*

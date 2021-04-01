@@ -1,4 +1,4 @@
-package plugins
+package server
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/plugin"
+	iap "github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
@@ -20,7 +22,7 @@ import (
 
 type runner struct {
 	dao       blockdao.BlockDAO
-	plugin    Plugin
+	plugin    iap.Adapter
 	vec       prometheus.Gauge
 	status    pluginStatus
 	logger    *zap.Logger
@@ -28,12 +30,12 @@ type runner struct {
 	wg        sync.WaitGroup
 }
 
-func newRunner(status pluginStatus, p Plugin, dao blockdao.BlockDAO) (*runner, error) {
+func newRunner(status pluginStatus, p iap.Adapter, dao blockdao.BlockDAO) (*runner, error) {
 	r := &runner{
 		dao:       dao,
 		status:    status,
 		plugin:    p,
-		logger:    log.Logger("pluginRunner"),
+		logger:    log.Logger("runner"),
 		isRunning: new(kernel.AtomicBool),
 	}
 	r.vec = prometheus.NewGauge(
@@ -79,6 +81,20 @@ func (r *runner) GetHeight() (uint64, error) {
 
 func (r *runner) Start(ctx context.Context) error {
 	r.logger.Info("staring runner", zap.String("name", r.plugin.Name()))
+	switch r.plugin.Type() {
+	case plugin.TypeWorker:
+		if err := r.plugin.Start(ctx); err != nil {
+			return errors.Wrap(err, "failed to start runner")
+		}
+		r.isRunning.Set(true)
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+		}()
+		return nil
+	case plugin.TypeStandard:
+	default:
+	}
 	if config.Default.Iotex.CatchUpMode {
 		if err := kernel.Transaction(func(tx *sql.Tx) error {
 			var daoHeight uint64

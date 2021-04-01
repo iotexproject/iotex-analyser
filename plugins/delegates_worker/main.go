@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
@@ -26,6 +27,10 @@ type delegatesWorkerPlugin struct {
 
 func (b delegatesWorkerPlugin) Name() string {
 	return "delegates_worker"
+}
+
+func (b delegatesWorkerPlugin) Type() plugin.Type {
+	return plugin.TypeWorker
 }
 
 func (b delegatesWorkerPlugin) Start(ctx context.Context) error {

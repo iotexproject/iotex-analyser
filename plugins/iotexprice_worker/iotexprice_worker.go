@@ -40,22 +40,45 @@ func (b priceWorkerPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to start plugin")
 	}
 
+	goPrice := func() {
+		price, err := priceFetcher()
+		if err != nil {
+			log.L().Error("failed to fetch latest IOTX price", zap.Error(err))
+		} else {
+			if _, err := kernel.GetDB().Exec("INSERT INTO store (`key`, `value`, `create_at`) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = ?", "iotx_latest_price", price, price); err != nil {
+				log.L().Error("failed to exec query", zap.Error(err))
+			}
+		}
+	}
+	goPrice1d := func() {
+		price1d, err := price1dFetcher()
+		if err != nil {
+			log.L().Error("failed to fetch latest IOTX 1d price", zap.Error(err))
+		} else {
+			if _, err := kernel.GetDB().Exec("INSERT INTO store (`key`, `value`, `create_at`) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = ?", "iotx_latest_price_1d", price1d, price1d); err != nil {
+				log.L().Error("failed to exec query", zap.Error(err))
+			}
+		}
+	}
+
 	go func() {
-		ticker := time.NewTicker(time.Second * 120)
-		defer ticker.Stop()
+		goPrice()
+		goPrice1d()
+
+		ticker := time.NewTicker(time.Minute * 5)
+		ticker1d := time.NewTicker(time.Hour * 1)
+		defer func() {
+			ticker.Stop()
+			ticker1d.Stop()
+		}()
 		for {
 			select {
 			case <-b.stop:
 				return
+			case <-ticker1d.C:
+				goPrice1d()
 			case <-ticker.C:
-				price, err := priceFetcher()
-				if err != nil {
-					log.L().Error("failed to fetch latest IOTX price", zap.Error(err))
-				} else {
-					if _, err := kernel.GetDB().Exec("INSERT INTO store (`key`, `value`, `create_at`) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = ?", "iotx_latest_price", price, price); err != nil {
-						log.L().Error("failed to exec query", zap.Error(err))
-					}
-				}
+				goPrice()
 			}
 		}
 	}()

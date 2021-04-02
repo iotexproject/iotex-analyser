@@ -5,7 +5,7 @@ server:
     # - blockmeta.so
     # - blockmeta_reward.so
     # - blockaction.so
-    - main.so
+    - iotexprice_worker.so
 database:
   dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
 iotex:

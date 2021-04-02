@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
-const CryptoLatestPriceURL = "https://crypto.com/price/coin-data/iotex/basic_info.json"
+const (
+	CryptoLatestPriceURL   = "https://crypto.com/price/coin-data/iotex/basic_info.json"
+	CryptoLatestPrice1dURL = "https://crypto.com/price/coin-data/iotex/1d/latest.json"
+)
 
 type cryptoLatestPrice struct {
 	BtcMarketcap      float64 `json:"btc_marketcap"`
@@ -37,9 +41,43 @@ func (m *cryptoLatestPrice) Value() (driver.Value, error) {
 	return driver.Value([]byte(j)), nil
 }
 
+type latestPrice1d struct {
+	Data        [][]float64 `json:"data"`
+	PriceChange float64     `json:"price_change"`
+	Timestamp   time.Time   `json:"timestamp"`
+}
+
+func (m *latestPrice1d) Value() (driver.Value, error) {
+	j, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	return driver.Value([]byte(j)), nil
+}
+
 func priceFetcher() (*cryptoLatestPrice, error) {
 	var info cryptoLatestPrice
 	response, err := http.Get(CryptoLatestPriceURL)
+	if err != nil {
+		return nil, err
+	}
+
+	defer response.Body.Close()
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, &info)
+	if err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func price1dFetcher() (*latestPrice1d, error) {
+	var info latestPrice1d
+	response, err := http.Get(CryptoLatestPrice1dURL)
 	if err != nil {
 		return nil, err
 	}

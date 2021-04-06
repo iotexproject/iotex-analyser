@@ -62,6 +62,9 @@ func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
+	if err := delegates(); err != nil {
+		log.L().Warn("failed to delegates", zap.Error(err))
+	}
 	go func() {
 		ticker := time.NewTicker(time.Hour * 24)
 		defer ticker.Stop()

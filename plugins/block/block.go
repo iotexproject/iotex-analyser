@@ -25,6 +25,10 @@ func (b blockPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+/*
+year/month/day can be use index
+update block set `year`=left(FROM_UNIXTIME(`timestamp`), 4),`month`=SUBSTR(FROM_UNIXTIME(`timestamp`),6, 2),`day`=SUBSTR(FROM_UNIXTIME(`timestamp`),9, 2)
+*/
 func (b blockPlugin) Start(ctx context.Context) error {
 	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
 		"`block_height` bigint(20) NOT NULL," +
@@ -32,8 +36,12 @@ func (b blockPlugin) Start(ctx context.Context) error {
 		"`producer_address` varchar(42) NOT NULL," +
 		"`num_actions` int(6) unsigned NOT NULL DEFAULT '0'," +
 		"`timestamp` int(11) unsigned NOT NULL," +
+		"`year` smallint(4) unsigned NOT NULL DEFAULT '0'," +
+		"`month` tinyint(2) unsigned zerofill NOT NULL DEFAULT '00'," +
+		"`day` tinyint(2) unsigned zerofill NOT NULL DEFAULT '00'," +
 		"PRIMARY KEY (`block_height`) USING BTREE," +
-		"KEY `producer_address` (`producer_address`) USING BTREE" +
+		"KEY `producer_address` (`producer_address`)," +
+		"KEY `year_month_day` (`year`,`month`,`day`)" +
 		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {
 		return errors.Wrap(err, "failed to start block plugin")
@@ -51,6 +59,7 @@ func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		"producer_address": blk.ProducerAddress(),
 		"num_actions":      len(blk.Actions),
 		"timestamp":        blk.Timestamp().Unix(),
+		"date":             blk.Timestamp().Format("2006-01-02"),
 	}
 
 	err := kernel.Transaction(func(tx *sql.Tx) error {

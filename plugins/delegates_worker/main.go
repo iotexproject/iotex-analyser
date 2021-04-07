@@ -83,11 +83,7 @@ func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
 }
 
 func (b delegatesWorkerPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := kernel.Transaction(func(tx *sql.Tx) error {
-		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
-	})
-
-	return err
+	return nil
 }
 
 func (b delegatesWorkerPlugin) Stop(ctx context.Context) error {

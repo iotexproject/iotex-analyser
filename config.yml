@@ -1,19 +1,20 @@
 server:
 #  http: 127.0.0.1:8989
+  httpAdminPort: 8988
   plugins:
     - block.so
-    # - blockmeta.so
-    # - blockmeta_reward.so
-    # - blockaction.so
+    - blockaction.so
+    - blockmeta.so
+    - blockmeta_reward.so
+    - delegates.so
     - iotexprice_worker.so
 database:
-  dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
+  dsn: root:root@tcp(127.0.0.1:3306)/analyser
 iotex:
-  catchUpMode: true
-  chainEndPoint: api.mainnet.iotex.one:80
-  batchSize: 128
+  #catchUpMode: true
+  chainEndPoint: api.testnet.iotex.one:80
 blockDB:
-  dbPath: chainlive-mainnet.db
+  dbPath: /media/millken/SAMSUNG/iotex-var/data/chain.db
 log:
   zap:
     development: false
@@ -23,15 +24,5 @@ log:
     disableStacktrace: false
     outputPaths: ["stderr"]
     errorOutputPaths: ["stderr"]
-  stdLogRedirect: true  
-subLogs:
-  pluginRunner:
-    zap:
-      development: false
-      level: info
-      encoding: console
-      disableCaller: false
-      disableStacktrace: false
-      outputPaths: ["stderr"]
-      errorOutputPaths: ["stderr"]
-    stdLogRedirect: true  
+  stdLogRedirect: false 
+  stderrRedirectFile: std.log

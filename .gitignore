@@ -16,3 +16,4 @@
 main
 iotex-analyser
 *.db
+*.log

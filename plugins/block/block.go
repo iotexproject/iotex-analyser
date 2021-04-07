@@ -59,7 +59,9 @@ func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		"producer_address": blk.ProducerAddress(),
 		"num_actions":      len(blk.Actions),
 		"timestamp":        blk.Timestamp().Unix(),
-		"date":             blk.Timestamp().Format("2006-01-02"),
+		"year":             blk.Timestamp().Format("2006"),
+		"month":            blk.Timestamp().Format("01"),
+		"day":              blk.Timestamp().Format("02"),
 	}
 
 	err := kernel.Transaction(func(tx *sql.Tx) error {

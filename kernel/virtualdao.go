@@ -101,6 +101,7 @@ func (vd *virtualDAO) TransactionLogs(height uint64) (*iotextypes.TransactionLog
 	if log == nil {
 		return &iotextypes.TransactionLogs{}, nil
 	}
+	//memory leak here
 	return block.DeserializeSystemLogPb(log.Serialize())
 }
 

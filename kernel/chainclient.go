@@ -2,7 +2,10 @@ package kernel
 
 import (
 	"crypto/tls"
+	"net"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
@@ -33,4 +36,14 @@ func ChainClient() iotexapi.APIServiceClient {
 		chainClient = iotexapi.NewAPIServiceClient(conn)
 	})
 	return chainClient
+}
+
+var DefaultHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	},
+	Timeout: time.Second * 10,
 }

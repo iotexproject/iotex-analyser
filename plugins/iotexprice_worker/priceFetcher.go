@@ -4,8 +4,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"io/ioutil"
-	"net/http"
 	"time"
+
+	"github.com/iotexproject/iotex-analyser/kernel"
 )
 
 const (
@@ -57,7 +58,7 @@ func (m *latestPrice1d) Value() (driver.Value, error) {
 
 func priceFetcher() (*cryptoLatestPrice, error) {
 	var info cryptoLatestPrice
-	response, err := http.Get(CryptoLatestPriceURL)
+	response, err := kernel.DefaultHTTPClient.Get(CryptoLatestPriceURL)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func priceFetcher() (*cryptoLatestPrice, error) {
 
 func price1dFetcher() (*latestPrice1d, error) {
 	var info latestPrice1d
-	response, err := http.Get(CryptoLatestPrice1dURL)
+	response, err := kernel.DefaultHTTPClient.Get(CryptoLatestPrice1dURL)
 	if err != nil {
 		return nil, err
 	}

@@ -39,9 +39,10 @@ var (
 
 type (
 	Server struct {
-		Http    string   `yaml:"http"`
-		Addr    string   `yaml:"addr"`
-		Plugins []string `yaml:"plugins"`
+		Http          string   `yaml:"http"`
+		Addr          string   `yaml:"addr"`
+		HTTPAdminPort int      `yaml:"httpAdminPort"`
+		Plugins       []string `yaml:"plugins"`
 	}
 	Database struct {
 		Dsn string `yaml:"dsn"`

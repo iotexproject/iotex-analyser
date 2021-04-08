@@ -121,7 +121,11 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 		return errors.Wrap(err, "failed to get tip height from block dao")
 	}
 	if config.Default.Iotex.CatchUpMode && daoHeight <= 0 {
-		daoHeight = tipHeight - 1
+		if config.Default.Iotex.CatchUpStartHeight > 0 {
+			daoHeight = config.Default.Iotex.CatchUpStartHeight - 1
+		} else {
+			daoHeight = tipHeight - 1
+		}
 	}
 
 	srv.logger.Info("start rebuild blockdao",

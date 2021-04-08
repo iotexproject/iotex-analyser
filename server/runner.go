@@ -111,6 +111,9 @@ func (r *runner) Start(ctx context.Context) error {
 			if daoHeight == 0 {
 				return errors.New("failed to fetch dao height")
 			}
+			if config.Default.Iotex.CatchUpStartHeight > 0 {
+				daoHeight = config.Default.Iotex.CatchUpStartHeight - 1
+			}
 			return kernel.UpdateIndexHeight(tx, r.plugin.Name(), daoHeight)
 		}); err != nil {
 			return err

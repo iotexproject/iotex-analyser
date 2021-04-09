@@ -32,10 +32,12 @@ func (b actionExecutionPlugin) Start(ctx context.Context) error {
 		"`block_height` bigint(20) UNSIGNED NOT NULL DEFAULT 0," +
 		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
 		"`contract` varchar(41) NOT NULL DEFAULT ''," +
+		"`receipt_contract_address` varchar(41) NOT NULL DEFAULT ''," +
 		"`data` blob," +
 		"PRIMARY KEY (`id`)," +
 		"KEY `block_height` (`block_height`)," +
-		"KEY `action_hash` (`action_hash`(9))" +
+		"KEY `action_hash` (`action_hash`(9))," +
+		"KEY `receipt_contract_address` (`receipt_contract_address`)" +
 		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
@@ -64,6 +66,12 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 				"action_hash":  hex.EncodeToString(actionHash[:]),
 				"contract":     contract,
 				"data":         data,
+			}
+			for _, receipt := range blk.Receipts {
+				if receipt.ActionHash == actionHash {
+					insertData["receipt_contract_address"] = receipt.ContractAddress
+					break
+				}
 			}
 
 			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {

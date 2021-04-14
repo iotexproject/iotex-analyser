@@ -18,3 +18,4 @@ iotex-analyser
 *.db
 *.log
 config_testlive.yml
+test/

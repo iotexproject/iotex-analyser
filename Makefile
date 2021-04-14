@@ -15,7 +15,7 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 PLUGIN_DIRECTORIES = $(dir $(wildcard plugins/*/*))
 
-.PHONY: plugins plugin build all run
+.PHONY: plugins plugin build proto all run
 
 all : plugins build
 
@@ -27,6 +27,9 @@ plugins:
 
 plugin:
 	$(GOBUILD) -o $(name).so -buildmode=plugin plugins/$(name)/*.go
+
+proto:
+	protoc --go_out=plugins=grpc:. proto/*.proto
 
 build:
 	$(GOBUILD) -v .

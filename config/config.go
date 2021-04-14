@@ -41,6 +41,7 @@ type (
 	Server struct {
 		Http          string   `yaml:"http"`
 		Addr          string   `yaml:"addr"`
+		GrpcPort      int      `yaml:"grpcPort"`
 		HTTPAdminPort int      `yaml:"httpAdminPort"`
 		Plugins       []string `yaml:"plugins"`
 	}

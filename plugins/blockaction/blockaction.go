@@ -97,10 +97,10 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				"to":               dst,
 				"gas_price":        gasPrice,
 				"gas_limit":        gasLimit,
-				"gas_consumed":     "",
+				"gas_consumed":     0,
 				"nonce":            nonce,
 				"amount":           amount,
-				"receipt_status":   "",
+				"receipt_status":   0,
 				"contract_address": "",
 			}
 			for _, receipt := range blk.Receipts {

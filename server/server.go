@@ -14,6 +14,7 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/go-pkgs/util/httputil"
+	"github.com/iotexproject/iotex-analyser/apiservice"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/action"
@@ -26,6 +27,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type Server struct {
@@ -58,6 +61,14 @@ func (srv *Server) Start(ctx context.Context) error {
 		go func() {
 			if err := srv.startHTTPService(); err != nil {
 				srv.logger.Fatal("failed to start http service", zap.Error(err))
+			}
+		}()
+	}
+
+	if config.Default.Server.GrpcPort > 0 {
+		go func() {
+			if err := srv.startGRPCService(); err != nil {
+				srv.logger.Fatal("failed to start GRPC service", zap.Error(err))
 			}
 		}()
 	}
@@ -283,4 +294,15 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 	srv.service = service
 	rpc.Accept(listener)
 	return nil
+}
+
+func (srv *Server) startGRPCService() error {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Default.Server.GrpcPort))
+	if err != nil {
+		return err
+	}
+	grpcServer := grpc.NewServer()
+	apiservice.RegisterAPIService(grpcServer)
+	reflection.Register(grpcServer)
+	return grpcServer.Serve(lis)
 }

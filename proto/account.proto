@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "./api";
+
+message AccountRequest {
+  string address = 1;
+  uint64 height = 2;
+}
+
+message AccountResponse { 
+  uint64 nonce  = 1;
+  string balance  = 2;
+}
+
+service AccountService {
+  rpc GetBalanceByHeight(AccountRequest) returns (AccountResponse) {};
+
+}

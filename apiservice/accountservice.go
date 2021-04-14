@@ -1,0 +1,75 @@
+package apiservice
+
+import (
+	"context"
+	"database/sql"
+	"math/big"
+
+	"github.com/iotexproject/iotex-analyser/api"
+	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-core/ioctl/util"
+)
+
+type AccountService struct{}
+
+/*
+mysql> SELECT SUM(amount),SUM(gas_price*gas_consumed) FROM block_action where block_height<=8844615 and `from`='io1fuhhg9jgdxwpms9dsdfwjdc90nt7v67hx40cd8';
++----------------------+-----------------------------+
+| SUM(amount)          | SUM(gas_price*gas_consumed) |
++----------------------+-----------------------------+
+| 33000000000000000000 |        24801116000000000000 |
++----------------------+-----------------------------+
+1 row in set (0.02 sec)
+mysql> SELECT SUM(amount) FROM block_action where block_height<=8844615 and `to`='io1fuhhg9jgdxwpms9dsdfwjdc90nt7v67hx40cd8';
++------------------------+
+| SUM(amount)            |
++------------------------+
+| 1020000000000000000000 |
++------------------------+
+1 row in set (0.01 sec)
+*/
+func (s *AccountService) GetBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
+	resp := &api.AccountResponse{}
+	addr := req.GetAddress()
+	height := req.GetHeight()
+
+	db := kernel.GetDB()
+
+	//get receive amount
+	var toAmount sql.NullString
+	query := "SELECT SUM(amount) FROM block_action WHERE block_height<=? AND `to`=?"
+	err := db.QueryRow(query, height, addr).Scan(&toAmount)
+	if err != nil {
+		return nil, err
+	}
+
+	//get cost amount
+	var fromAmount, gasFee sql.NullString
+	query = "SELECT SUM(amount),SUM(gas_price*gas_consumed) FROM block_action WHERE block_height<=? AND `from`=?"
+	err = db.QueryRow(query, height, addr).Scan(&fromAmount, &gasFee)
+	if err != nil {
+		return nil, err
+	}
+
+	to, ok := big.NewInt(0).SetString(toAmount.String, 10)
+	if !ok {
+		to = big.NewInt(0)
+	}
+	from, ok := big.NewInt(0).SetString(fromAmount.String, 10)
+	if !ok {
+		from = big.NewInt(0)
+	}
+	gas, _ := big.NewInt(0).SetString(gasFee.String, 10)
+	if !ok {
+		gas = big.NewInt(0)
+	}
+	//grpcurl -plaintext -d '{"address": "io15gq3w3q7x8vhlkpw6ldhdhzc2fphsxzjgcsztz"}' 127.0.0.1:7777 api.AccountService.GetBalanceByHeight
+	// to, _ = big.NewInt(0).SetString("1020000000000000000000", 10)
+	// from, _ = big.NewInt(0).SetString("33000000000000000000", 10)
+	// gas, _ = big.NewInt(0).SetString("24801116000000000000", 10)
+	balance := new(big.Int).Sub(to, from)
+	balance = new(big.Int).Sub(balance, gas)
+
+	resp.Balance = util.RauToString(balance, util.IotxDecimalNum)
+	return resp, nil
+}

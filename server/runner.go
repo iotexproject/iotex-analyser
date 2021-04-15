@@ -3,13 +3,15 @@ package server
 import (
 	"context"
 	"database/sql"
+	"math/big"
 	"sync"
 	"time"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	iap "github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
@@ -19,7 +21,7 @@ import (
 
 type runner struct {
 	dao       blockdao.BlockDAO
-	plugin    iap.Adapter
+	plugin    plugin.Adapter
 	vec       prometheus.Gauge
 	status    pluginStatus
 	logger    *zap.Logger
@@ -27,7 +29,7 @@ type runner struct {
 	wg        sync.WaitGroup
 }
 
-func newRunner(status pluginStatus, p iap.Adapter, dao blockdao.BlockDAO) (*runner, error) {
+func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*runner, error) {
 	r := &runner{
 		dao:       dao,
 		status:    status,
@@ -161,35 +163,37 @@ func (r *runner) Start(ctx context.Context) error {
 						time.Sleep(time.Microsecond * 200)
 						continue
 					}
-					// receipts, err := r.dao.GetReceipts(nextHeight)
-					// if err != nil {
-					// 	r.logger.Panic("failed to read receipts from dao", zap.Error(err))
-					// }
-					// blk.Receipts = receipts
-					// actionReceipts := make(map[hash.Hash256]*action.Receipt, len(receipts))
-					// for _, receipt := range receipts {
-					// 	actionReceipts[receipt.ActionHash] = receipt
-					// }
-					// tlogs, err := r.dao.TransactionLogs(nextHeight)
-					// if err != nil {
-					// 	r.logger.Panic("failed to read transaction logs from dao", zap.Error(err))
-					// }
-					// for _, l := range tlogs.Logs {
-					// 	logs := make([]*action.TransactionLog, len(l.Transactions))
-					// 	for i, txn := range l.Transactions {
-					// 		amount, ok := new(big.Int).SetString(txn.Amount, 10)
-					// 		if !ok {
-					// 			r.logger.Panic("failed to parse", zap.Any("amount", txn.Amount))
-					// 		}
-					// 		logs[i] = &action.TransactionLog{
-					// 			Type:      txn.Type,
-					// 			Amount:    amount,
-					// 			Sender:    txn.Sender,
-					// 			Recipient: txn.Recipient,
-					// 		}
-					// 	}
-					// 	actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
-					// }
+					if !config.Default.Iotex.CatchUpMode {
+						receipts, err := r.dao.GetReceipts(nextHeight)
+						if err != nil {
+							r.logger.Panic("failed to read receipts from dao", zap.Error(err))
+						}
+						blk.Receipts = receipts
+						actionReceipts := make(map[hash.Hash256]*action.Receipt, len(receipts))
+						for _, receipt := range receipts {
+							actionReceipts[receipt.ActionHash] = receipt
+						}
+						tlogs, err := r.dao.TransactionLogs(nextHeight)
+						if err != nil {
+							r.logger.Panic("failed to read transaction logs from dao", zap.Error(err))
+						}
+						for _, l := range tlogs.Logs {
+							logs := make([]*action.TransactionLog, len(l.Transactions))
+							for i, txn := range l.Transactions {
+								amount, ok := new(big.Int).SetString(txn.Amount, 10)
+								if !ok {
+									r.logger.Panic("failed to parse", zap.Any("amount", txn.Amount))
+								}
+								logs[i] = &action.TransactionLog{
+									Type:      txn.Type,
+									Amount:    amount,
+									Sender:    txn.Sender,
+									Recipient: txn.Recipient,
+								}
+							}
+							actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
+						}
+					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
 						r.logger.Warn("failed to put data to plugin, it will be retry in next time",
 							zap.String("pluginName", r.plugin.Name()),

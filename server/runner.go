@@ -157,7 +157,9 @@ func (r *runner) Start(ctx context.Context) error {
 					}
 					blk, err := r.dao.GetBlockByHeight(nextHeight)
 					if err != nil {
-						r.logger.Panic("failed to read block from dao", zap.Error(err))
+						r.logger.Error("failed to read block from dao, it will be retry in next time", zap.Error(err))
+						time.Sleep(time.Microsecond * 200)
+						continue
 					}
 					// receipts, err := r.dao.GetReceipts(nextHeight)
 					// if err != nil {
@@ -194,6 +196,7 @@ func (r *runner) Start(ctx context.Context) error {
 							zap.Uint64("blkHeight", blk.Height()),
 							zap.Error(err),
 						)
+						time.Sleep(time.Microsecond * 200)
 						continue
 					}
 					r.logger.Debug("putblock to plugin",

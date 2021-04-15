@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "1.1.0"
 
 type blockPlugin struct {
 	tableName string
@@ -41,6 +41,7 @@ func (b blockPlugin) Start(ctx context.Context) error {
 		"`day` tinyint(2) unsigned zerofill NOT NULL DEFAULT '00'," +
 		"PRIMARY KEY (`block_height`) USING BTREE," +
 		"KEY `producer_address` (`producer_address`)," +
+		"KEY `block_hash` (`block_hash`(9))," +
 		"KEY `year_month_day` (`year`,`month`,`day`)" +
 		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {

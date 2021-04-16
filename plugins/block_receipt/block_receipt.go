@@ -12,7 +12,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "1.1.0"
+
+const (
+	transfer                   = "transfer"
+	execution                  = "execution"
+	depositToRewardingFund     = "depositToRewardingFund"
+	claimFromRewardingFund     = "claimFromRewardingFund"
+	stakeCreate                = "stakeCreate"
+	stakeWithdraw              = "stakeWithdraw"
+	stakeAddDeposit            = "stakeAddDeposit"
+	candidateRegisterFee       = "candidateRegisterFee"
+	candidateRegisterSelfStake = "candidateRegisterSelfStake"
+	gasFee                     = "gasFee"
+)
+
 const (
 	receiptTableName            = "block_receipt"
 	receiptTransactionTableName = "block_receipt_transaction"
@@ -31,7 +45,13 @@ func (b blockReceiptPlugin) Type() plugin.Type {
 }
 
 func (b blockReceiptPlugin) Start(ctx context.Context) error {
-	if err := createTables(); err != nil {
+	var err error
+	config, _ := kernel.GetConfigCtx(ctx)
+	_, err = newConfig(config)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
+	}
+	if err = createTables(); err != nil {
 		return errors.Wrapf(err, "failed to start %s plugin", b.Name())
 	}
 	return nil
@@ -58,7 +78,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				insertData = map[string]interface{}{
 					"block_height": blk.Height(),
 					"action_hash":  actionHash,
-					"type":         transation.Type,
+					"type":         getActionType(transation.Type),
 					"amount":       transation.Amount.String(),
 					"sender":       transation.Sender,
 					"recipient":    transation.Recipient,

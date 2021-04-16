@@ -3,14 +3,17 @@ server:
   httpAdminPort: 8988
   grpcPort: 7777
   plugins:
-    # - block.so
-    # - blockaction.so
-    # - blockmeta.so
-    # - blockmeta_reward.so
-    # - delegates.so
-     - iotexprice_worker.so
+    - block.so
+    - blockaction.so
+    - blockmeta.so
+    - blockmeta_reward.so
+    - delegates.so
+    - iotexprice_worker.so
+    - action_execution.so
+    - block_receipt.so
+    - account_balance.so
 database:
-  dsn: root:root@tcp(127.0.0.1:3306)/analyser_testnet
+  dsn: root:root@tcp(127.0.0.1:3306)/scout
 iotex:
   #catchUpMode: true
   chainEndPoint: api.testnet.iotex.one:80
@@ -19,7 +22,7 @@ blockDB:
 log:
   zap:
     development: true
-    level: debug
+    level: info
     encoding: console
     disableCaller: false
     disableStacktrace: false
@@ -27,3 +30,9 @@ log:
     errorOutputPaths: ["stderr"]
   stdLogRedirect: false 
   #stderrRedirectFile: std.log
+genesis:
+  account:
+    initBalances:
+      io10t7juxazfteqzjsd6qjk7tkgmngj2tm7n4fvrd: "1000000000000000000000000000"
+      io120au9ra0nffdle04jx2g5gccn6gq8qd4fy03l4: "7000000000000000000000000000"
+      io1yrzvkucxpytn4fru35lc8r8jk4jtue4syg8d4h: "800000000000000000000000000"

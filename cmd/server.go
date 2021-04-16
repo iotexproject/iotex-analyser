@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/urfave/cli/v2"
@@ -24,7 +25,8 @@ func runServer(c *cli.Context) error {
 
 	srv := server.New()
 	go func() {
-		if err := srv.Start(c.Context); err != nil {
+		ctx := kernel.WithConfigCtx(c.Context, c.String("config"))
+		if err := srv.Start(ctx); err != nil {
 			log.L().Fatal("Failed to start the indexer", zap.Error(err))
 		}
 	}()

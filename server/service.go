@@ -188,7 +188,7 @@ func (s *Service) Info(args *Args, reply *Reply) error {
 	var b bytes.Buffer
 	tbl := table.New(showFields...).WithWriter(&b)
 	for _, m := range pluginMap {
-		height, _ := m.GetHeight()
+		height, _ := m.GetHeight(m.plugin.Name())
 		daoHeight, _ := s.dao.Height()
 		tbl.AddRow(
 			m.plugin.Name(),

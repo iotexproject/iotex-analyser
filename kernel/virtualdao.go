@@ -2,14 +2,16 @@ package kernel
 
 import (
 	"context"
-	"sync"
+	"strconv"
+	"sync/atomic"
+	"time"
 
-	"github.com/iotexproject/go-pkgs/cache"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 )
 
@@ -18,16 +20,14 @@ var (
 )
 
 type virtualDAO struct {
-	mu        sync.RWMutex
 	tipHeight uint64
-	store     *cache.ThreadSafeLruCache
+	store     *cache.Cache
 }
 
 func NewVirtualDao() blockdao.BlockDAO {
 	return &virtualDAO{
-		mu:        sync.RWMutex{},
 		tipHeight: 0,
-		store:     cache.NewThreadSafeLruCache(32),
+		store:     cache.New(5*time.Minute, 10*time.Minute),
 	}
 }
 
@@ -40,10 +40,7 @@ func (vd *virtualDAO) Stop(ctx context.Context) error {
 }
 
 func (vd *virtualDAO) Height() (uint64, error) {
-	vd.mu.RLock()
-	defer vd.mu.RUnlock()
-	height := vd.tipHeight
-	return height, nil
+	return atomic.LoadUint64(&vd.tipHeight), nil
 }
 
 func (vd *virtualDAO) GetBlockHash(height uint64) (hash.Hash256, error) {
@@ -59,7 +56,8 @@ func (vd *virtualDAO) GetBlock(hash hash.Hash256) (*block.Block, error) {
 }
 
 func (vd *virtualDAO) GetBlockByHeight(height uint64) (*block.Block, error) {
-	v, ok := vd.store.Get(height)
+	cacheKey := strconv.FormatUint(height, 10)
+	v, ok := vd.store.Get(cacheKey)
 	if !ok {
 		return nil, ErrBlockNotExist
 	}
@@ -79,7 +77,8 @@ func (vd *virtualDAO) FooterByHeight(height uint64) (*block.Footer, error) {
 }
 
 func (vd *virtualDAO) GetReceipts(height uint64) ([]*action.Receipt, error) {
-	v, ok := vd.store.Get(height)
+	cacheKey := strconv.FormatUint(height, 10)
+	v, ok := vd.store.Get(cacheKey)
 	if !ok {
 		return nil, ErrBlockNotExist
 	}
@@ -92,7 +91,8 @@ func (vd *virtualDAO) ContainsTransactionLog() bool {
 }
 
 func (vd *virtualDAO) TransactionLogs(height uint64) (*iotextypes.TransactionLogs, error) {
-	v, ok := vd.store.Get(height)
+	cacheKey := strconv.FormatUint(height, 10)
+	v, ok := vd.store.Get(cacheKey)
 	if !ok {
 		return nil, ErrBlockNotExist
 	}
@@ -107,10 +107,9 @@ func (vd *virtualDAO) TransactionLogs(height uint64) (*iotextypes.TransactionLog
 
 func (vd *virtualDAO) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
-	vd.store.Add(blkHeight, blk)
-	vd.mu.Lock()
-	vd.tipHeight = blkHeight
-	vd.mu.Unlock()
+	cacheKey := strconv.FormatUint(blkHeight, 10)
+	vd.store.Set(cacheKey, blk, cache.DefaultExpiration)
+	atomic.StoreUint64(&vd.tipHeight, blkHeight)
 	return nil
 }
 

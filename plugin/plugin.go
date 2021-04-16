@@ -21,3 +21,7 @@ type Adapter interface {
 	Stop(context.Context) error
 	PutBlock(context.Context, *block.Block) error
 }
+
+type DependentAdapter interface {
+	DependentPlugin() string
+}

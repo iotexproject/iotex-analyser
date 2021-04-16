@@ -56,7 +56,7 @@ func (r *runner) Status() pluginStatus {
 }
 
 func (r *runner) nextHeight() (uint64, error) {
-	height, err := r.GetHeight()
+	height, err := r.GetHeight(r.plugin.Name())
 	if err != nil {
 		return 0, err
 	}
@@ -64,13 +64,13 @@ func (r *runner) nextHeight() (uint64, error) {
 	return nextHeight, nil
 }
 
-func (r *runner) GetHeight() (uint64, error) {
+func (r *runner) GetHeight(pluginName string) (uint64, error) {
 
-	row := kernel.GetDB().QueryRow("SELECT height FROM index_heights WHERE name = ?", r.plugin.Name())
+	row := kernel.GetDB().QueryRow("SELECT height FROM index_heights WHERE name = ?", pluginName)
 
 	var h sql.NullInt64
 	if err := row.Scan(&h); err != nil && err != sql.ErrNoRows {
-		return 0, errors.Wrapf(err, "failed to get index height :%s", r.plugin.Name())
+		return 0, errors.Wrapf(err, "failed to get index height :%s", pluginName)
 	}
 	if !h.Valid {
 		return 0, nil
@@ -138,7 +138,7 @@ func (r *runner) Start(ctx context.Context) error {
 			default:
 				//prevent dead loop
 				time.Sleep(3 * time.Second)
-				tipHeight, err = r.dao.Height()
+				tipHeight, err = r.getTipHeight()
 				if err != nil {
 					r.logger.Error("failed to get blockdao height", zap.Error(err))
 					continue
@@ -159,8 +159,13 @@ func (r *runner) Start(ctx context.Context) error {
 					}
 					blk, err := r.dao.GetBlockByHeight(nextHeight)
 					if err != nil {
-						r.logger.Error("failed to read block from dao, it will be retry in next time", zap.Error(err))
-						time.Sleep(time.Microsecond * 200)
+						r.logger.Error("failed to read block from dao, it will be retry in next time",
+							zap.Error(err),
+							zap.String("pluginName", r.plugin.Name()),
+							zap.Uint64("nextHeight", nextHeight),
+							zap.Uint64("tipHeight", tipHeight),
+						)
+						time.Sleep(time.Microsecond * 700)
 						continue
 					}
 					if !config.Default.Iotex.CatchUpMode {
@@ -200,7 +205,7 @@ func (r *runner) Start(ctx context.Context) error {
 							zap.Uint64("blkHeight", blk.Height()),
 							zap.Error(err),
 						)
-						time.Sleep(time.Microsecond * 200)
+						time.Sleep(time.Microsecond * 700)
 						continue
 					}
 					r.logger.Debug("putblock to plugin",
@@ -214,6 +219,14 @@ func (r *runner) Start(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+//checking dependent plugin
+func (r *runner) getTipHeight() (uint64, error) {
+	if dep, ok := r.plugin.(plugin.DependentAdapter); ok {
+		return r.GetHeight(dep.DependentPlugin())
+	}
+	return r.dao.Height()
 }
 
 func (r *runner) Stop(ctx context.Context) error {

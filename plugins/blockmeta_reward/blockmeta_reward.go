@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "1.1.0"
 
 type blockMetaRewardPlugin struct {
 	tableName string
@@ -104,6 +104,10 @@ func (b blockMetaRewardPlugin) Stop(ctx context.Context) error {
 
 func (b blockMetaRewardPlugin) Version() string {
 	return VERSION
+}
+
+func (b blockMetaRewardPlugin) DependentPlugin() string {
+	return "blockmeta"
 }
 
 // exported

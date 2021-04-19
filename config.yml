@@ -13,7 +13,7 @@ server:
     - block_receipt.so
     - account_balance.so
 database:
-  dsn: root:root@tcp(127.0.0.1:3306)/scout
+  dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
 iotex:
   #catchUpMode: true
   chainEndPoint: api.testnet.iotex.one:80

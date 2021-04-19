@@ -12,6 +12,10 @@ make #both plugin and plugin
 
 ## Usage
 
+- please use the snapshot with index data:
+   1. mainnet: https://t.iotex.me/mainnet-data-with-idx-latest
+   2. testnet: https://t.iotex.me/testnet-data-with-idx-latest
+
 ```
 ./iotex-analyser -c config.yml server #start server
 ./iotex-analyser -c config.yml plugin load block.so #load plugin

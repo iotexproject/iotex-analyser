@@ -67,7 +67,7 @@ func (srv *Server) Start(ctx context.Context) error {
 
 	if config.Default.Server.GrpcPort > 0 {
 		go func() {
-			if err := srv.startGRPCService(); err != nil {
+			if err := apiservice.StartGRPCServiceWithProxy(); err != nil {
 				srv.logger.Fatal("failed to start GRPC service", zap.Error(err))
 			}
 		}()

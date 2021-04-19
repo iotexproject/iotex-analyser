@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package api;
+import "google/api/annotations.proto";
 
 option go_package = "./api";
 
@@ -15,7 +16,12 @@ message AccountResponse {
 }
 
 service AccountService {
-  rpc GetIotexBalanceByHeight(AccountRequest) returns (AccountResponse) {};
+  rpc GetIotexBalanceByHeight(AccountRequest) returns (AccountResponse) {
+    option (google.api.http) = {
+      post: "/v1/hhhhhhhhhhhhhhhhh"
+      body: "*"
+    };
+  };
   rpc GetErc20TokenBalanceByHeight(AccountRequest) returns (AccountResponse) {};
 
 }

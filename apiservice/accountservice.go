@@ -10,7 +10,9 @@ import (
 	"github.com/iotexproject/iotex-core/ioctl/util"
 )
 
-type AccountService struct{}
+type AccountService struct {
+	api.UnimplementedAccountServiceServer
+}
 
 /*
 mysql> SELECT SUM(amount),SUM(gas_price*gas_consumed) FROM block_action where block_height<=8844615 and `from`='io1fuhhg9jgdxwpms9dsdfwjdc90nt7v67hx40cd8';

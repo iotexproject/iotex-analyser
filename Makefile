@@ -29,7 +29,7 @@ plugin:
 	$(GOBUILD) -o $(name).so -buildmode=plugin plugins/$(name)/*.go
 
 proto:
-	protoc --go_out=plugins=grpc:. proto/*.proto
+	protoc -I ./proto --go_out ./  --go-grpc_out ./ --grpc-gateway_out ./ proto/*.proto
 
 build:
 	$(GOBUILD) -v .

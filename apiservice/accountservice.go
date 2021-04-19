@@ -28,7 +28,7 @@ mysql> SELECT SUM(amount) FROM block_action where block_height<=8844615 and `to`
 +------------------------+
 1 row in set (0.01 sec)
 */
-func (s *AccountService) GetBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
+func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
 	resp := &api.AccountResponse{}
 	addr := req.GetAddress()
 	height := req.GetHeight()
@@ -63,7 +63,6 @@ func (s *AccountService) GetBalanceByHeight(ctx context.Context, req *api.Accoun
 	if !ok {
 		gas = big.NewInt(0)
 	}
-	//grpcurl -plaintext -d '{"address": "io15gq3w3q7x8vhlkpw6ldhdhzc2fphsxzjgcsztz"}' 127.0.0.1:7777 api.AccountService.GetBalanceByHeight
 	// to, _ = big.NewInt(0).SetString("1020000000000000000000", 10)
 	// from, _ = big.NewInt(0).SetString("33000000000000000000", 10)
 	// gas, _ = big.NewInt(0).SetString("24801116000000000000", 10)
@@ -71,5 +70,44 @@ func (s *AccountService) GetBalanceByHeight(ctx context.Context, req *api.Accoun
 	balance = new(big.Int).Sub(balance, gas)
 
 	resp.Balance = util.RauToString(balance, util.IotxDecimalNum)
+	return resp, nil
+}
+
+//grpcurl -plaintext -d '{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }' 127.0.0.1:7777 api.AccountService.GetErc20TokenBalanceByHeight
+func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
+	resp := &api.AccountResponse{}
+	addr := req.GetAddress()
+	height := req.GetHeight()
+
+	db := kernel.GetDB()
+
+	//get receive amount
+	var toAmount sql.NullString
+	query := "SELECT SUM(amount) FROM account_balance_erc20 WHERE block_height<=? AND `to`=?"
+	err := db.QueryRow(query, height, addr).Scan(&toAmount)
+	if err != nil {
+		return nil, err
+	}
+
+	//get cost amount
+	var fromAmount sql.NullString
+	query = "SELECT SUM(amount) FROM account_balance_erc20 WHERE block_height<=? AND `from`=?"
+	err = db.QueryRow(query, height, addr).Scan(&fromAmount)
+	if err != nil {
+		return nil, err
+	}
+
+	to, ok := big.NewInt(0).SetString(toAmount.String, 10)
+	if !ok {
+		to = big.NewInt(0)
+	}
+	from, ok := big.NewInt(0).SetString(fromAmount.String, 10)
+	if !ok {
+		from = big.NewInt(0)
+	}
+
+	balance := new(big.Int).Sub(to, from)
+
+	resp.Balance = util.RauToString(balance, 6)
 	return resp, nil
 }

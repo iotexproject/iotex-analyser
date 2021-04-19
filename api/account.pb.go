@@ -147,13 +147,18 @@ var file_proto_account_proto_rawDesc = []byte{
 	0x65, 0x12, 0x14, 0x0a, 0x05, 0x6e, 0x6f, 0x6e, 0x63, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04,
 	0x52, 0x05, 0x6e, 0x6f, 0x6e, 0x63, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x62, 0x61, 0x6c, 0x61, 0x6e,
 	0x63, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x62, 0x61, 0x6c, 0x61, 0x6e, 0x63,
-	0x65, 0x32, 0x53, 0x0a, 0x0e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x53, 0x65, 0x72, 0x76,
-	0x69, 0x63, 0x65, 0x12, 0x41, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x42, 0x61, 0x6c, 0x61, 0x6e, 0x63,
-	0x65, 0x42, 0x79, 0x48, 0x65, 0x69, 0x67, 0x68, 0x74, 0x12, 0x13, 0x2e, 0x61, 0x70, 0x69, 0x2e,
-	0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x14,
-	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x07, 0x5a, 0x05, 0x2e, 0x2f, 0x61, 0x70, 0x69, 0x62,
-	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x32, 0xa5, 0x01, 0x0a, 0x0e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x53, 0x65, 0x72,
+	0x76, 0x69, 0x63, 0x65, 0x12, 0x46, 0x0a, 0x17, 0x47, 0x65, 0x74, 0x49, 0x6f, 0x74, 0x65, 0x78,
+	0x42, 0x61, 0x6c, 0x61, 0x6e, 0x63, 0x65, 0x42, 0x79, 0x48, 0x65, 0x69, 0x67, 0x68, 0x74, 0x12,
+	0x13, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x41, 0x63, 0x63, 0x6f, 0x75,
+	0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x4b, 0x0a, 0x1c,
+	0x47, 0x65, 0x74, 0x45, 0x72, 0x63, 0x32, 0x30, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x42, 0x61, 0x6c,
+	0x61, 0x6e, 0x63, 0x65, 0x42, 0x79, 0x48, 0x65, 0x69, 0x67, 0x68, 0x74, 0x12, 0x13, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x07, 0x5a, 0x05, 0x2e, 0x2f, 0x61,
+	0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -174,10 +179,12 @@ var file_proto_account_proto_goTypes = []interface{}{
 	(*AccountResponse)(nil), // 1: api.AccountResponse
 }
 var file_proto_account_proto_depIdxs = []int32{
-	0, // 0: api.AccountService.GetBalanceByHeight:input_type -> api.AccountRequest
-	1, // 1: api.AccountService.GetBalanceByHeight:output_type -> api.AccountResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	0, // 0: api.AccountService.GetIotexBalanceByHeight:input_type -> api.AccountRequest
+	0, // 1: api.AccountService.GetErc20TokenBalanceByHeight:input_type -> api.AccountRequest
+	1, // 2: api.AccountService.GetIotexBalanceByHeight:output_type -> api.AccountResponse
+	1, // 3: api.AccountService.GetErc20TokenBalanceByHeight:output_type -> api.AccountResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -246,7 +253,8 @@ const _ = grpc.SupportPackageIsVersion6
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AccountServiceClient interface {
-	GetBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error)
+	GetIotexBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error)
+	GetErc20TokenBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error)
 }
 
 type accountServiceClient struct {
@@ -257,9 +265,18 @@ func NewAccountServiceClient(cc grpc.ClientConnInterface) AccountServiceClient {
 	return &accountServiceClient{cc}
 }
 
-func (c *accountServiceClient) GetBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error) {
+func (c *accountServiceClient) GetIotexBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error) {
 	out := new(AccountResponse)
-	err := c.cc.Invoke(ctx, "/api.AccountService/GetBalanceByHeight", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.AccountService/GetIotexBalanceByHeight", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) GetErc20TokenBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error) {
+	out := new(AccountResponse)
+	err := c.cc.Invoke(ctx, "/api.AccountService/GetErc20TokenBalanceByHeight", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -268,35 +285,57 @@ func (c *accountServiceClient) GetBalanceByHeight(ctx context.Context, in *Accou
 
 // AccountServiceServer is the server API for AccountService service.
 type AccountServiceServer interface {
-	GetBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error)
+	GetIotexBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error)
+	GetErc20TokenBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error)
 }
 
 // UnimplementedAccountServiceServer can be embedded to have forward compatible implementations.
 type UnimplementedAccountServiceServer struct {
 }
 
-func (*UnimplementedAccountServiceServer) GetBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBalanceByHeight not implemented")
+func (*UnimplementedAccountServiceServer) GetIotexBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetIotexBalanceByHeight not implemented")
+}
+func (*UnimplementedAccountServiceServer) GetErc20TokenBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetErc20TokenBalanceByHeight not implemented")
 }
 
 func RegisterAccountServiceServer(s *grpc.Server, srv AccountServiceServer) {
 	s.RegisterService(&_AccountService_serviceDesc, srv)
 }
 
-func _AccountService_GetBalanceByHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _AccountService_GetIotexBalanceByHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).GetBalanceByHeight(ctx, in)
+		return srv.(AccountServiceServer).GetIotexBalanceByHeight(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.AccountService/GetBalanceByHeight",
+		FullMethod: "/api.AccountService/GetIotexBalanceByHeight",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).GetBalanceByHeight(ctx, req.(*AccountRequest))
+		return srv.(AccountServiceServer).GetIotexBalanceByHeight(ctx, req.(*AccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_GetErc20TokenBalanceByHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).GetErc20TokenBalanceByHeight(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.AccountService/GetErc20TokenBalanceByHeight",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).GetErc20TokenBalanceByHeight(ctx, req.(*AccountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -306,8 +345,12 @@ var _AccountService_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*AccountServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetBalanceByHeight",
-			Handler:    _AccountService_GetBalanceByHeight_Handler,
+			MethodName: "GetIotexBalanceByHeight",
+			Handler:    _AccountService_GetIotexBalanceByHeight_Handler,
+		},
+		{
+			MethodName: "GetErc20TokenBalanceByHeight",
+			Handler:    _AccountService_GetErc20TokenBalanceByHeight_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

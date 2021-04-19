@@ -15,6 +15,7 @@ message AccountResponse {
 }
 
 service AccountService {
-  rpc GetBalanceByHeight(AccountRequest) returns (AccountResponse) {};
+  rpc GetIotexBalanceByHeight(AccountRequest) returns (AccountResponse) {};
+  rpc GetErc20TokenBalanceByHeight(AccountRequest) returns (AccountResponse) {};
 
 }

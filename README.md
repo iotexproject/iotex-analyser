@@ -26,4 +26,10 @@ iotex:
   chainEndPoint: api.testnet.iotex.one:80
 blockDB:
   dbPath: chain.db
+genesis: #testnet is here, mainnet see https://github.com/iotexproject/iotex-bootstrap/blob/master/genesis_mainnet.yaml
+  account:
+    initBalances:
+      io10t7juxazfteqzjsd6qjk7tkgmngj2tm7n4fvrd: "1000000000000000000000000000"
+      io120au9ra0nffdle04jx2g5gccn6gq8qd4fy03l4: "7000000000000000000000000000"
+      io1yrzvkucxpytn4fru35lc8r8jk4jtue4syg8d4h: "800000000000000000000000000"
 ```

@@ -3,54 +3,48 @@ package apiservice
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/iotexproject/iotex-analyser/api"
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/soheilhy/cmux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
-func RegisterAPIService(grpcServer *grpc.Server) {
+func registerAPIService(grpcServer *grpc.Server) {
 	api.RegisterAccountServiceServer(grpcServer, &AccountService{})
 }
 
-func StartGRPCServiceWithProxy() error {
+func registerProxyAPIService(ctx context.Context, mux *runtime.ServeMux) error {
+	if err := api.RegisterAccountServiceHandlerServer(ctx, mux, &AccountService{}); err != nil {
+		return err
+	}
+	return nil
+}
 
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Default.Server.GrpcPort))
+func StartGRPCService() error {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Default.Server.GrpcPort))
 	if err != nil {
 		return err
 	}
-	m := cmux.New(l)
-	mux := http.NewServeMux()
-	gwmux := runtime.NewServeMux()
-	mux.Handle("/", gwmux)
 	grpcServer := grpc.NewServer()
-	ctx := context.Background()
-	//api.RegisterAccountServiceServer(grpcServer, &AccountService{})
-	api.RegisterAccountServiceHandlerServer(ctx, gwmux, &AccountService{})
-	//RegisterAPIService(grpcServer)
+	registerAPIService(grpcServer)
 	reflection.Register(grpcServer)
-	grpcL := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
-	httpL := m.Match(cmux.HTTP1Fast())
-	go func() {
-		if err := grpcServer.Serve(grpcL); err != nil {
-			log.Panic(err)
-		}
-	}()
+	return grpcServer.Serve(lis)
+}
 
-	httpS := &http.Server{
-		Handler: mux,
+func StartGRPCProxyService() error {
+	gwmux := runtime.NewServeMux()
+	ctx := context.Background()
+	if err := registerProxyAPIService(ctx, gwmux); err != nil {
+		return err
 	}
-	go func() {
-		if err := httpS.Serve(httpL); err != nil {
-			log.Panic(err)
-		}
-	}()
-
-	return m.Serve()
+	port := fmt.Sprintf(":%d", config.Default.Server.GrpcProxyPort)
+	gwServer := &http.Server{
+		Addr:    port,
+		Handler: gwmux,
+	}
+	return gwServer.ListenAndServe()
 }

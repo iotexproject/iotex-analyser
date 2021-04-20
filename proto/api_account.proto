@@ -18,10 +18,15 @@ message AccountResponse {
 service AccountService {
   rpc GetIotexBalanceByHeight(AccountRequest) returns (AccountResponse) {
     option (google.api.http) = {
-      post: "/v1/hhhhhhhhhhhhhhhhh"
+      post: "/api.AccountService.GetErc20TokenBalanceByHeight"
       body: "*"
     };
   };
-  rpc GetErc20TokenBalanceByHeight(AccountRequest) returns (AccountResponse) {};
+  rpc GetErc20TokenBalanceByHeight(AccountRequest) returns (AccountResponse) {
+    option (google.api.http) = {
+      post: "/api.AccountService.GetErc20TokenBalanceByHeight"
+      body: "*"
+    };
+  };
 
 }

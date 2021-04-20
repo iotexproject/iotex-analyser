@@ -27,8 +27,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 type Server struct {
@@ -67,8 +65,16 @@ func (srv *Server) Start(ctx context.Context) error {
 
 	if config.Default.Server.GrpcPort > 0 {
 		go func() {
-			if err := apiservice.StartGRPCServiceWithProxy(); err != nil {
+			if err := apiservice.StartGRPCService(); err != nil {
 				srv.logger.Fatal("failed to start GRPC service", zap.Error(err))
+			}
+		}()
+	}
+
+	if config.Default.Server.GrpcProxyPort > 0 {
+		go func() {
+			if err := apiservice.StartGRPCProxyService(); err != nil {
+				srv.logger.Fatal("failed to start GRPC HTTP Proxy service", zap.Error(err))
 			}
 		}()
 	}
@@ -294,15 +300,4 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 	srv.service = service
 	rpc.Accept(listener)
 	return nil
-}
-
-func (srv *Server) startGRPCService() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Default.Server.GrpcPort))
-	if err != nil {
-		return err
-	}
-	grpcServer := grpc.NewServer()
-	apiservice.RegisterAPIService(grpcServer)
-	reflection.Register(grpcServer)
-	return grpcServer.Serve(lis)
 }

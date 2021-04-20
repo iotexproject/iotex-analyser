@@ -76,6 +76,7 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 }
 
 //grpcurl -plaintext -d '{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }' 127.0.0.1:7777 api.AccountService.GetErc20TokenBalanceByHeight
+//curl -d '{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }' http://rvice.GetErc20TokenBalanceByHeight
 func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
 	resp := &api.AccountResponse{}
 	addr := req.GetAddress()

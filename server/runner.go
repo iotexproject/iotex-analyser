@@ -19,6 +19,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	retryBlockTime = time.Microsecond * 700
+)
+
 type runner struct {
 	dao       blockdao.BlockDAO
 	plugin    plugin.Adapter
@@ -165,13 +169,15 @@ func (r *runner) Start(ctx context.Context) error {
 							zap.Uint64("nextHeight", nextHeight),
 							zap.Uint64("tipHeight", tipHeight),
 						)
-						time.Sleep(time.Microsecond * 700)
+						time.Sleep(retryBlockTime)
 						continue
 					}
 					if !config.Default.Iotex.CatchUpMode {
 						receipts, err := r.dao.GetReceipts(nextHeight)
 						if err != nil {
-							r.logger.Panic("failed to read receipts from dao", zap.Error(err))
+							r.logger.Error("failed to read receipts from dao", zap.Error(err))
+							time.Sleep(retryBlockTime)
+							continue
 						}
 						blk.Receipts = receipts
 						actionReceipts := make(map[hash.Hash256]*action.Receipt, len(receipts))
@@ -180,23 +186,27 @@ func (r *runner) Start(ctx context.Context) error {
 						}
 						tlogs, err := r.dao.TransactionLogs(nextHeight)
 						if err != nil {
-							r.logger.Panic("failed to read transaction logs from dao", zap.Error(err))
-						}
-						for _, l := range tlogs.Logs {
-							logs := make([]*action.TransactionLog, len(l.Transactions))
-							for i, txn := range l.Transactions {
-								amount, ok := new(big.Int).SetString(txn.Amount, 10)
-								if !ok {
-									r.logger.Panic("failed to parse", zap.Any("amount", txn.Amount))
+							r.logger.Error("failed to read transaction logs from dao", zap.Error(err))
+							time.Sleep(retryBlockTime)
+							continue
+						} else {
+							for _, l := range tlogs.Logs {
+								logs := make([]*action.TransactionLog, len(l.Transactions))
+								for i, txn := range l.Transactions {
+									amount, ok := new(big.Int).SetString(txn.Amount, 10)
+									if !ok {
+										r.logger.Error("failed to parse transaction amount", zap.Any("amount", txn.Amount))
+										continue
+									}
+									logs[i] = &action.TransactionLog{
+										Type:      txn.Type,
+										Amount:    amount,
+										Sender:    txn.Sender,
+										Recipient: txn.Recipient,
+									}
 								}
-								logs[i] = &action.TransactionLog{
-									Type:      txn.Type,
-									Amount:    amount,
-									Sender:    txn.Sender,
-									Recipient: txn.Recipient,
-								}
+								actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
 							}
-							actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
 						}
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
@@ -205,7 +215,7 @@ func (r *runner) Start(ctx context.Context) error {
 							zap.Uint64("blkHeight", blk.Height()),
 							zap.Error(err),
 						)
-						time.Sleep(time.Microsecond * 700)
+						time.Sleep(retryBlockTime)
 						continue
 					}
 					r.logger.Debug("putblock to plugin",

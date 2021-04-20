@@ -129,16 +129,13 @@ func (r *runner) Start(ctx context.Context) error {
 	var nextHeight, tipHeight uint64
 	var err error
 	var retrys int
+	var integrated bool
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-
 		for {
 			if !r.isRunning.Get() {
 				return
-			}
-			if retrys > 5 {
-				r.Stop(ctx)
 			}
 			select {
 			case <-ctx.Done():
@@ -146,6 +143,11 @@ func (r *runner) Start(ctx context.Context) error {
 			default:
 				//prevent dead loop
 				time.Sleep(3 * time.Second)
+				if !config.Default.Iotex.CatchUpMode {
+					integrated = false
+				} else {
+					integrated = true
+				}
 				tipHeight, err = r.getTipHeight()
 				if err != nil {
 					r.logger.Error("failed to get blockdao height", zap.Error(err))
@@ -167,6 +169,9 @@ func (r *runner) Start(ctx context.Context) error {
 					if !r.isRunning.Get() {
 						break
 					}
+					if retrys > 5 {
+						r.Stop(ctx)
+					}
 					blk, err := r.dao.GetBlockByHeight(nextHeight)
 					if err != nil {
 						r.logger.Error("failed to read block from dao",
@@ -182,8 +187,9 @@ func (r *runner) Start(ctx context.Context) error {
 							retrys++
 							continue
 						}
+						integrated = true
 					}
-					if !config.Default.Iotex.CatchUpMode {
+					if !integrated {
 						receipts, err := r.dao.GetReceipts(nextHeight)
 						if err != nil {
 							r.logger.Error("failed to read receipts from dao", zap.Error(err))

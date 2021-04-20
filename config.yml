@@ -1,7 +1,12 @@
 server:
 #  http: 127.0.0.1:8989
+  #debug port
   httpAdminPort: 8988
+  #grpc api support
   grpcPort: 7777
+  #http api support
+  grpcProxyPort: 7778
+  #loaded default plugin list
   plugins:
     - block.so
     - blockaction.so

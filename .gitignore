@@ -19,3 +19,4 @@ iotex-analyser
 *.log
 config_testlive.yml
 test/
+config_mainnet.yml

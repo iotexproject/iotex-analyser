@@ -50,6 +50,7 @@ type (
 		Dsn string `yaml:"dsn"`
 	}
 	Iotex struct {
+		DisableRebuildDB   bool   `yaml:"disableRebuildDB"`
 		CatchUpMode        bool   `yaml:"catchUpMode"`
 		CatchUpStartHeight uint64 `yaml:"catchUpStartHeight"`
 		ChainEndPoint      string `yaml:"chainEndPoint"`

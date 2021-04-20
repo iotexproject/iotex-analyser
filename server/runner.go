@@ -128,13 +128,17 @@ func (r *runner) Start(ctx context.Context) error {
 	r.isRunning.Set(true)
 	var nextHeight, tipHeight uint64
 	var err error
-
+	var retrys int
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
+
 		for {
 			if !r.isRunning.Get() {
 				return
+			}
+			if retrys > 5 {
+				r.Stop(ctx)
 			}
 			select {
 			case <-ctx.Done():
@@ -145,11 +149,13 @@ func (r *runner) Start(ctx context.Context) error {
 				tipHeight, err = r.getTipHeight()
 				if err != nil {
 					r.logger.Error("failed to get blockdao height", zap.Error(err))
+					retrys++
 					continue
 				}
 				nextHeight, err = r.nextHeight()
 				if err != nil {
 					r.logger.Error("failed to get next height", zap.Error(err))
+					retrys++
 					continue
 				}
 				r.logger.Debug("succefully to fetch plugin meta",
@@ -163,20 +169,26 @@ func (r *runner) Start(ctx context.Context) error {
 					}
 					blk, err := r.dao.GetBlockByHeight(nextHeight)
 					if err != nil {
-						r.logger.Error("failed to read block from dao, it will be retry in next time",
+						r.logger.Error("failed to read block from dao",
 							zap.Error(err),
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("nextHeight", nextHeight),
 							zap.Uint64("tipHeight", tipHeight),
 						)
 						time.Sleep(retryBlockTime)
-						continue
+						blk, err = GetBlockByHeight(nextHeight)
+						if err != nil {
+							r.logger.Error("failed to read block from chain")
+							retrys++
+							continue
+						}
 					}
 					if !config.Default.Iotex.CatchUpMode {
 						receipts, err := r.dao.GetReceipts(nextHeight)
 						if err != nil {
 							r.logger.Error("failed to read receipts from dao", zap.Error(err))
 							time.Sleep(retryBlockTime)
+							retrys++
 							continue
 						}
 						blk.Receipts = receipts
@@ -188,6 +200,7 @@ func (r *runner) Start(ctx context.Context) error {
 						if err != nil {
 							r.logger.Error("failed to read transaction logs from dao", zap.Error(err))
 							time.Sleep(retryBlockTime)
+							retrys++
 							continue
 						} else {
 							for _, l := range tlogs.Logs {
@@ -196,6 +209,7 @@ func (r *runner) Start(ctx context.Context) error {
 									amount, ok := new(big.Int).SetString(txn.Amount, 10)
 									if !ok {
 										r.logger.Error("failed to parse transaction amount", zap.Any("amount", txn.Amount))
+										retrys++
 										continue
 									}
 									logs[i] = &action.TransactionLog{
@@ -210,18 +224,20 @@ func (r *runner) Start(ctx context.Context) error {
 						}
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
-						r.logger.Warn("failed to put data to plugin, it will be retry in next time",
+						r.logger.Error("failed to put data to plugin, it will be retry in next time",
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("blkHeight", blk.Height()),
 							zap.Error(err),
 						)
 						time.Sleep(retryBlockTime)
+						retrys++
 						continue
 					}
 					r.logger.Debug("putblock to plugin",
 						zap.String("pluginName", r.plugin.Name()),
 						zap.Uint64("blkHeight", blk.Height()),
 					)
+					retrys = 0
 					r.vec.Set(float64(blk.Height()))
 					nextHeight++
 				}

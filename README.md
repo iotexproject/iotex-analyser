@@ -4,10 +4,10 @@ async analyser for iotex
 ## Install
 
 ```
-make plugin #auto make plugin so file
+make plugins #auto make plugin so file
+make plugin name=xxx #compiile single plugin,xxx means plugins/xxx/*.go
 make build #server
-make run #build + run
-make #both plugin and plugin
+make #both server and plugins
 ```
 
 ## Usage
@@ -18,8 +18,9 @@ make #both plugin and plugin
 
 ```
 ./iotex-analyser -c config.yml server #start server
-./iotex-analyser -c config.yml plugin load block.so #load plugin
-./iotex-analyser -c config.yml plugin unload block.so #unload plugin
+./iotex-analyser -c config.yml plugin load block.so #dynmic load plugin
+./iotex-analyser -c config.yml plugin unload block.so #dynmic unload plugin
+./iotex-analyser -c config.yml plugin info #display plugin running information
 ```
 
 ### simple config.yml

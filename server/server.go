@@ -261,8 +261,10 @@ func (srv *Server) startDaoService() error {
 			if !srv.isRunning.Get() {
 				break
 			}
-			if err := srv.startRebuildBlockDaoWorker(ctxDao); err != nil {
-				srv.logger.Error("failed to start http service", zap.Error(err))
+			if !config.Default.Iotex.DisableRebuildDB {
+				if err := srv.startRebuildBlockDaoWorker(ctxDao); err != nil {
+					srv.logger.Error("failed to start http service", zap.Error(err))
+				}
 			}
 			time.Sleep(time.Second * 4)
 		}

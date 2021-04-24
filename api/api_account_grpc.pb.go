@@ -19,7 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccountServiceClient interface {
 	GetIotexBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error)
-	GetErc20TokenBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error)
+	GetErc20TokenBalanceByHeight(ctx context.Context, in *AccountErc20TokenRequest, opts ...grpc.CallOption) (*AccountResponse, error)
 }
 
 type accountServiceClient struct {
@@ -39,7 +39,7 @@ func (c *accountServiceClient) GetIotexBalanceByHeight(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *accountServiceClient) GetErc20TokenBalanceByHeight(ctx context.Context, in *AccountRequest, opts ...grpc.CallOption) (*AccountResponse, error) {
+func (c *accountServiceClient) GetErc20TokenBalanceByHeight(ctx context.Context, in *AccountErc20TokenRequest, opts ...grpc.CallOption) (*AccountResponse, error) {
 	out := new(AccountResponse)
 	err := c.cc.Invoke(ctx, "/api.AccountService/GetErc20TokenBalanceByHeight", in, out, opts...)
 	if err != nil {
@@ -53,7 +53,7 @@ func (c *accountServiceClient) GetErc20TokenBalanceByHeight(ctx context.Context,
 // for forward compatibility
 type AccountServiceServer interface {
 	GetIotexBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error)
-	GetErc20TokenBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error)
+	GetErc20TokenBalanceByHeight(context.Context, *AccountErc20TokenRequest) (*AccountResponse, error)
 	mustEmbedUnimplementedAccountServiceServer()
 }
 
@@ -64,7 +64,7 @@ type UnimplementedAccountServiceServer struct {
 func (UnimplementedAccountServiceServer) GetIotexBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetIotexBalanceByHeight not implemented")
 }
-func (UnimplementedAccountServiceServer) GetErc20TokenBalanceByHeight(context.Context, *AccountRequest) (*AccountResponse, error) {
+func (UnimplementedAccountServiceServer) GetErc20TokenBalanceByHeight(context.Context, *AccountErc20TokenRequest) (*AccountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetErc20TokenBalanceByHeight not implemented")
 }
 func (UnimplementedAccountServiceServer) mustEmbedUnimplementedAccountServiceServer() {}
@@ -99,7 +99,7 @@ func _AccountService_GetIotexBalanceByHeight_Handler(srv interface{}, ctx contex
 }
 
 func _AccountService_GetErc20TokenBalanceByHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountRequest)
+	in := new(AccountErc20TokenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func _AccountService_GetErc20TokenBalanceByHeight_Handler(srv interface{}, ctx c
 		FullMethod: "/api.AccountService/GetErc20TokenBalanceByHeight",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).GetErc20TokenBalanceByHeight(ctx, req.(*AccountRequest))
+		return srv.(AccountServiceServer).GetErc20TokenBalanceByHeight(ctx, req.(*AccountErc20TokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

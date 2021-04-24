@@ -66,7 +66,7 @@ func local_request_AccountService_GetIotexBalanceByHeight_0(ctx context.Context,
 }
 
 func request_AccountService_GetErc20TokenBalanceByHeight_0(ctx context.Context, marshaler runtime.Marshaler, client AccountServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq AccountRequest
+	var protoReq AccountErc20TokenRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -83,7 +83,7 @@ func request_AccountService_GetErc20TokenBalanceByHeight_0(ctx context.Context, 
 }
 
 func local_request_AccountService_GetErc20TokenBalanceByHeight_0(ctx context.Context, marshaler runtime.Marshaler, server AccountServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq AccountRequest
+	var protoReq AccountErc20TokenRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -236,7 +236,7 @@ func RegisterAccountServiceHandlerClient(ctx context.Context, mux *runtime.Serve
 }
 
 var (
-	pattern_AccountService_GetIotexBalanceByHeight_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"api.AccountService.GetErc20TokenBalanceByHeight"}, ""))
+	pattern_AccountService_GetIotexBalanceByHeight_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"api.AccountService.GetIotexBalanceByHeight"}, ""))
 
 	pattern_AccountService_GetErc20TokenBalanceByHeight_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"api.AccountService.GetErc20TokenBalanceByHeight"}, ""))
 )

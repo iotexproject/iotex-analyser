@@ -117,8 +117,8 @@ func (vd *virtualDAO) DeleteBlockToTarget(uint64) error {
 	return nil
 }
 
-func (vd *virtualDAO) GetActionByActionHash(hash.Hash256, uint64) (action.SealedEnvelope, error) {
-	return action.SealedEnvelope{}, nil
+func (vd *virtualDAO) GetActionByActionHash(hash.Hash256, uint64) (action.SealedEnvelope, uint32, error) {
+	return action.SealedEnvelope{}, 0, nil
 }
 
 func (vd *virtualDAO) DeleteTipBlock() error {

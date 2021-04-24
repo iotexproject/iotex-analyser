@@ -9,14 +9,15 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
 	github.com/iotexproject/iotex-address v0.2.4
-	github.com/iotexproject/iotex-core v1.1.4
-	github.com/iotexproject/iotex-proto v0.4.7
+	github.com/iotexproject/iotex-core v1.1.4-0.20210422035137-398ff6ace915
+	github.com/iotexproject/iotex-proto v0.5.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.3.0
 	github.com/rodaine/table v1.0.1
 	github.com/urfave/cli/v2 v2.3.0
+	github.com/vmihailenco/msgpack/v5 v5.3.1
 	go.uber.org/zap v1.16.0
 	google.golang.org/genproto v0.0.0-20210224155714-063164c882e6
 	google.golang.org/grpc v1.36.0

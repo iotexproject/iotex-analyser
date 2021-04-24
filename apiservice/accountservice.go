@@ -8,6 +8,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/api"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/ioctl/util"
+	"github.com/iotexproject/iotex-address/address"
 )
 
 type AccountService struct {
@@ -34,6 +35,15 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 	resp := &api.AccountResponse{}
 	addr := req.GetAddress()
 	height := req.GetHeight()
+
+    if addr[:2] == "0x" || addr[:2] == "0X" {
+		add, err := address.fromHex(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		addr = add.String()
+	}
 
 	db := kernel.GetDB()
 
@@ -77,25 +87,44 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 
 //grpcurl -plaintext -d '{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }' 127.0.0.1:7777 api.AccountService.GetErc20TokenBalanceByHeight
 //curl -d '{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }' http://rvice.GetErc20TokenBalanceByHeight
-func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
+func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *api.AccountErc20TokenRequest) (*api.AccountResponse, error) {
 	resp := &api.AccountResponse{}
 	addr := req.GetAddress()
 	height := req.GetHeight()
+	contractAddress = req.GetContractAddress()
+
+	if addr[:2] == "0x" || addr[:2] == "0X" {
+		add, err := address.fromHex(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		addr = add.String()
+	}
+
+	if contractAddress[:2] == "0x" || contractAddress[:2] == "0X" {
+		add, err := address.fromHex(contractAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		contractAddress = add.String()
+	}
 
 	db := kernel.GetDB()
 
 	//get receive amount
 	var toAmount sql.NullString
-	query := "SELECT SUM(amount) FROM account_balance_erc20 WHERE block_height<=? AND `to`=?"
-	err := db.QueryRow(query, height, addr).Scan(&toAmount)
+	query := "SELECT SUM(amount) FROM account_balance_erc20 WHERE block_height<=? AND `to`=? AND `contract_address`=?"
+	err := db.QueryRow(query, height, addr, contractAddress).Scan(&toAmount)
 	if err != nil {
 		return nil, err
 	}
 
 	//get cost amount
 	var fromAmount sql.NullString
-	query = "SELECT SUM(amount) FROM account_balance_erc20 WHERE block_height<=? AND `from`=?"
-	err = db.QueryRow(query, height, addr).Scan(&fromAmount)
+	query = "SELECT SUM(amount) FROM account_balance_erc20 WHERE block_height<=? AND `from`=? AND `contract_address`=?"
+	err = db.QueryRow(query, height, addr, contractAddress).Scan(&fromAmount)
 	if err != nil {
 		return nil, err
 	}

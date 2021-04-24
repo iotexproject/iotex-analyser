@@ -15,6 +15,12 @@ message AccountResponse {
   string balance  = 2;
 }
 
+message AccountErc20TokenRequest {
+  string address = 1;
+  uint64 height = 2;
+  string contract_address = 3;
+}
+
 service AccountService {
   rpc GetIotexBalanceByHeight(AccountRequest) returns (AccountResponse) {
     option (google.api.http) = {
@@ -22,7 +28,7 @@ service AccountService {
       body: "*"
     };
   };
-  rpc GetErc20TokenBalanceByHeight(AccountRequest) returns (AccountResponse) {
+  rpc GetErc20TokenBalanceByHeight(AccountErc20TokenRequest) returns (AccountResponse) {
     option (google.api.http) = {
       post: "/api.AccountService.GetErc20TokenBalanceByHeight"
       body: "*"

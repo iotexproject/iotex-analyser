@@ -26,6 +26,9 @@ jobs:
 #             ${{ runner.os }}-go-
       - name: build iotex-analyser
         run: |
+          export GOPATH=~/go
+          export GOROOT="/usr/local/go1.16.2"
+          export PATH=$PATH:$GOPATH/bin
           make         
           sudo supervisorctl restart analyser
           for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done

@@ -27,7 +27,8 @@ jobs:
       - name: build iotex-analyser
         run: |
           make 
-          rm /home/ubuntu/iotex-analyser/*.so || cp iotex-analyser *.so /home/ubuntu/iotex-analyser/
+          rm /home/ubuntu/iotex-analyser/*.so
+          cp iotex-analyser *.so /home/ubuntu/iotex-analyser/
           sudo supervisorctl restart analyser
           cd /home/ubuntu/iotex-analyser/ && for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
           

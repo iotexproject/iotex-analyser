@@ -28,6 +28,7 @@ jobs:
         run: |
           make         
           sudo supervisorctl restart analyser
+          for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
           
 #       - name: print env
 #         run: |

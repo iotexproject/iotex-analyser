@@ -25,9 +25,12 @@ jobs:
 #           restore-keys: |
 #             ${{ runner.os }}-go-
       - name: build iotex-analyser
+        run: make
+      - name: delete old so
         run: |
-          make 
           rm /home/ubuntu/iotex-analyser/*.so
+          mv /home/ubuntu/iotex-analyser/iotex-analyser{,_$(date \+%F)}
+        continue-on-error: true
       - name: restart server
         run: |
           cp iotex-analyser *.so /home/ubuntu/iotex-analyser/

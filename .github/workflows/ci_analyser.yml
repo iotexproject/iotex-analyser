@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
 
     steps:
       - name: Checkout Project
@@ -25,29 +25,32 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: build iotex-analyser
-
-        run: make
-      - name: print env
         run: |
-          echo ${{ secrets.SCOUT_HOST }}, ${{ secrets.SCOUT_USER }}, ${{ secrets.SCOUT_PORT }}
+          make         
+          sudo supervisorctl restart analyser
+          
+#       - name: print env
+#         run: |
+#           echo ${{ secrets.SCOUT_HOST }}, ${{ secrets.SCOUT_USER }}, ${{ secrets.SCOUT_PORT }}
 
-      - name: ssh scp ssh pipelines
-        uses: cross-the-world/ssh-scp-ssh-pipelines@latest
-        env:
-          WELCOME: "ssh scp ssh pipelines"
-          LASTSSH: "Doing something after copying"
-        with:
-          host: ${{ secrets.SCOUT_HOST }}
-          user: ${{ secrets.SCOUT_USER }}
-          key: ${{ secrets.SCOUT_KEY }}
-          port: ${{ secrets.SCOUT_PORT }}
-          connect_timeout: 10s
-          first_ssh: |
-            mv /home/ubuntu/iotex-analyser/iotex-analyser{,_$(date \+%F)}
-            echo $WELCOME
 
-          scp: |
-            './iotex-analyser' => /home/ubuntu/iotex-analyser/
-            './*.so' => /home/ubuntu/iotex-analyser/
-          last_ssh: |
-            sudo supervisorctl restart analyser
+#       - name: ssh scp ssh pipelines
+#         uses: cross-the-world/ssh-scp-ssh-pipelines@latest
+#         env:
+#           WELCOME: "ssh scp ssh pipelines"
+#           LASTSSH: "Doing something after copying"
+#         with:
+#           host: ${{ secrets.SCOUT_HOST }}
+#           user: ${{ secrets.SCOUT_USER }}
+#           key: ${{ secrets.SCOUT_KEY }}
+#           port: ${{ secrets.SCOUT_PORT }}
+#           connect_timeout: 10s
+#           first_ssh: |
+#             mv /home/ubuntu/iotex-analyser/iotex-analyser{,_$(date \+%F)}
+#             echo $WELCOME
+
+#           scp: |
+#             './iotex-analyser' => /home/ubuntu/iotex-analyser/
+#             './*.so' => /home/ubuntu/iotex-analyser/
+#           last_ssh: |
+#             sudo supervisorctl restart analyser

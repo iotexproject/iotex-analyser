@@ -44,7 +44,6 @@ jobs:
           connect_timeout: 10s
           first_ssh: |
             mv /home/ubuntu/iotex-analyser/iotex-analyser{,_$(date \+%F)}
-            rm /home/ubuntu/iotex-analyser/*.so
             echo $WELCOME
 
           scp: |

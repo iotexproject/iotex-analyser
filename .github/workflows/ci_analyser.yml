@@ -26,12 +26,10 @@ jobs:
 #             ${{ runner.os }}-go-
       - name: build iotex-analyser
         run: |
-          export GOPATH=~/go
-          export GOROOT="/usr/local/go1.16.2"
-          export PATH=$PATH:$GOPATH/bin
-          make         
+          make 
+          rm /home/ubuntu/iotex-analyser/*.so || cp iotex-analyser *.so /home/ubuntu/iotex-analyser/
           sudo supervisorctl restart analyser
-          for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
+          cd /home/ubuntu/iotex-analyser/ && for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
           
 #       - name: print env
 #         run: |

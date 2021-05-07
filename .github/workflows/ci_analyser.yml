@@ -34,8 +34,7 @@ jobs:
         run: |
           cp *.so /home/ubuntu/iotex-analyser/
           sudo supervisorctl restart analyser
-
-#cd /home/ubuntu/iotex-analyser/ && for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
+          cd /home/ubuntu/iotex-analyser/ && for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
           
 #       - name: print env
 #         run: |

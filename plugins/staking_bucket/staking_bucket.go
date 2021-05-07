@@ -51,6 +51,7 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 	if err != nil {
 		return err
 	}
+	//io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53
 
 	err = kernel.Transaction(func(tx *sql.Tx) error {
 

@@ -48,6 +48,7 @@ func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*r
 			Help: "analyser plugin metrics.",
 		},
 	)
+	prometheus.MustRegister(r.vec)
 	return r, nil
 }
 

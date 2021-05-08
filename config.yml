@@ -17,6 +17,7 @@ server:
     - action_execution.so
     - block_receipt.so
     - account_balance.so
+    - account_income.so
 database:
   dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
 iotex:

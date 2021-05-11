@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -43,6 +45,9 @@ func main() {
 		if err := log.InitLoggers(cfg.Log, cfg.SubLogs); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: Failed to init logger: %v\n", err)
 			os.Exit(1)
+		}
+		if strings.Contains(cfg.Iotex.ChainEndPoint, "testnet") {
+			coreconfig.SetEVMNetworkID(4690)
 		}
 		return nil
 	}

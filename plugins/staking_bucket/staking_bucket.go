@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.0.0"
+const VERSION = "1.1.0"
 
 const successStatus = uint64(1)
 
@@ -54,6 +54,7 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 	//io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53
 
 	err = kernel.Transaction(func(tx *sql.Tx) error {
+		cmpNum := big.NewInt(100000000)
 
 		for _, receipt := range blk.Receipts {
 			if receipt.Status != successStatus {
@@ -64,6 +65,9 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if log.Address == stakingProtocolAddr.String() && len(log.Topics) > 1 {
 					bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
 
+					if bucketIndex.Cmp(cmpNum) > 0 {
+						continue
+					}
 					insertData := map[string]interface{}{
 						"action_hash": actionHash,
 						"bucket_id":   bucketIndex.String(),

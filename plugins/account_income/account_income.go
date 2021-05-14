@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.0.2"
+const VERSION = "1.1.2"
 
 type income struct {
 	inFlow        *big.Int
@@ -47,6 +47,21 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 	if _, err := kernel.GetDB().Exec(createSql); err != nil {
 		return errors.Wrap(err, "failed to start plugin")
 	}
+
+	createSql = "CREATE TABLE IF NOT EXISTS `account_income_count` (" +
+		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
+		"`account_address` varchar(41) NOT NULL DEFAULT ''," +
+		"`in_flow` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
+		"`in_num_actions` int(5) unsigned NOT NULL DEFAULT '0'," +
+		"`out_flow` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
+		"`out_num_actions` int(5) unsigned NOT NULL DEFAULT '0'," +
+		"PRIMARY KEY (`id`)," +
+		"UNIQUE KEY `account_address` (`account_address`)" +
+		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
+	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+
 	var err error
 	config, _ := kernel.GetConfigCtx(ctx)
 	_, err = newConfig(config)
@@ -70,6 +85,13 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 				"account_address": addr,
 			}
 			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+				return err
+			}
+			insertData = map[string]interface{}{
+				"in_flow":         amount,
+				"account_address": addr,
+			}
+			if err := kernel.InsertTableData(tx, "account_income_count", insertData); err != nil {
 				return err
 			}
 		}
@@ -126,6 +148,10 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				"out_num_actions": income.outNumActions,
 			}
 			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+				return err
+			}
+			_, err := tx.Exec("INSERT INTO account_income_count (account_address,in_flow,in_num_actions,out_flow,out_num_actions) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE in_flow=in_flow+?,in_num_actions=in_num_actions+?,out_flow=out_flow+?,out_num_actions=out_num_actions+?", accountAddress, income.inFlow.String(), income.inNumActions, income.outFlow.String(), income.outNumActions, income.inFlow.String(), income.inNumActions, income.outFlow.String(), income.outNumActions)
+			if err != nil {
 				return err
 			}
 		}

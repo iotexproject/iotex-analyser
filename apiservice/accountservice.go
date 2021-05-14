@@ -93,7 +93,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 	height := req.GetHeight()
 	contractAddress := req.GetContractAddress()
 
-	if addr[:2] == "0x" || addr[:2] == "0X" {
+	if len(addr) > 2 && (addr[:2] == "0x" || addr[:2] == "0X") {
 		add, err := address.FromHex(addr)
 		if err != nil {
 			return nil, err
@@ -102,7 +102,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 		addr = add.String()
 	}
 
-	if contractAddress[:2] == "0x" || contractAddress[:2] == "0X" {
+	if len(contractAddress) > 2 && (contractAddress[:2] == "0x" || contractAddress[:2] == "0X") {
 		add, err := address.FromHex(contractAddress)
 		if err != nil {
 			return nil, err

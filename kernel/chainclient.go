@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
@@ -14,21 +15,27 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+var chainClient iotexapi.APIServiceClient
+var chainClientOnce sync.Once
+
 func ChainClient() iotexapi.APIServiceClient {
-	var opt grpc.DialOption
-	if !config.Default.Iotex.ChainInsecure {
-		opt = grpc.WithInsecure()
-	} else {
-		opt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
-	}
-	conn, err := grpc.Dial(config.Default.Iotex.ChainEndPoint, opt)
-	if err != nil {
-		log.L().Error("failed to connect to chain endpoint.",
-			zap.Error(err),
-			zap.String("endpoint", config.Default.Iotex.ChainEndPoint),
-		)
-	}
-	return iotexapi.NewAPIServiceClient(conn)
+	chainClientOnce.Do(func() {
+		var opt grpc.DialOption
+		if !config.Default.Iotex.ChainInsecure {
+			opt = grpc.WithInsecure()
+		} else {
+			opt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
+		}
+		conn, err := grpc.Dial(config.Default.Iotex.ChainEndPoint, opt)
+		if err != nil {
+			log.L().Error("failed to connect to chain endpoint.",
+				zap.Error(err),
+				zap.String("endpoint", config.Default.Iotex.ChainEndPoint),
+			)
+		}
+		chainClient = iotexapi.NewAPIServiceClient(conn)
+	})
+	return chainClient
 }
 
 var DefaultHTTPClient = &http.Client{

@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "1.0.2"
 
 type income struct {
 	inFlow        *big.Int
@@ -89,30 +89,28 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if transation.Sender != "" {
 					if _, ok := incomes[transation.Sender]; !ok {
 						incomes[transation.Sender] = &income{
-							outFlow:       transation.Amount,
+							outFlow:       big.NewInt(0).Set(transation.Amount),
 							outNumActions: 1,
 							inFlow:        big.NewInt(0),
 							inNumActions:  0,
 						}
 					} else {
-						incomes[transation.Sender].outFlow.Add(incomes[transation.Sender].outFlow, transation.Amount)
+						incomes[transation.Sender].outFlow = incomes[transation.Sender].outFlow.Add(incomes[transation.Sender].outFlow, transation.Amount)
 						incomes[transation.Sender].outNumActions += 1
 					}
-
 				}
 				if transation.Recipient != "" {
 					if _, ok := incomes[transation.Recipient]; !ok {
 						incomes[transation.Recipient] = &income{
-							inFlow:        transation.Amount,
+							inFlow:        big.NewInt(0).Set(transation.Amount),
 							inNumActions:  1,
 							outFlow:       big.NewInt(0),
 							outNumActions: 0,
 						}
 					} else {
-						incomes[transation.Recipient].inFlow.Add(incomes[transation.Recipient].inFlow, transation.Amount)
+						incomes[transation.Recipient].inFlow = incomes[transation.Recipient].inFlow.Add(incomes[transation.Recipient].inFlow, transation.Amount)
 						incomes[transation.Recipient].inNumActions += 1
 					}
-
 				}
 
 			}

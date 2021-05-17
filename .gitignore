@@ -22,3 +22,4 @@ test/
 config_mainnet.yml
 daodb/
 config_mainlive.yml
+config_testnet.yml

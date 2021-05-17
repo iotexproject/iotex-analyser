@@ -47,40 +47,17 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 
 	db := kernel.GetDB()
 
-	//get receive amount
-	var toAmount sql.NullString
-	query := "SELECT SUM(amount) FROM block_action WHERE block_height<=? AND `to`=?"
-	err := db.QueryRow(query, height, addr).Scan(&toAmount)
+	var amount sql.NullString
+	query := "SELECT sum(in_flow)-sum(out_flow) from account_income WHERE block_height<=? and account_adress=?"
+	err := db.QueryRow(query, height, addr).Scan(&amount)
 	if err != nil {
 		return nil, err
 	}
 
-	//get cost amount
-	var fromAmount, gasFee sql.NullString
-	query = "SELECT SUM(amount),SUM(gas_price*gas_consumed) FROM block_action WHERE block_height<=? AND `from`=?"
-	err = db.QueryRow(query, height, addr).Scan(&fromAmount, &gasFee)
-	if err != nil {
-		return nil, err
-	}
-
-	to, ok := big.NewInt(0).SetString(toAmount.String, 10)
+	balance, ok := big.NewInt(0).SetString(amount.String, 10)
 	if !ok {
-		to = big.NewInt(0)
+		balance = big.NewInt(0)
 	}
-	from, ok := big.NewInt(0).SetString(fromAmount.String, 10)
-	if !ok {
-		from = big.NewInt(0)
-	}
-	gas, _ := big.NewInt(0).SetString(gasFee.String, 10)
-	if !ok {
-		gas = big.NewInt(0)
-	}
-	// to, _ = big.NewInt(0).SetString("1020000000000000000000", 10)
-	// from, _ = big.NewInt(0).SetString("33000000000000000000", 10)
-	// gas, _ = big.NewInt(0).SetString("24801116000000000000", 10)
-	balance := new(big.Int).Sub(to, from)
-	balance = new(big.Int).Sub(balance, gas)
-
 	resp.Balance = util.RauToString(balance, util.IotxDecimalNum)
 	return resp, nil
 }

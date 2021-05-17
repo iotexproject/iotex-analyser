@@ -48,7 +48,7 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 	db := kernel.GetDB()
 
 	var amount sql.NullString
-	query := "SELECT sum(in_flow)-sum(out_flow) from account_income WHERE block_height<=? and account_adress=?"
+	query := "SELECT sum(in_flow)-sum(out_flow) from account_income WHERE block_height<=? and account_address=?"
 	err := db.QueryRow(query, height, addr).Scan(&amount)
 	if err != nil {
 		return nil, err

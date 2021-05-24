@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.1.2"
+const VERSION = "1.1.3"
 
 type income struct {
 	inFlow        *big.Int
@@ -138,19 +138,19 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			}
 		}
 
-		for accountAddress, income := range incomes {
+		for accountAddress, accountIncome := range incomes {
 			insertData := map[string]interface{}{
 				"block_height":    blk.Height(),
 				"account_address": accountAddress,
-				"in_flow":         income.inFlow.String(),
-				"in_num_actions":  income.inNumActions,
-				"out_flow":        income.outFlow.String(),
-				"out_num_actions": income.outNumActions,
+				"in_flow":         accountIncome.inFlow.String(),
+				"in_num_actions":  accountIncome.inNumActions,
+				"out_flow":        accountIncome.outFlow.String(),
+				"out_num_actions": accountIncome.outNumActions,
 			}
 			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
 				return err
 			}
-			_, err := tx.Exec("INSERT INTO account_income_count (account_address,in_flow,in_num_actions,out_flow,out_num_actions) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE in_flow=in_flow+?,in_num_actions=in_num_actions+?,out_flow=out_flow+?,out_num_actions=out_num_actions+?", accountAddress, income.inFlow.String(), income.inNumActions, income.outFlow.String(), income.outNumActions, income.inFlow.String(), income.inNumActions, income.outFlow.String(), income.outNumActions)
+			_, err := tx.Exec("INSERT INTO account_income_count (account_address,in_flow,in_num_actions,out_flow,out_num_actions) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE in_flow=in_flow+?,in_num_actions=in_num_actions+?,out_flow=out_flow+?,out_num_actions=out_num_actions+?", accountAddress, accountIncome.inFlow.String(), accountIncome.inNumActions, accountIncome.outFlow.String(), accountIncome.outNumActions, accountIncome.inFlow.String(), accountIncome.inNumActions, accountIncome.outFlow.String(), accountIncome.outNumActions)
 			if err != nil {
 				return err
 			}

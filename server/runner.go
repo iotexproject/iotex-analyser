@@ -126,6 +126,27 @@ func (r *runner) Start(ctx context.Context) error {
 	if err := r.plugin.Start(ctx); err != nil {
 		return errors.Wrap(err, "failed to start runner")
 	}
+	if config.Default.Iotex.CrawlMode {
+		for _, nextHeight := range config.Default.Iotex.CrawlHeight {
+			blk, err := GetBlockByHeight(nextHeight)
+			if err != nil {
+				r.logger.Error("failed to read block from chain")
+				continue
+			}
+			if err := r.plugin.PutBlock(ctx, blk); err != nil {
+				r.logger.Error("failed to put data to plugin",
+					zap.String("pluginName", r.plugin.Name()),
+					zap.Uint64("blkHeight", blk.Height()),
+					zap.Error(err),
+				)
+			}
+			r.logger.Debug("putblock to plugin",
+				zap.String("pluginName", r.plugin.Name()),
+				zap.Uint64("blkHeight", blk.Height()),
+			)
+		}
+		return nil
+	}
 	r.isRunning.Set(true)
 	var nextHeight, tipHeight uint64
 	var err error

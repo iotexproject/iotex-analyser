@@ -10,6 +10,7 @@ import (
 	"net/rpc"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -30,6 +31,7 @@ import (
 )
 
 type Server struct {
+	m         sync.RWMutex
 	dao       blockdao.BlockDAO
 	service   *Service
 	logger    *zap.Logger
@@ -117,6 +119,8 @@ func (srv *Server) Start(ctx context.Context) error {
 }
 
 func (srv *Server) Stop(ctx context.Context) error {
+	srv.m.RLock()
+	defer srv.m.RUnlock()
 	srv.isRunning.Set(false)
 	if err := srv.service.Stop(ctx); err != nil {
 		return err
@@ -299,7 +303,9 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 	if err := rpc.Register(service); err != nil {
 		return err
 	}
+	srv.m.Lock()
 	srv.service = service
+	srv.m.Unlock()
 	rpc.Accept(listener)
 	return nil
 }

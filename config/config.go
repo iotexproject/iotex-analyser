@@ -50,12 +50,14 @@ type (
 		Dsn string `yaml:"dsn"`
 	}
 	Iotex struct {
-		DisableRebuildDB   bool   `yaml:"disableRebuildDB"`
-		CatchUpMode        bool   `yaml:"catchUpMode"`
-		CatchUpStartHeight uint64 `yaml:"catchUpStartHeight"`
-		ChainEndPoint      string `yaml:"chainEndPoint"`
-		ChainInsecure      bool   `yaml:"chainInsecure"`
-		BatchSize          uint64 `yaml:"batchSize"` //default 64, ~ 10 blocks
+		CrawlMode          bool     `yaml:"crawlMode"`
+		CrawlHeight        []uint64 `yaml:"crawlHeight"`
+		DisableRebuildDB   bool     `yaml:"disableRebuildDB"`
+		CatchUpMode        bool     `yaml:"catchUpMode"`
+		CatchUpStartHeight uint64   `yaml:"catchUpStartHeight"`
+		ChainEndPoint      string   `yaml:"chainEndPoint"`
+		ChainInsecure      bool     `yaml:"chainInsecure"`
+		BatchSize          uint64   `yaml:"batchSize"` //default 64, ~ 10 blocks
 	}
 	Config struct {
 		Server   Server                      `yaml:"server"`

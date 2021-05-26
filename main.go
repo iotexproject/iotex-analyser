@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	version = "0.1.0-dev"
+	version = "1.2.1"
 )
 
 func main() {
@@ -48,7 +48,12 @@ func main() {
 		}
 		if strings.Contains(cfg.Iotex.ChainEndPoint, "testnet") {
 			coreconfig.SetEVMNetworkID(4690)
+		} else {
+			coreconfig.SetEVMNetworkID(4689)
 		}
+		log.L().Info("loaded iotex-core configure",
+			zap.Uint32("EVMNetworkID", coreconfig.EVMNetworkID()),
+		)
 		return nil
 	}
 	app.Commands = []*cli.Command{

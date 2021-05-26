@@ -9,7 +9,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
 	github.com/iotexproject/iotex-address v0.2.4
-	github.com/iotexproject/iotex-core v1.1.4-0.20210422035137-398ff6ace915
+	github.com/iotexproject/iotex-core v1.2.0
 	github.com/iotexproject/iotex-proto v0.5.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible

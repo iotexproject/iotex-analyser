@@ -143,6 +143,8 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/ethereum/go-ethereum v1.8.27/go.mod h1:PwpWDrCLZrV+tfrhqqF6kPknbISMHaJv9Ln3kPCZLwY=
 github.com/ethereum/go-ethereum v1.9.5 h1:4oxsF+/3N/sTgda9XTVG4r+wMVLsveziSMcK83hPbsk=
 github.com/ethereum/go-ethereum v1.9.5/go.mod h1:PwpWDrCLZrV+tfrhqqF6kPknbISMHaJv9Ln3kPCZLwY=
+github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a h1:yDWHCSQ40h88yih2JAcL6Ls/kVkSE8GFACTGVnMPruw=
+github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a/go.mod h1:7Ga40egUymuWXxAe151lTNnCv97MddSOVsjpPPkityA=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5 h1:FtmdgXiUlNeRsoNMFlKLDt+S+6hbjVMEW6RGQ7aUf7c=
 github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
@@ -307,8 +309,8 @@ github.com/iotexproject/iotex-address v0.2.4/go.mod h1:K78yPSMB4K7gF/iQ7djT1amph
 github.com/iotexproject/iotex-antenna-go/v2 v2.4.0/go.mod h1:gN2/O/8/Up1AqocrntePkgbHQSxAFyq5o+LUi4x4r9Q=
 github.com/iotexproject/iotex-antenna-go/v2 v2.4.2-0.20201211202736-96d536a425fe h1:3ZoCWB1oguKwsaQDdofhrnLu5TQqQfNv4EgFDfGSe7g=
 github.com/iotexproject/iotex-antenna-go/v2 v2.4.2-0.20201211202736-96d536a425fe/go.mod h1:uHaU3caCfeOlWav8D2uAbAAFO/YEKQVZhY3eUU1z0d0=
-github.com/iotexproject/iotex-core v1.1.4-0.20210422035137-398ff6ace915 h1:XBsrbVvrE1KjGEqM8AMG3Qo4Og6pmmK0V0GrUHkK1hc=
-github.com/iotexproject/iotex-core v1.1.4-0.20210422035137-398ff6ace915/go.mod h1:vpGkPLcORFBUEZGpRD+mRyLG7DlzXtkdA4OHbIvmfQQ=
+github.com/iotexproject/iotex-core v1.2.0 h1:ozZFljhcC/LqxOEDz4nVWzddXU6OW426UyGKdeZ6HHs=
+github.com/iotexproject/iotex-core v1.2.0/go.mod h1:CVwfgz2NwFgt7xsvkbMHzMcJYtMige5SAveTeVd3hIs=
 github.com/iotexproject/iotex-election v0.3.5-0.20201031050050-c3ab4f339a54 h1:nUHBrG5mlqxWzv/wjOkv8M7cwi5uTjZjSqLpo26HS00=
 github.com/iotexproject/iotex-election v0.3.5-0.20201031050050-c3ab4f339a54/go.mod h1:rA7Vl9hDRRb3qYUuwH4ywMKsITjO5J1ThyLWoA+VQ2U=
 github.com/iotexproject/iotex-proto v0.4.0/go.mod h1:SttnbjoUJKHuKtDxCDJ5ewziAY4XrMPE2wo++Xod4b0=

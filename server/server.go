@@ -259,6 +259,11 @@ func (srv *Server) startDaoService() error {
 	if err := dao.Start(ctxDao); err != nil {
 		return err
 	}
+	daoHeight, err := dao.Height()
+	if err != nil {
+		return err
+	}
+	srv.logger.Info("successfully to loaded BlockDAO", zap.Uint64("daoHeight", daoHeight))
 	srv.dao = dao
 	go func() {
 		for {

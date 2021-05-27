@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.1.3"
+const VERSION = "1.1.4"
 
 type income struct {
 	inFlow        *big.Int
@@ -101,43 +101,44 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 }
 
 func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := kernel.Transaction(func(tx *sql.Tx) error {
-
-		incomes := make(map[string]*income)
-		for _, receipt := range blk.Receipts {
-
-			//transaction
-			for _, transation := range receipt.TransactionLogs() {
-				if transation.Sender != "" {
-					if _, ok := incomes[transation.Sender]; !ok {
-						incomes[transation.Sender] = &income{
-							outFlow:       big.NewInt(0).Set(transation.Amount),
-							outNumActions: 1,
-							inFlow:        big.NewInt(0),
-							inNumActions:  0,
-						}
-					} else {
-						incomes[transation.Sender].outFlow = incomes[transation.Sender].outFlow.Add(incomes[transation.Sender].outFlow, transation.Amount)
-						incomes[transation.Sender].outNumActions += 1
+	incomes := make(map[string]income)
+	for _, receipt := range blk.Receipts {
+		//transaction
+		for _, transation := range receipt.TransactionLogs() {
+			if transation.Sender != "" {
+				inTran, ok := incomes[transation.Sender]
+				if !ok {
+					inTran = income{
+						outFlow:       big.NewInt(0).Set(transation.Amount),
+						outNumActions: 1,
+						inFlow:        big.NewInt(0),
+						inNumActions:  0,
 					}
+				} else {
+					inTran.outFlow = inTran.outFlow.Add(inTran.outFlow, transation.Amount)
+					inTran.outNumActions += 1
 				}
-				if transation.Recipient != "" {
-					if _, ok := incomes[transation.Recipient]; !ok {
-						incomes[transation.Recipient] = &income{
-							inFlow:        big.NewInt(0).Set(transation.Amount),
-							inNumActions:  1,
-							outFlow:       big.NewInt(0),
-							outNumActions: 0,
-						}
-					} else {
-						incomes[transation.Recipient].inFlow = incomes[transation.Recipient].inFlow.Add(incomes[transation.Recipient].inFlow, transation.Amount)
-						incomes[transation.Recipient].inNumActions += 1
-					}
-				}
-
+				incomes[transation.Sender] = inTran
 			}
-		}
+			if transation.Recipient != "" {
+				inTran, ok := incomes[transation.Recipient]
+				if !ok {
+					inTran = income{
+						inFlow:        big.NewInt(0).Set(transation.Amount),
+						inNumActions:  1,
+						outFlow:       big.NewInt(0),
+						outNumActions: 0,
+					}
+				} else {
+					inTran.inFlow = inTran.inFlow.Add(inTran.inFlow, transation.Amount)
+					inTran.inNumActions += 1
+				}
+				incomes[transation.Recipient] = inTran
+			}
 
+		}
+	}
+	err := kernel.Transaction(func(tx *sql.Tx) error {
 		for accountAddress, accountIncome := range incomes {
 			insertData := map[string]interface{}{
 				"block_height":    blk.Height(),

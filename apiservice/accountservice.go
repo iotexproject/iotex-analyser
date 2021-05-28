@@ -15,13 +15,14 @@ type AccountService struct {
 	api.UnimplementedAccountServiceServer
 }
 
-//curl -d '{"request":[{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }]}' http://127.0.0.1:7778/api.AccountService.GetIotexBalanceByHeight
+//curl -d '{"address": ["io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "io1j4mn2ga590z6es2fs07fy2wjn3yf09f4rkfljc"], "height":8927781 }' http://127.0.0.1:7778/api.AccountService.GetIotexBalanceByHeight
 func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.AccountRequest) (*api.AccountResponse, error) {
-	resp := &api.AccountResponse{}
+	resp := &api.AccountResponse{
+		Height: req.GetHeight(),
+	}
 	db := kernel.GetDB()
-	for _, req := range req.GetRequest() {
-		addr := req.GetAddress()
-		height := req.GetHeight()
+	height := req.GetHeight()
+	for _, addr := range req.GetAddress() {
 		if addr[:2] == "0x" || addr[:2] == "0X" {
 			add, err := address.FromHex(addr)
 			if err != nil {
@@ -40,26 +41,23 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 		if !ok {
 			balance = big.NewInt(0)
 		}
-		res := &api.BalanceResponse{
-			Address: req.GetAddress(),
-			Height:  req.GetHeight(),
-			Balance: util.RauToString(balance, util.IotxDecimalNum),
-		}
-		resp.Response = append(resp.Response, res)
+		resp.Balance = append(resp.Balance, util.RauToString(balance, util.IotxDecimalNum))
 	}
 
 	return resp, nil
 }
 
 //grpcurl -plaintext -d '{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }' 127.0.0.1:7777 api.AccountService.GetErc20TokenBalanceByHeight
-//curl -d '{"request":[{"address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "contract_address": "io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "height":8927781 }]}' http://127.0.0.1:7778/api.AccountService.GetErc20TokenBalanceByHeight
+//curl -d '{"address": ["io1ryztljunahyml9s7atfwtsx7s8wvr5maufa6zp", "io1j4mn2ga590z6es2fs07fy2wjn3yf09f4rkfljc"], "contract_address": "io1w97pslyg7qdayp8mfnffxkjkpapaf83wmmll2l", "height":8927781 }}' http://127.0.0.1:7778/api.AccountService.GetErc20TokenBalanceByHeight
 func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *api.AccountErc20TokenRequest) (*api.AccountResponse, error) {
-	resp := &api.AccountResponse{}
+	resp := &api.AccountResponse{
+		Height:          req.GetHeight(),
+		ContractAddress: req.GetContractAddress(),
+	}
 	db := kernel.GetDB()
-	for _, req := range req.GetRequest() {
-		addr := req.GetAddress()
-		height := req.GetHeight()
-		contractAddress := req.GetContractAddress()
+	height := req.GetHeight()
+	contractAddress := req.GetContractAddress()
+	for _, addr := range req.GetAddress() {
 		if len(addr) > 2 && (addr[:2] == "0x" || addr[:2] == "0X") {
 			add, err := address.FromHex(addr)
 			if err != nil {
@@ -102,13 +100,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 			from = big.NewInt(0)
 		}
 		balance := new(big.Int).Sub(to, from)
-		res := &api.BalanceResponse{
-			Address:         req.GetAddress(),
-			ContractAddress: req.GetContractAddress(),
-			Height:          req.GetHeight(),
-			Balance:         util.RauToString(balance, 6),
-		}
-		resp.Response = append(resp.Response, res)
+		resp.Balance = append(resp.Balance, util.RauToString(balance, 6))
 	}
 
 	return resp, nil

@@ -6,28 +6,20 @@ import "google/api/annotations.proto";
 option go_package = "./api";
 
 message AccountRequest {
-  repeated BalanceRquest request = 1;
-}
-
-message BalanceRquest {
-  string address = 1;
+  repeated string address = 1;
   uint64 height = 2;
-  string contract_address = 3;
 }
 
-message BalanceResponse {
-  string address = 1;
-  uint64 height = 2;
-  string contract_address = 3;
-  string balance  = 4;
-}
-
-message AccountResponse { 
-  repeated BalanceResponse response = 1;
+message AccountResponse {
+  uint64 height = 1;
+  string contract_address = 2;
+  repeated string balance  = 3;
 }
 
 message AccountErc20TokenRequest {
-  repeated BalanceRquest request = 1;
+  repeated string address = 1;
+  uint64 height = 2;
+  string contract_address = 3;
 }
 
 service AccountService {

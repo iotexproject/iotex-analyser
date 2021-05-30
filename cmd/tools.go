@@ -13,5 +13,6 @@ var Tools = &cli.Command{
 		tools.TraceBlock,
 		tools.FixAccountIncome,
 		tools.FixBlockReceipt,
+		tools.VerifyBlockReceipt,
 	},
 }

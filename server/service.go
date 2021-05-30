@@ -3,12 +3,15 @@ package server
 import (
 	"bytes"
 	"context"
+	"math/big"
 	"plugin"
 	"sync"
 	"time"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	iap "github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
@@ -204,9 +207,41 @@ func (s *Service) Info(args *Args, reply *Reply) error {
 }
 
 func (s *Service) TraceBlockByHeight(args *Args, reply *Reply) error {
-	blk, err := s.dao.GetBlockByHeight(args.BlockHeight)
+	blkHeight := args.BlockHeight
+	blk, err := s.dao.GetBlockByHeight(blkHeight)
 	if err != nil {
 		return err
+	}
+	receipts, err := s.dao.GetReceipts(blkHeight)
+	if err != nil {
+		return err
+	}
+	blk.Receipts = receipts
+	actionReceipts := make(map[hash.Hash256]*action.Receipt, len(receipts))
+	for _, receipt := range receipts {
+		actionReceipts[receipt.ActionHash] = receipt
+	}
+	tlogs, err := s.dao.TransactionLogs(blkHeight)
+	if err != nil {
+		return err
+	} else {
+		for _, l := range tlogs.Logs {
+			logs := make([]*action.TransactionLog, len(l.Transactions))
+			for i, txn := range l.Transactions {
+				amount, ok := new(big.Int).SetString(txn.Amount, 10)
+				if !ok {
+					s.logger.Error("failed to parse transaction amount", zap.Any("amount", txn.Amount))
+					continue
+				}
+				logs[i] = &action.TransactionLog{
+					Type:      txn.Type,
+					Amount:    amount,
+					Sender:    txn.Sender,
+					Recipient: txn.Recipient,
+				}
+			}
+			actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
+		}
 	}
 	reply.Message = getBlockString(blk)
 	return nil

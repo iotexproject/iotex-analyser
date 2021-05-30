@@ -11,5 +11,7 @@ var Tools = &cli.Command{
 	Subcommands: []*cli.Command{
 		tools.VerifyBalance,
 		tools.TraceBlock,
+		tools.FixAccountIncome,
+		tools.FixBlockReceipt,
 	},
 }

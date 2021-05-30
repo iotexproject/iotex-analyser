@@ -33,7 +33,8 @@ func fixBlockReceipt(c *cli.Context) error {
 		return errors.New("missing --block <height>")
 	}
 
-	kernel.GetDB()
+	db := kernel.GetDB()
+	defer db.Close()
 	err := kernel.Transaction(func(t *sql.Tx) error {
 		var err error
 		var id int64

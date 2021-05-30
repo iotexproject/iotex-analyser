@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.1.4"
+const VERSION = "1.1.5"
 
 type income struct {
 	inFlow        *big.Int
@@ -138,10 +138,11 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 
 		}
 	}
+	blkHeight := blk.Height()
 	err := kernel.Transaction(func(tx *sql.Tx) error {
 		for accountAddress, accountIncome := range incomes {
 			insertData := map[string]interface{}{
-				"block_height":    blk.Height(),
+				"block_height":    blkHeight,
 				"account_address": accountAddress,
 				"in_flow":         accountIncome.inFlow.String(),
 				"in_num_actions":  accountIncome.inNumActions,
@@ -151,10 +152,49 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
 				return err
 			}
-			_, err := tx.Exec("INSERT INTO account_income_count (account_address,in_flow,in_num_actions,out_flow,out_num_actions) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE in_flow=in_flow+?,in_num_actions=in_num_actions+?,out_flow=out_flow+?,out_num_actions=out_num_actions+?", accountAddress, accountIncome.inFlow.String(), accountIncome.inNumActions, accountIncome.outFlow.String(), accountIncome.outNumActions, accountIncome.inFlow.String(), accountIncome.inNumActions, accountIncome.outFlow.String(), accountIncome.outNumActions)
-			if err != nil {
-				return err
+
+			var in_flow, out_flow sql.NullString
+			var in_num_actions, out_num_actions sql.NullInt32
+
+			in := new(big.Int)
+			out := new(big.Int)
+			query := "SELECT in_flow,in_num_actions,out_flow,out_num_actions FROM account_income_count WHERE account_address=?"
+			if err := tx.QueryRow(query, accountAddress).Scan(&in_flow, &in_num_actions, &out_flow, &out_num_actions); err != nil {
+				if err != sql.ErrNoRows {
+					return err
+				}
+				insertData1 := map[string]interface{}{
+					"account_address": accountAddress,
+					"in_flow":         accountIncome.inFlow.String(),
+					"in_num_actions":  accountIncome.inNumActions,
+					"out_flow":        accountIncome.outFlow.String(),
+					"out_num_actions": accountIncome.outNumActions,
+				}
+				if err := kernel.InsertTableData(tx, "account_income_count", insertData1); err != nil {
+					return err
+				}
+			} else {
+				in.SetString(in_flow.String, 10)
+				out.SetString(out_flow.String, 10)
+				in = in.Add(in, accountIncome.inFlow)
+				out = out.Add(out, accountIncome.outFlow)
+				inNum := int(in_num_actions.Int32) + accountIncome.inNumActions
+				outNum := int(out_num_actions.Int32) + accountIncome.outNumActions
+
+				updateData := map[string]interface{}{
+					"in_flow":         in.String(),
+					"in_num_actions":  inNum,
+					"out_flow":        out.String(),
+					"out_num_actions": outNum,
+				}
+				whereMap := map[string]interface{}{
+					"account_address": accountAddress,
+				}
+				if err := kernel.UpdateTableData(tx, "account_income_count", updateData, whereMap); err != nil {
+					return err
+				}
 			}
+
 		}
 		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
 	})

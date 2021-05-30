@@ -43,6 +43,7 @@ var (
 func verifyBalance(c *cli.Context) error {
 	fmt.Printf("min=%d max=%d worker=%d\n", c.Uint64("min"), c.Uint64("max"), c.Int("worker"))
 	db := kernel.GetDB()
+	defer db.Close()
 
 	var count int
 	query := `select count(DISTINCT account_address) from account_income where block_height>=? and block_height<?`

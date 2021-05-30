@@ -1,19 +1,30 @@
 package tools
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
+	"runtime"
 
+	"github.com/cheggaaa/pb/v3"
+	"github.com/gammazero/workerpool"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/urfave/cli/v2"
 )
 
 var FixAccountIncome = &cli.Command{
 	Name:        "fixAccountIncome",
-	Usage:       "fixAccountIncome --block <height>",
+	Usage:       "fixAccountIncome --block <height> --worker <threads>",
 	Description: `fix account_income table`,
 	Flags: []cli.Flag{
 		&cli.Uint64Flag{
 			Name:  "block",
 			Usage: "block height",
+		},
+		&cli.IntFlag{
+			Name:  "worker",
+			Usage: "worker thread num",
+			Value: runtime.NumCPU() * 2,
 		},
 	},
 	Action: fixAccountIncome,
@@ -24,6 +35,53 @@ func fixAccountIncome(c *cli.Context) error {
 	if blkHeight == 0 {
 		return errors.New("--block must > 0")
 	}
+	db := kernel.GetDB()
+	defer db.Close()
 
-	return nil
+	var height sql.NullInt64
+	query := "SELECT height FROM index_heights WHERE name='account_income'"
+	db.QueryRow(query).Scan(&height)
+	if height.Int64 == 0 {
+		return nil
+	}
+	count := int(height.Int64 - int64(blkHeight))
+	bar = pb.StartNew(count)
+	wp := workerpool.New(c.Int("worker"))
+	for i := uint64(height.Int64); i >= blkHeight; i-- {
+		i := i
+		wp.Submit(func() {
+			deleteAccountIncomeRow(i)
+		})
+
+	}
+	wp.StopWait()
+	bar.Finish()
+	fmt.Println("rebuilding account_income_count table")
+	err := kernel.Transaction(func(tx *sql.Tx) error {
+		_, err := tx.Exec("truncate account_income_count")
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec("insert into account_income_count(account_address,in_flow,in_num_actions,out_flow,out_num_actions) select account_address,SUM(in_flow),SUM(in_num_actions),SUM(out_flow),SUM(out_num_actions) from account_income GROUP BY account_address")
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec("update index_heights set height=? where name='account_income'", blkHeight-1)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
+func deleteAccountIncomeRow(blkHeight uint64) {
+	bar.Increment()
+	err := kernel.Transaction(func(t *sql.Tx) error {
+		_, err := t.Exec("DELETE FROM account_income WHERE block_height=?", blkHeight)
+		return err
+	})
+	if err != nil {
+		panic(err)
+	}
 }

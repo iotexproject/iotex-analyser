@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	version = "1.2.2"
+	version = "1.2.4"
 )
 
 func main() {
@@ -52,6 +52,7 @@ func main() {
 			coreconfig.SetEVMNetworkID(4689)
 		}
 		log.L().Debug("loaded iotex-core configure",
+			zap.String("version", version),
 			zap.Uint32("EVMNetworkID", coreconfig.EVMNetworkID()),
 		)
 		return nil

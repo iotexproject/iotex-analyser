@@ -1,18 +1,17 @@
 package tools
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"net/rpc"
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/blockdao"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -116,24 +115,17 @@ func debugBlock(blk *block.Block) {
 }
 
 func traceBlock(c *cli.Context) error {
-	var tip protocol.TipInfo
-	ctxDao := protocol.WithBlockchainCtx(
-		context.Background(),
-		protocol.BlockchainCtx{
-			Genesis: genesis.Default,
-			Tip:     tip,
-		},
-	)
-	var indexers []blockdao.BlockIndexer
-	var dao blockdao.BlockDAO
-	dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB)
-	if err := dao.Start(ctxDao); err != nil {
-		return err
-	}
-	block, err := dao.GetBlockByHeight(c.Uint64("block"))
+	client, err := rpc.Dial("unix", config.Default.Server.Addr)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to connect RPC server")
 	}
-	debugBlock(block)
-	return dao.Stop(ctxDao)
+
+	pluginArgs := &server.Args{BlockHeight: c.Uint64("block")}
+	pluginReply := &server.Reply{}
+	if err := client.Call("Service.TraceBlockByHeight", pluginArgs, pluginReply); err != nil {
+		return errors.Wrap(err, "failed to load plugin")
+	}
+
+	fmt.Println(pluginReply.Message)
+	return nil
 }

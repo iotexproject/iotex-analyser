@@ -25,7 +25,8 @@ const (
 )
 
 type Args struct {
-	Path string
+	Path        string
+	BlockHeight uint64
 }
 
 type Reply struct {
@@ -199,6 +200,15 @@ func (s *Service) Info(args *Args, reply *Reply) error {
 	}
 	tbl.Print()
 	reply.Message = b.String()
+	return nil
+}
+
+func (s *Service) TraceBlockByHeight(args *Args, reply *Reply) error {
+	blk, err := s.dao.GetBlockByHeight(args.BlockHeight)
+	if err != nil {
+		return err
+	}
+	reply.Message = getBlockString(blk)
 	return nil
 }
 

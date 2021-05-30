@@ -38,7 +38,13 @@ func fixBlockReceipt(c *cli.Context) error {
 	err := kernel.Transaction(func(t *sql.Tx) error {
 		var err error
 		var id int64
-		id = getRowID(t, "select max(id) from block_receipt where block_height<?", blkHeight)
+		var minBlkHeight uint64
+		if blkHeight < 1000 {
+			minBlkHeight = 0
+		} else {
+			minBlkHeight = blkHeight - 1000
+		}
+		id = getRowID(t, "select max(id) from block_receipt where block_height>? and block_height<?", minBlkHeight, blkHeight)
 		if id > 0 {
 			_, err = t.Exec("DELETE FROM block_receipt WHERE id>?", id)
 			if err != nil {
@@ -50,7 +56,7 @@ func fixBlockReceipt(c *cli.Context) error {
 			}
 		}
 
-		id = getRowID(t, "select max(id) from block_receipt_log where block_height<?", blkHeight)
+		id = getRowID(t, "select max(id) from block_receipt_log where block_height>? and block_height<?", minBlkHeight, blkHeight)
 		if id > 0 {
 			_, err = t.Exec("DELETE FROM block_receipt_log WHERE id>?", id)
 			if err != nil {
@@ -61,7 +67,7 @@ func fixBlockReceipt(c *cli.Context) error {
 				return errors.Wrap(err, "")
 			}
 		}
-		id = getRowID(t, "select max(id) from block_receipt_transaction where block_height<?", blkHeight)
+		id = getRowID(t, "select max(id) from block_receipt_transaction where block_height>? and block_height<?", minBlkHeight, blkHeight)
 		if id > 0 {
 			_, err = t.Exec("DELETE FROM block_receipt_transaction WHERE id>?", id)
 			if err != nil {

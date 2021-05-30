@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.1.0"
+const VERSION = "1.1.2"
 
 const (
 	transfer                   = "transfer"
@@ -58,9 +58,11 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 }
 
 func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	receipts := blk.Receipts
 	err := kernel.Transaction(func(tx *sql.Tx) error {
 
-		for _, receipt := range blk.Receipts {
+		for _, receipt := range receipts {
+			receipt := receipt
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])
 			insertData := map[string]interface{}{
 				"block_height":         blk.Height(),
@@ -75,7 +77,8 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 			}
 			//transaction
 			for _, transation := range receipt.TransactionLogs() {
-				insertData = map[string]interface{}{
+				transation := transation
+				insertData := map[string]interface{}{
 					"block_height": blk.Height(),
 					"action_hash":  actionHash,
 					"type":         getActionType(transation.Type),
@@ -89,11 +92,12 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 			}
 			//logs
 			for _, log := range receipt.Logs() {
+				log := log
 				topics := [][]byte{}
 				for _, topic := range log.Topics {
 					topics = append(topics, topic[:])
 				}
-				insertData = map[string]interface{}{
+				insertData := map[string]interface{}{
 					"block_height":           blk.Height(),
 					"action_hash":            hex.EncodeToString(log.ActionHash[:]),
 					"address":                log.Address,

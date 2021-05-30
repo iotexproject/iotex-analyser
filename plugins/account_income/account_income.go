@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.1.5"
+const VERSION = "1.1.6"
 
 type income struct {
 	inFlow        *big.Int
@@ -102,9 +102,12 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 
 func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	incomes := make(map[string]income)
-	for _, receipt := range blk.Receipts {
+	receipts := blk.Receipts
+	for _, receipt := range receipts {
+		receipt := receipt
 		//transaction
 		for _, transation := range receipt.TransactionLogs() {
+			transation := transation
 			if transation.Sender != "" {
 				inTran, ok := incomes[transation.Sender]
 				if !ok {

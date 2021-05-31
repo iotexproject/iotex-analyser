@@ -47,7 +47,8 @@ type (
 		Plugins       []string `yaml:"plugins"`
 	}
 	Database struct {
-		Dsn string `yaml:"dsn"`
+		Driver string `yaml:"driver"`
+		Dsn    string `yaml:"dsn"`
 	}
 	Iotex struct {
 		CrawlMode          bool     `yaml:"crawlMode"`

@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 
 	"github.com/iotexproject/iotex-analyser/config"
@@ -19,6 +20,18 @@ import (
 var db *sql.DB
 var dbOnce sync.Once
 
+type CreateSchema struct {
+	Mysql, Postgres string
+}
+
+func (s CreateSchema) String() string {
+	switch dbDriver() {
+	case "postgres":
+		return s.Postgres
+	}
+	return s.Mysql
+}
+
 func MySQLErrorCode(err error) uint16 {
 	if val, ok := err.(*mysql.MySQLError); ok {
 		return val.Number
@@ -26,10 +39,29 @@ func MySQLErrorCode(err error) uint16 {
 	return 0 // not a mysql error
 }
 
+func dbQuote(name string) string {
+
+}
+
+func dbDriver() string {
+	var driver string
+	switch config.Default.Database.Driver {
+	case "postgres":
+		driver = "postgres"
+	default:
+		driver = "mysql"
+	}
+	return driver
+}
+
 func GetDB() *sql.DB {
 	dbOnce.Do(func() {
 		var err error
-		if db, err = sql.Open("mysql", config.Default.Database.Dsn); err != nil {
+		driver := "mysql"
+		if config.Default.Database.Driver != "" {
+			driver = config.Default.Database.Driver
+		}
+		if db, err = sql.Open(driver, config.Default.Database.Dsn); err != nil {
 			log.L().Fatal(err.Error())
 		}
 		db.SetMaxOpenConns(20)

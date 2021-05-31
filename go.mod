@@ -7,12 +7,13 @@ require (
 	github.com/dustinxie/gmsm v1.2.1 // indirect
 	github.com/ethereum/go-ethereum v1.9.5
 	github.com/gammazero/workerpool v1.1.2
-	github.com/go-sql-driver/mysql v1.4.1
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
 	github.com/iotexproject/iotex-address v0.2.4
 	github.com/iotexproject/iotex-core v1.2.0
 	github.com/iotexproject/iotex-proto v0.5.0
+	github.com/lib/pq v1.10.2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
@@ -25,4 +26,8 @@ require (
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.25.1-0.20201208041424-160c7477e0e8
 	gopkg.in/yaml.v2 v2.4.0
+	gorm.io/driver/mysql v1.1.0
+	gorm.io/driver/postgres v1.1.0
+	gorm.io/driver/sqlite v1.1.4
+	gorm.io/gorm v1.21.10
 )

@@ -9,6 +9,7 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -61,26 +62,12 @@ func (r *runner) Status() pluginStatus {
 }
 
 func (r *runner) nextHeight() (uint64, error) {
-	height, err := r.GetHeight(r.plugin.Name())
+	height, err := db.GetIndexHeight(r.plugin.Name())
 	if err != nil {
 		return 0, err
 	}
 	nextHeight := height + 1
 	return nextHeight, nil
-}
-
-func (r *runner) GetHeight(pluginName string) (uint64, error) {
-
-	row := kernel.GetDB().QueryRow("SELECT height FROM index_heights WHERE name = ?", pluginName)
-
-	var h sql.NullInt64
-	if err := row.Scan(&h); err != nil && err != sql.ErrNoRows {
-		return 0, errors.Wrapf(err, "failed to get index height :%s", pluginName)
-	}
-	if !h.Valid {
-		return 0, nil
-	}
-	return uint64(h.Int64), nil
 }
 
 func (r *runner) Start(ctx context.Context) error {
@@ -273,7 +260,7 @@ func (r *runner) Start(ctx context.Context) error {
 //checking dependent plugin
 func (r *runner) getTipHeight() (uint64, error) {
 	if dep, ok := r.plugin.(plugin.DependentAdapter); ok {
-		return r.GetHeight(dep.DependentPlugin())
+		return db.GetIndexHeight(dep.DependentPlugin())
 	}
 	return r.dao.Height()
 }

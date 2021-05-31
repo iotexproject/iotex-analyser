@@ -17,6 +17,7 @@ import (
 	"github.com/iotexproject/go-pkgs/util/httputil"
 	"github.com/iotexproject/iotex-analyser/apiservice"
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/action/protocol"
@@ -48,9 +49,13 @@ func New() *Server {
 
 // Start start the server
 func (srv *Server) Start(ctx context.Context) error {
-	if err := kernel.GetDB().Ping(); err != nil {
-		return errors.Wrap(err, "failed to ping DB")
+	_, err := db.Connect()
+	if err != nil {
+		return errors.Wrap(err, "failed to connect DB")
 	}
+	// if err := kernel.GetDB().Ping(); err != nil {
+	// 	return errors.Wrap(err, "failed to ping DB")
+	// }
 	srv.isRunning.Set(true)
 
 	if err := srv.startDaoService(); err != nil {

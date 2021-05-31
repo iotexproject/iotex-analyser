@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	iap "github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -58,21 +59,6 @@ func NewService(dao blockdao.BlockDAO) *Service {
 }
 
 func (s *Service) Start(ctx context.Context) error {
-	createSQL := kernel.CreateSchema{
-		Mysql: "CREATE TABLE IF NOT EXISTS `index_heights` (" +
-			"`name` varchar(128) NOT NULL," +
-			"`height` bigint(20) unsigned NOT NULL DEFAULT '0'," +
-			"PRIMARY KEY (`name`)" +
-			") ENGINE=InnoDB DEFAULT CHARSET=latin1;",
-		Postgres: `CREATE TABLE "index_heights" (
-			"name" varchar(128) NOT NULL,
-			"height" int8 NOT NULL DEFAULT 0,
-			PRIMARY KEY ("name")
-		  );`,
-	}
-	if _, err := kernel.GetDB().Exec(createSQL.String()); err != nil {
-		return errors.Wrap(err, "failed to start plugin service")
-	}
 
 	go func() {
 		refreshTicker := time.NewTicker(time.Second * 5)
@@ -199,7 +185,7 @@ func (s *Service) Info(args *Args, reply *Reply) error {
 	var b bytes.Buffer
 	tbl := table.New(showFields...).WithWriter(&b)
 	for _, m := range pluginMap {
-		height, _ := m.GetHeight(m.plugin.Name())
+		height, _ := db.GetIndexHeight(m.plugin.Name())
 		daoHeight, _ := s.dao.Height()
 		tbl.AddRow(
 			m.plugin.Name(),

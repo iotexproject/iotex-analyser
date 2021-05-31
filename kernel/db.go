@@ -20,38 +20,11 @@ import (
 var db *sql.DB
 var dbOnce sync.Once
 
-type CreateSchema struct {
-	Mysql, Postgres string
-}
-
-func (s CreateSchema) String() string {
-	switch dbDriver() {
-	case "postgres":
-		return s.Postgres
-	}
-	return s.Mysql
-}
-
 func MySQLErrorCode(err error) uint16 {
 	if val, ok := err.(*mysql.MySQLError); ok {
 		return val.Number
 	}
 	return 0 // not a mysql error
-}
-
-func dbQuote(name string) string {
-
-}
-
-func dbDriver() string {
-	var driver string
-	switch config.Default.Database.Driver {
-	case "postgres":
-		driver = "postgres"
-	default:
-		driver = "mysql"
-	}
-	return driver
 }
 
 func GetDB() *sql.DB {

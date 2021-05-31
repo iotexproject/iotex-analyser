@@ -2,19 +2,18 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
+	"strconv"
 
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 )
 
-const VERSION = "1.1.0"
+const VERSION = "2.0.0"
 
 type blockPlugin struct {
-	tableName string
 }
 
 func (b blockPlugin) Name() string {
@@ -25,26 +24,8 @@ func (b blockPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-/*
-year/month/day can be use index
-update block set `year`=left(FROM_UNIXTIME(`timestamp`), 4),`month`=SUBSTR(FROM_UNIXTIME(`timestamp`),6, 2),`day`=SUBSTR(FROM_UNIXTIME(`timestamp`),9, 2)
-*/
 func (b blockPlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
-		"`block_height` bigint(20) NOT NULL," +
-		"`block_hash` varchar(64) NOT NULL," +
-		"`producer_address` varchar(42) NOT NULL," +
-		"`num_actions` int(6) unsigned NOT NULL DEFAULT '0'," +
-		"`timestamp` int(11) unsigned NOT NULL," +
-		"`year` smallint(4) unsigned NOT NULL DEFAULT '0'," +
-		"`month` tinyint(2) unsigned zerofill NOT NULL DEFAULT '00'," +
-		"`day` tinyint(2) unsigned zerofill NOT NULL DEFAULT '00'," +
-		"PRIMARY KEY (`block_height`) USING BTREE," +
-		"KEY `producer_address` (`producer_address`)," +
-		"KEY `block_hash` (`block_hash`(9))," +
-		"KEY `year_month_day` (`year`,`month`,`day`)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+	if err := db.DB().AutoMigrate(&Block{}); err != nil {
 		return errors.Wrap(err, "failed to start block plugin")
 	}
 
@@ -54,24 +35,34 @@ func (b blockPlugin) Start(ctx context.Context) error {
 func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHash := blk.HashBlock()
 
-	insertData := map[string]interface{}{
-		"block_height":     blk.Height(),
-		"block_hash":       hex.EncodeToString(blkHash[:]),
-		"producer_address": blk.ProducerAddress(),
-		"num_actions":      len(blk.Actions),
-		"timestamp":        blk.Timestamp().Unix(),
-		"year":             blk.Timestamp().Format("2006"),
-		"month":            blk.Timestamp().Format("01"),
-		"day":              blk.Timestamp().Format("02"),
+	year, err := strconv.Atoi(blk.Timestamp().Format("2006"))
+	if err != nil {
+		return err
+	}
+	month, err := strconv.Atoi(blk.Timestamp().Format("01"))
+	if err != nil {
+		return err
+	}
+	day, err := strconv.Atoi(blk.Timestamp().Format("02"))
+	if err != nil {
+		return err
+	}
+	blkModel := &Block{
+		BlockHeight:     blk.Height(),
+		BlockHash:       hex.EncodeToString(blkHash[:]),
+		ProducerAddress: blk.ProducerAddress(),
+		NumActions:      len(blk.Actions),
+		Timestamp:       blk.Timestamp().Unix(),
+		Year:            year,
+		Month:           month,
+		Day:             day,
+		BaseModel: db.BaseModel{
+			IndexName:   b.Name(),
+			IndexHeight: blk.Height(),
+		},
 	}
 
-	err := kernel.Transaction(func(tx *sql.Tx) error {
-		if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
-			return err
-		}
-		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
-	})
-	return err
+	return blkModel.Save()
 }
 
 func (b blockPlugin) Stop(ctx context.Context) error {
@@ -83,6 +74,4 @@ func (b blockPlugin) Version() string {
 }
 
 // exported
-var Plugin = blockPlugin{
-	tableName: "block",
-}
+var Plugin = blockPlugin{}

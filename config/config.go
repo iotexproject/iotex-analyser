@@ -47,8 +47,13 @@ type (
 		Plugins       []string `yaml:"plugins"`
 	}
 	Database struct {
-		Driver string `yaml:"driver"`
-		Dsn    string `yaml:"dsn"`
+		Driver   string `yaml:"driver"`
+		Host     string `yaml:"host"`
+		Port     string `yaml:"port"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+		Name     string `yaml:"name"`
+		Dsn      string `yaml:"dsn"`
 	}
 	Iotex struct {
 		CrawlMode          bool     `yaml:"crawlMode"`

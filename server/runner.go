@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"math/big"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 const (
@@ -87,7 +87,7 @@ func (r *runner) Start(ctx context.Context) error {
 	default:
 	}
 	if config.Default.Iotex.CatchUpMode {
-		if err := kernel.Transaction(func(tx *sql.Tx) error {
+		if err := db.DB().Transaction(func(tx *gorm.DB) error {
 			var daoHeight uint64
 			for i := 0; i < 5; i++ {
 				daoHeight, _ = r.dao.Height()
@@ -105,7 +105,7 @@ func (r *runner) Start(ctx context.Context) error {
 			if config.Default.Iotex.CatchUpStartHeight > 0 {
 				daoHeight = config.Default.Iotex.CatchUpStartHeight - 1
 			}
-			return kernel.UpdateIndexHeight(tx, r.plugin.Name(), daoHeight)
+			return db.UpdateIndexHeightByTx(tx, r.plugin.Name(), daoHeight)
 		}); err != nil {
 			return err
 		}

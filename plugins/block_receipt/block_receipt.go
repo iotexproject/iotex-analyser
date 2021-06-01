@@ -58,7 +58,7 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 	}
 
 	var count int64
-	if err := db.DB().Model(&BlockReceipt{}).Where("block_height=0").Count(&count).Error; err != nil {
+	if err := db.DB().Model(&BlockReceiptTransaction{}).Where("block_height=0").Count(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {

@@ -3,12 +3,16 @@ package db
 import (
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var db *gorm.DB
@@ -23,10 +27,19 @@ func Connect() (*gorm.DB, error) {
 	host := config.Default.Database.Host
 	port := config.Default.Database.Port
 	name := config.Default.Database.Name
-
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             time.Second,   // Slow SQL threshold
+			LogLevel:                  logger.Silent, // Log level
+			IgnoreRecordNotFoundError: true,          // Ignore ErrRecordNotFound error for logger
+			Colorful:                  false,         // Disable color
+		},
+	)
 	gormConfig := &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		SkipDefaultTransaction:                   true,
+		Logger:                                   newLogger,
 	}
 	switch driver {
 	case "mysql":
@@ -55,5 +68,5 @@ func Connect() (*gorm.DB, error) {
 }
 
 func DB() *gorm.DB {
-	return db.Debug()
+	return db
 }

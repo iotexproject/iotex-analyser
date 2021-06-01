@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 	"time"
 
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
@@ -15,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "2.0.0"
 const TableName = "node_delegates"
 
 type delegatesWorkerPlugin struct {
@@ -34,34 +33,10 @@ func (b delegatesWorkerPlugin) Type() plugin.Type {
 }
 
 func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
-		"`id` int(11) unsigned NOT NULL AUTO_INCREMENT," +
-		"`block_height` bigint(20) unsigned NOT NULL," +
-		"`producer_address` varchar(42) NOT NULL DEFAULT ''," +
-		"`active` tinyint(1) NOT NULL DEFAULT '0'," +
-		"`producer_name` varchar(42) NOT NULL DEFAULT ''," +
-		"`rank` tinyint(3) unsigned NOT NULL DEFAULT '0'," +
-		"`blocks` int(11) unsigned NOT NULL DEFAULT '0'," +
-		"`votes` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
-		"`probated` tinyint(1) unsigned NOT NULL DEFAULT '0'," +
-		"PRIMARY KEY (`id`)," +
-		"KEY `block_height` (`block_height`)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
-		return errors.Wrap(err, "failed to start plugin")
+	if err := db.DB().AutoMigrate(&NodeDelegates{}); err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
-	dao, ok := kernel.GetBlockDAOCtx(ctx)
-	if !ok {
-		return errors.New("failed to get blockDAO in ctx")
-	}
-	b.dao = dao
-	daoHeight, _ := b.dao.Height()
-	if err := kernel.Transaction(func(tx *sql.Tx) error {
-		return kernel.UpdateIndexHeight(tx, b.Name(), daoHeight)
-	}); err != nil {
-		return err
-	}
 	if err := delegates(); err != nil {
 		log.L().Warn("failed to delegates", zap.Error(err))
 	}

@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/pkg/log"
@@ -13,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "2.0.0"
 
 type priceWorkerPlugin struct {
 	stop chan bool
@@ -29,15 +30,8 @@ func (b priceWorkerPlugin) Type() plugin.Type {
 }
 
 func (b priceWorkerPlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `store` (" +
-		"`key` varchar(64) NOT NULL," +
-		"`value` json NOT NULL," +
-		"`create_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-		"`update_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-		"PRIMARY KEY (`key`) USING BTREE" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
-		return errors.Wrap(err, "failed to start plugin")
+	if err := db.DB().AutoMigrate(&db.Store{}); err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
 	goPrice := func() {
@@ -45,7 +39,13 @@ func (b priceWorkerPlugin) Start(ctx context.Context) error {
 		if err != nil {
 			log.L().Error("failed to fetch latest IOTX price", zap.Error(err))
 		} else {
-			if _, err := kernel.GetDB().Exec("INSERT INTO store (`key`, `value`, `create_at`) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = ?", "iotx_latest_price", price, price); err != nil {
+			raw, _ := json.Marshal(price)
+
+			store := &db.Store{
+				Key:   "iotx_latest_price",
+				Value: string(raw),
+			}
+			if err := store.Save(); err != nil {
 				log.L().Error("failed to exec query", zap.Error(err))
 			}
 		}
@@ -55,7 +55,12 @@ func (b priceWorkerPlugin) Start(ctx context.Context) error {
 		if err != nil {
 			log.L().Error("failed to fetch latest IOTX 1d price", zap.Error(err))
 		} else {
-			if _, err := kernel.GetDB().Exec("INSERT INTO store (`key`, `value`, `create_at`) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = ?", "iotx_latest_price_1d", price1d, price1d); err != nil {
+			raw, _ := json.Marshal(price1d)
+			store := &db.Store{
+				Key:   "iotx_latest_price_1d",
+				Value: string(raw),
+			}
+			if err := store.Save(); err != nil {
 				log.L().Error("failed to exec query", zap.Error(err))
 			}
 		}

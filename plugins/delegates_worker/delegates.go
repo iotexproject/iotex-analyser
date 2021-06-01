@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"math/big"
 	"strconv"
 
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-core/action/protocol/vote"
 	"github.com/iotexproject/iotex-core/config"
@@ -14,6 +14,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 const (
@@ -335,29 +336,28 @@ func getStakingCandidates(chainClient iotexapi.APIServiceClient, offset, limit u
 }
 
 func sortAndUpdate(message *delegatesMessage) error {
-	db := kernel.GetDB()
-	var count int
-	row := db.QueryRow("SELECT count(1) FROM `"+TableName+"` WHERE block_height=?", message.StartBlock)
-	if err := row.Scan(&count); err != nil {
+	var count int64
+	err := db.DB().Model(&NodeDelegates{}).Where("block_height = ?", message.StartBlock).Count(&count).Error
+	if err != nil {
 		return err
 	}
 	//skipping exist
 	if count > 0 {
 		return nil
 	}
-	return kernel.Transaction(func(tx *sql.Tx) error {
+	return db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, bp := range message.Delegates {
-			insertData := map[string]interface{}{
-				"block_height":     message.StartBlock,
-				"producer_address": bp.Address,
-				"producer_name":    bp.Name,
-				"active":           bp.Active,
-				"rank":             bp.Rank,
-				"blocks":           bp.Production,
-				"probated":         bp.ProbatedStatus,
-				"votes":            bp.Votes,
+			nd := &NodeDelegates{
+				BlockHeight:     message.StartBlock,
+				ProducerAddress: bp.Address,
+				ProducerName:    bp.Name,
+				Active:          bp.Active,
+				Rank:            bp.Rank,
+				Blocks:          bp.Production,
+				Probated:        bp.ProbatedStatus,
+				Votes:           bp.Votes,
 			}
-			if err := kernel.InsertTableData(tx, TableName, insertData); err != nil {
+			if err := tx.Create(nd).Error; err != nil {
 				return err
 			}
 		}

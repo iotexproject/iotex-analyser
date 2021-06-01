@@ -6,7 +6,7 @@ type ActionExecution struct {
 	ActionHash             string `gorm:"size:64;not null;index:,length:9"`
 	Contract               string `gorm:"size:42;not null;default:'';"`
 	ReceiptContractAddress string `gorm:"size:42;not null;default:'';index:,length:9"`
-	Data                   []byte `gorm:"not null;default:'';"`
+	Data                   []byte `gorm:"not null;"`
 }
 
 func (ActionExecution) TableName() string {

@@ -126,12 +126,16 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 					topics = append(topics, topic[:])
 				}
 
+				logData := log.Data
+				if logData == nil {
+					logData = []byte("")
+				}
 				brl := &BlockReceiptLog{
 					BlockHeight:        blk.Height(),
 					ActionHash:         actionHash,
 					Address:            log.Address,
 					Topics:             bytes.Join(topics, []byte("\n")),
-					Data:               log.Data,
+					Data:               logData,
 					Index:              log.Index,
 					NotFixTopicCopyBug: log.NotFixTopicCopyBug,
 				}

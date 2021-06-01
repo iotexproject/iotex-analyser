@@ -39,8 +39,8 @@ type BlockReceiptLog struct {
 	BlockHeight        uint64 `gorm:"unsigned" sql:"type:bigint;index"`
 	ActionHash         string `gorm:"size:64;not null;index:,length:9"`
 	Address            string `gorm:"size:42;not null;default:'';index:,length:9"`
-	Topics             []byte `gorm:"not null;default:'';"`
-	Data               []byte `gorm:"not null;default:'';"`
+	Topics             []byte `gorm:"not null;"`
+	Data               []byte `gorm:"not null;"`
 	Index              uint   `gorm:"type:int2;unsigned;not null;default:0"`
 	NotFixTopicCopyBug bool   `gorm:"type:bool;not null;default:false"`
 }

@@ -18,14 +18,16 @@ func (Store) TableName() string {
 
 func (s *Store) Save() error {
 	var count int64
-	err := db.Model(s).Where("key = ?", s.Key).Count(&count).Error
+	err := db.Model(s).Where(&Store{Key: s.Key}).Count(&count).Error
 	if err != nil {
 		return err
 	}
 
+	now := time.Now()
 	if count > 0 {
-		return db.Model(s).Where("key = ?", s.Key).UpdateColumn("update_at", time.Now()).UpdateColumn("value", s.Value).Error
+		return db.Model(s).Where(&Store{Key: s.Key}).UpdateColumn("update_at", now).UpdateColumn("value", s.Value).Error
 	}
-	s.CreateAt = time.Now()
+	s.CreateAt = now
+	s.UpdateAt = now
 	return db.Create(s).Error
 }

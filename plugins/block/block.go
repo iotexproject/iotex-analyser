@@ -9,6 +9,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 )
 
 const VERSION = "2.0.0"
@@ -33,36 +34,38 @@ func (b blockPlugin) Start(ctx context.Context) error {
 }
 
 func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	blkHash := blk.HashBlock()
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		blkHash := blk.HashBlock()
 
-	year, err := strconv.Atoi(blk.Timestamp().Format("2006"))
-	if err != nil {
-		return err
-	}
-	month, err := strconv.Atoi(blk.Timestamp().Format("01"))
-	if err != nil {
-		return err
-	}
-	day, err := strconv.Atoi(blk.Timestamp().Format("02"))
-	if err != nil {
-		return err
-	}
-	blkModel := &Block{
-		BlockHeight:     blk.Height(),
-		BlockHash:       hex.EncodeToString(blkHash[:]),
-		ProducerAddress: blk.ProducerAddress(),
-		NumActions:      len(blk.Actions),
-		Timestamp:       blk.Timestamp().Unix(),
-		Year:            year,
-		Month:           month,
-		Day:             day,
-		BaseModel: db.BaseModel{
-			IndexName:   b.Name(),
-			IndexHeight: blk.Height(),
-		},
-	}
+		year, err := strconv.Atoi(blk.Timestamp().Format("2006"))
+		if err != nil {
+			return err
+		}
+		month, err := strconv.Atoi(blk.Timestamp().Format("01"))
+		if err != nil {
+			return err
+		}
+		day, err := strconv.Atoi(blk.Timestamp().Format("02"))
+		if err != nil {
+			return err
+		}
+		m := &Block{
+			BlockHeight:     blk.Height(),
+			BlockHash:       hex.EncodeToString(blkHash[:]),
+			ProducerAddress: blk.ProducerAddress(),
+			NumActions:      len(blk.Actions),
+			Timestamp:       blk.Timestamp().Unix(),
+			Year:            year,
+			Month:           month,
+			Day:             day,
+		}
+		if err := tx.Create(m).Error; err != nil {
+			return err
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+	})
 
-	return blkModel.Save()
+	return err
 }
 
 func (b blockPlugin) Stop(ctx context.Context) error {

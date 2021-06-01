@@ -33,6 +33,9 @@ plugin:
 proto:
 	protoc -I ./proto --go_out ./  --go-grpc_out ./ --grpc-gateway_out ./ proto/*.proto
 
+clean:
+	rf -f *.so iotex-analyser
+	
 build:
 	$(GOBUILD) -v .
 

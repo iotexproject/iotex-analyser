@@ -38,7 +38,6 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 	if err := db.DB().AutoMigrate(ai, aic); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
-	return nil
 
 	var err error
 	config, _ := kernel.GetConfigCtx(ctx)

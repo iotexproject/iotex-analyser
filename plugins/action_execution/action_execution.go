@@ -2,20 +2,19 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
 
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "2.0.0"
 
 type actionExecutionPlugin struct {
-	tableName string
 }
 
 func (b actionExecutionPlugin) Name() string {
@@ -27,19 +26,7 @@ func (b actionExecutionPlugin) Type() plugin.Type {
 }
 
 func (b actionExecutionPlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
-		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
-		"`block_height` bigint(20) UNSIGNED NOT NULL DEFAULT 0," +
-		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
-		"`contract` varchar(41) NOT NULL DEFAULT ''," +
-		"`receipt_contract_address` varchar(41) NOT NULL DEFAULT ''," +
-		"`data` blob," +
-		"PRIMARY KEY (`id`)," +
-		"KEY `block_height` (`block_height`)," +
-		"KEY `action_hash` (`action_hash`(9))," +
-		"KEY `receipt_contract_address` (`receipt_contract_address`)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+	if err := db.DB().AutoMigrate(&ActionExecution{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
@@ -47,8 +34,9 @@ func (b actionExecutionPlugin) Start(ctx context.Context) error {
 }
 
 func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := kernel.Transaction(func(tx *sql.Tx) error {
-		for _, selp := range blk.Actions {
+	actions := blk.Actions
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		for _, selp := range actions {
 			actionHash := selp.Hash()
 
 			act := selp.Action()
@@ -61,24 +49,24 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 			default:
 				continue
 			}
-			insertData := map[string]interface{}{
-				"block_height": blk.Height(),
-				"action_hash":  hex.EncodeToString(actionHash[:]),
-				"contract":     contract,
-				"data":         data,
+			ae := &ActionExecution{
+				BlockHeight: blk.Height(),
+				ActionHash:  hex.EncodeToString(actionHash[:]),
+				Contract:    contract,
+				Data:        data,
 			}
+
 			for _, receipt := range blk.Receipts {
 				if receipt.ActionHash == actionHash {
-					insertData["receipt_contract_address"] = receipt.ContractAddress
+					ae.ReceiptContractAddress = receipt.ContractAddress
 					break
 				}
 			}
-
-			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+			if err := tx.Create(ae).Error; err != nil {
 				return err
 			}
 		}
-		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 
 	return err
@@ -93,6 +81,4 @@ func (b actionExecutionPlugin) Version() string {
 }
 
 // exported
-var Plugin = actionExecutionPlugin{
-	tableName: "action_execution",
-}
+var Plugin = actionExecutionPlugin{}

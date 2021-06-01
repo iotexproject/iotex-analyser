@@ -2,24 +2,24 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
 	"math/big"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
-const VERSION = "1.1.0"
+const VERSION = "2.0.0"
 
 const successStatus = uint64(1)
 
 type stakingBucketPlugin struct {
-	tableName string
 }
 
 func (b stakingBucketPlugin) Name() string {
@@ -31,15 +31,7 @@ func (b stakingBucketPlugin) Type() plugin.Type {
 }
 
 func (b stakingBucketPlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
-		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
-		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
-		"`bucket_id` DECIMAL(42, 0) UNSIGNED NOT NULL DEFAULT 0," +
-		"PRIMARY KEY (`id`)," +
-		"KEY `action_hash` (`action_hash`(9))," +
-		"KEY `bucket_id` (`bucket_id`)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+	if err := db.DB().AutoMigrate(&StakingBucket{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
@@ -53,7 +45,7 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 	}
 	//io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53
 
-	err = kernel.Transaction(func(tx *sql.Tx) error {
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		cmpNum := big.NewInt(100000000)
 
 		for _, receipt := range blk.Receipts {
@@ -68,18 +60,19 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					if bucketIndex.Cmp(cmpNum) > 0 {
 						continue
 					}
-					insertData := map[string]interface{}{
-						"action_hash": actionHash,
-						"bucket_id":   bucketIndex.String(),
+					bucketID := decimal.NewFromBigInt(bucketIndex, 0)
+					m := &StakingBucket{
+						ActionHash: actionHash,
+						BucketID:   bucketID,
 					}
-					if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+					if err := tx.Create(m).Error; err != nil {
 						return errors.Wrap(err, "failed to insert table data")
 					}
 				}
 			}
 		}
 
-		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 
 	return err
@@ -94,6 +87,4 @@ func (b stakingBucketPlugin) Version() string {
 }
 
 // exported
-var Plugin = stakingBucketPlugin{
-	tableName: "staking_bucket",
-}
+var Plugin = stakingBucketPlugin{}

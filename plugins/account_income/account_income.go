@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"math/big"
 
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
-const VERSION = "1.1.6"
+const VERSION = "2.0.0"
 
 type income struct {
 	inFlow        *big.Int
@@ -20,7 +22,6 @@ type income struct {
 	outNumActions int
 }
 type accountIncomePlugin struct {
-	tableName string
 }
 
 func (b accountIncomePlugin) Name() string {
@@ -32,35 +33,12 @@ func (b accountIncomePlugin) Type() plugin.Type {
 }
 
 func (b accountIncomePlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `account_income` (" +
-		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
-		"`block_height` bigint(20) unsigned NOT NULL," +
-		"`account_address` char(41) NOT NULL DEFAULT ''," +
-		"`in_flow` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
-		"`in_num_actions` int(5) unsigned NOT NULL DEFAULT '0'," +
-		"`out_flow` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
-		"`out_num_actions` int(5) unsigned NOT NULL DEFAULT '0'," +
-		"PRIMARY KEY (`id`)," +
-		"KEY `block_height` (`block_height`)," +
-		"KEY `account_address` (`account_address`)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
-		return errors.Wrap(err, "failed to start plugin")
-	}
-
-	createSql = "CREATE TABLE IF NOT EXISTS `account_income_count` (" +
-		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
-		"`account_address` varchar(41) NOT NULL DEFAULT ''," +
-		"`in_flow` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
-		"`in_num_actions` int(5) unsigned NOT NULL DEFAULT '0'," +
-		"`out_flow` decimal(42,0) unsigned NOT NULL DEFAULT '0'," +
-		"`out_num_actions` int(5) unsigned NOT NULL DEFAULT '0'," +
-		"PRIMARY KEY (`id`)," +
-		"UNIQUE KEY `account_address` (`account_address`)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+	var ai *AccountIncome
+	var aic *AccountIncomeCount
+	if err := db.DB().AutoMigrate(ai, aic); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
+	return nil
 
 	var err error
 	config, _ := kernel.GetConfigCtx(ctx)
@@ -69,29 +47,29 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
 	}
 
-	query := "SELECT count(1) FROM `" + b.tableName + "` WHERE block_height=0"
-	var count int
-	if err := kernel.GetDB().QueryRow(query).Scan(&count); err != nil {
+	var count int64
+	if err := db.DB().Model(ai).Where("block_height=0").Count(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
-	err = kernel.Transaction(func(tx *sql.Tx) error {
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		for addr, amount := range Default.Genesis.Account.InitBalanceMap {
+
 			insertData := map[string]interface{}{
-				"block_height":    uint64(0),
-				"in_flow":         amount,
-				"account_address": addr,
+				"block_height": uint64(0),
+				"in_flow":      amount,
+				"address":      addr,
 			}
-			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+			if err := tx.Model(ai).Create(insertData).Error; err != nil {
 				return err
 			}
-			insertData = map[string]interface{}{
-				"in_flow":         amount,
-				"account_address": addr,
-			}
-			if err := kernel.InsertTableData(tx, "account_income_count", insertData); err != nil {
+
+			if err := tx.Model(aic).Create(map[string]interface{}{
+				"in_flow": amount,
+				"address": addr,
+			}).Error; err != nil {
 				return err
 			}
 		}
@@ -142,64 +120,60 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 		}
 	}
 	blkHeight := blk.Height()
-	err := kernel.Transaction(func(tx *sql.Tx) error {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		for accountAddress, accountIncome := range incomes {
-			insertData := map[string]interface{}{
-				"block_height":    blkHeight,
-				"account_address": accountAddress,
-				"in_flow":         accountIncome.inFlow.String(),
-				"in_num_actions":  accountIncome.inNumActions,
-				"out_flow":        accountIncome.outFlow.String(),
-				"out_num_actions": accountIncome.outNumActions,
+			inFlow := decimal.NewFromBigInt(accountIncome.inFlow, 0)
+			outFlow := decimal.NewFromBigInt(accountIncome.outFlow, 0)
+			aim := &AccountIncome{
+				BlockHeight:   blkHeight,
+				Address:       accountAddress,
+				InFlow:        inFlow,
+				InNumActions:  accountIncome.inNumActions,
+				OutFlow:       outFlow,
+				OutNumActions: accountIncome.outNumActions,
 			}
-			if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+			if err := tx.Create(aim).Error; err != nil {
 				return err
 			}
-
-			var in_flow, out_flow sql.NullString
-			var in_num_actions, out_num_actions sql.NullInt32
-
-			in := new(big.Int)
-			out := new(big.Int)
-			query := "SELECT in_flow,in_num_actions,out_flow,out_num_actions FROM account_income_count WHERE account_address=?"
-			if err := tx.QueryRow(query, accountAddress).Scan(&in_flow, &in_num_actions, &out_flow, &out_num_actions); err != nil {
-				if err != sql.ErrNoRows {
+			aicm := &AccountIncomeCount{
+				Address:       accountAddress,
+				InFlow:        inFlow,
+				InNumActions:  accountIncome.inNumActions,
+				OutFlow:       outFlow,
+				OutNumActions: accountIncome.outNumActions,
+			}
+			var aic *AccountIncomeCount
+			if err := tx.Where("address = ?", accountAddress).First(&aic).Error; err != nil {
+				if err != gorm.ErrRecordNotFound {
 					return err
 				}
-				insertData1 := map[string]interface{}{
-					"account_address": accountAddress,
-					"in_flow":         accountIncome.inFlow.String(),
-					"in_num_actions":  accountIncome.inNumActions,
-					"out_flow":        accountIncome.outFlow.String(),
-					"out_num_actions": accountIncome.outNumActions,
-				}
-				if err := kernel.InsertTableData(tx, "account_income_count", insertData1); err != nil {
+				if err := tx.Create(aicm).Error; err != nil {
 					return err
 				}
 			} else {
-				in.SetString(in_flow.String, 10)
-				out.SetString(out_flow.String, 10)
-				in = in.Add(in, accountIncome.inFlow)
-				out = out.Add(out, accountIncome.outFlow)
-				inNum := int(in_num_actions.Int32) + accountIncome.inNumActions
-				outNum := int(out_num_actions.Int32) + accountIncome.outNumActions
+				aic.InFlow = aic.InFlow.Add(inFlow)
+				aic.InNumActions += accountIncome.inNumActions
+				aic.OutFlow = aic.OutFlow.Add(outFlow)
+				aic.OutNumActions += accountIncome.outNumActions
 
-				updateData := map[string]interface{}{
-					"in_flow":         in.String(),
-					"in_num_actions":  inNum,
-					"out_flow":        out.String(),
-					"out_num_actions": outNum,
-				}
-				whereMap := map[string]interface{}{
-					"account_address": accountAddress,
-				}
-				if err := kernel.UpdateTableData(tx, "account_income_count", updateData, whereMap); err != nil {
+				if err := tx.Save(aic).Error; err != nil {
 					return err
 				}
 			}
-
+			// if err := tx.Clauses(clause.OnConflict{
+			// 	Columns: []clause.Column{{Name: "address"}},
+			// 	DoUpdates: clause.Assignments(map[string]interface{}{
+			// 		"address":         accountAddress,
+			// 		"in_flow":         gorm.Expr("in_flow + ?", inFlow),
+			// 		"in_num_actions":  gorm.Expr("in_num_actions + ?", accountIncome.inNumActions),
+			// 		"out_flow":        gorm.Expr("out_flow + ?", outFlow),
+			// 		"out_num_actions": gorm.Expr("out_num_actions + ?", accountIncome.outNumActions),
+			// 	}),
+			// }).Create(aicm).Error; err != nil {
+			// 	return err
+			// }
 		}
-		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 
 	return err
@@ -214,6 +188,4 @@ func (b accountIncomePlugin) Version() string {
 }
 
 // exported
-var Plugin = accountIncomePlugin{
-	tableName: "account_income",
-}
+var Plugin = accountIncomePlugin{}

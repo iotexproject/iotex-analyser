@@ -2,19 +2,19 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
 
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
-const VERSION = "1.1.0"
+const VERSION = "2.0.0"
 
 type tokenPlugin struct {
-	tableName string
 }
 
 func (b tokenPlugin) Name() string {
@@ -26,29 +26,14 @@ func (b tokenPlugin) Type() plugin.Type {
 }
 
 func (b tokenPlugin) Start(ctx context.Context) error {
-	createSql := "CREATE TABLE IF NOT EXISTS `" + b.tableName + "` (" +
-		"`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT," +
-		"`block_height` bigint(20) unsigned NOT NULL DEFAULT '0'," +
-		"`action_hash` varchar(64) NOT NULL DEFAULT ''," +
-		"`contract_address` varchar(41) NOT NULL DEFAULT ''," +
-		"`amount` DECIMAL(42, 0) UNSIGNED NOT NULL DEFAULT 0," +
-		"`from` varchar(41) NOT NULL DEFAULT ''," +
-		"`to` varchar(41) NOT NULL DEFAULT ''," +
-		"PRIMARY KEY (`id`)," +
-		"KEY `block_height` (`block_height`)," +
-		"KEY `from` (`from`)," +
-		"KEY `to` (`to`)," +
-		"KEY `contract_address` (`contract_address`)," +
-		"KEY `action_hash` (`action_hash`(9))" +
-		") ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	if _, err := kernel.GetDB().Exec(createSql); err != nil {
+	if err := db.DB().AutoMigrate(&TokenErc20{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
 }
 
 func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := kernel.Transaction(func(tx *sql.Tx) error {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
 
 		for _, receipt := range blk.Receipts {
 			if receipt.Status != successStatus {
@@ -69,21 +54,22 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				if err != nil {
 					return errors.Wrap(err, "failed to parse contract data")
 				}
-				insertData := map[string]interface{}{
-					"block_height":     blk.Height(),
-					"action_hash":      actionHash,
-					"amount":           amount,
-					"contract_address": log.Address,
-					"from":             from,
-					"to":               to,
+				amountDec := decimal.NewFromBigInt(amount, 0)
+				m := &TokenErc20{
+					BlockHeight:     blk.Height(),
+					ActionHash:      actionHash,
+					ContractAddress: log.Address,
+					Amount:          amountDec,
+					From:            from,
+					To:              to,
 				}
-				if err := kernel.InsertTableData(tx, b.tableName, insertData); err != nil {
+				if err := tx.Create(m).Error; err != nil {
 					return errors.Wrap(err, "failed to insert table data")
 				}
 			}
 		}
 
-		return kernel.UpdateIndexHeight(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 
 	return err
@@ -98,6 +84,4 @@ func (b tokenPlugin) Version() string {
 }
 
 // exported
-var Plugin = tokenPlugin{
-	tableName: "token_erc20",
-}
+var Plugin = tokenPlugin{}

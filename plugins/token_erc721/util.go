@@ -32,7 +32,7 @@ func checkTopics(topics, data string) bool {
 }
 
 // ParseContractData parse xrc20 topics
-func ParseContractData(topics, data string) (from, to, amount string, err error) {
+func ParseContractData(topics, data string) (from, to string, amount *big.Int, err error) {
 	// This should cover input of indexed or not indexed ,i.e., len(topics)==192 len(data)==64 or len(topics)==64 len(data)==192
 	all := topics + data
 	if len(all) != topicsPlusDataLen {
@@ -55,11 +55,10 @@ func ParseContractData(topics, data string) (from, to, amount string, err error)
 	}
 	to = ioAddress.String()
 
-	amountBig, ok := new(big.Int).SetString(all[sha3Len+contractParamsLen*2:], 16)
+	amount, ok := new(big.Int).SetString(all[sha3Len+contractParamsLen*2:], 16)
 	if !ok {
 		err = errors.New("amount convert error")
 		return
 	}
-	amount = amountBig.Text(10)
 	return
 }

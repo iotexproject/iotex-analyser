@@ -35,7 +35,7 @@ func (b accountIncomePlugin) Type() plugin.Type {
 func (b accountIncomePlugin) Start(ctx context.Context) error {
 	var ai *AccountIncome
 	var aic *AccountIncomeCount
-	if err := db.DB().AutoMigrate(ai, aic); err != nil {
+	if err := db.DB().AutoMigrate(&AccountIncome{}, &AccountIncomeCount{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

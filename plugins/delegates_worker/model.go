@@ -4,7 +4,7 @@ import "github.com/shopspring/decimal"
 
 type NodeDelegates struct {
 	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned" sql:"type:bigint;index"`
+	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
 	ProducerAddress string          `gorm:"size:42;not null;default:'';"`
 	Active          bool            `gorm:"type:bool;not null;default:false"`
 	ProducerName    string          `gorm:"size:42;not null;default:'';"`

@@ -13,24 +13,24 @@ import (
 )
 
 func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*block.Block, error) {
+	var err error
 	blk, err := dao.GetBlockByHeight(blkHeight)
 	if err != nil {
 		return nil, err
 	}
-	receipts, err := dao.GetReceipts(blkHeight)
+	blk.Receipts, err = dao.GetReceipts(blkHeight)
 	if err != nil {
 		return nil, err
-	}
-	blk.Receipts = receipts
-	actionReceipts := make(map[hash.Hash256]*action.Receipt, len(receipts))
-	for _, receipt := range receipts {
-		actionReceipts[receipt.ActionHash] = receipt
 	}
 	tlogs, err := dao.TransactionLogs(blkHeight)
 	if err != nil {
 		return nil, err
 	} else {
 		for _, l := range tlogs.Logs {
+			if len(l.Transactions) == 0 {
+				continue
+			}
+			l := l
 			logs := make([]*action.TransactionLog, len(l.Transactions))
 			for i, txn := range l.Transactions {
 				amount, ok := new(big.Int).SetString(txn.Amount, 10)
@@ -44,7 +44,11 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*blo
 					Recipient: txn.Recipient,
 				}
 			}
-			actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
+			for i, j := range blk.Receipts {
+				if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
+					blk.Receipts[i].AddTransactionLogs(logs...)
+				}
+			}
 		}
 	}
 	return blk, nil

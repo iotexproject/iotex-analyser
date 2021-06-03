@@ -8,7 +8,7 @@ import (
 
 type BlockReceipt struct {
 	ID                 uint64 `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight        uint64 `gorm:"unsigned" sql:"type:bigint;index"`
+	BlockHeight        uint64 `gorm:"unsigned;index" sql:"type:bigint"`
 	ActionHash         string `gorm:"size:64;not null;index:,length:9"`
 	GasConsumed        uint64 `gorm:"type:int4;unsigned;not null;default:0"`
 	ContractAddress    string `gorm:"size:42;not null;default:'';"`
@@ -22,7 +22,7 @@ func (BlockReceipt) TableName() string {
 
 type BlockReceiptTransaction struct {
 	ID          uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight uint64          `gorm:"unsigned" sql:"type:bigint;index"`
+	BlockHeight uint64          `gorm:"unsigned;index" sql:"type:bigint"`
 	ActionHash  string          `gorm:"size:64;not null;index:,length:9"`
 	Type        string          `gorm:"size:32;not null;default:'';"`
 	Amount      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
@@ -36,7 +36,7 @@ func (BlockReceiptTransaction) TableName() string {
 
 type BlockReceiptLog struct {
 	ID                 uint64 `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight        uint64 `gorm:"unsigned" sql:"type:bigint;index"`
+	BlockHeight        uint64 `gorm:"unsigned;index" sql:"type:bigint"`
 	ActionHash         string `gorm:"size:64;not null;index:,length:9"`
 	Address            string `gorm:"size:42;not null;default:'';index:,length:9"`
 	Topics             []byte `gorm:"not null;"`

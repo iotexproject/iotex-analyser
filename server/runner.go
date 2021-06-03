@@ -2,16 +2,14 @@ package server
 
 import (
 	"context"
-	"math/big"
 	"sync"
 	"time"
 
-	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
+	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
@@ -115,7 +113,7 @@ func (r *runner) Start(ctx context.Context) error {
 	}
 	if config.Default.Iotex.CrawlMode {
 		for _, nextHeight := range config.Default.Iotex.CrawlHeight {
-			blk, err := GetBlockByHeight(nextHeight)
+			blk, err := kernel.GetBlockByHeightFromChain(nextHeight)
 			if err != nil {
 				r.logger.Error("failed to read block from chain")
 				continue
@@ -135,11 +133,11 @@ func (r *runner) Start(ctx context.Context) error {
 		return nil
 	}
 	r.isRunning.Set(true)
-	var nextHeight, tipHeight uint64
-	var err error
-	var integrated bool
 	r.wg.Add(1)
 	go func() {
+		var nextHeight, tipHeight uint64
+		var err error
+		var blk *block.Block
 		defer r.wg.Done()
 		for {
 			if !r.isRunning.Get() {
@@ -151,19 +149,14 @@ func (r *runner) Start(ctx context.Context) error {
 			default:
 				//prevent dead loop
 				time.Sleep(3 * time.Second)
-				if !config.Default.Iotex.CatchUpMode {
-					integrated = false
-				} else {
-					integrated = true
-				}
 				tipHeight, err = r.getTipHeight()
 				if err != nil {
-					r.logger.Error("failed to get blockdao height", zap.Error(err))
+					r.logger.Error("failed to get blockdao height, retrying...", zap.Error(err))
 					continue
 				}
 				nextHeight, err = r.nextHeight()
 				if err != nil {
-					r.logger.Error("failed to get next height", zap.Error(err))
+					r.logger.Error("failed to get next height, retrying...", zap.Error(err))
 					continue
 				}
 				r.logger.Debug("succefully to fetch plugin meta",
@@ -175,7 +168,12 @@ func (r *runner) Start(ctx context.Context) error {
 					if !r.isRunning.Get() {
 						break
 					}
-					blk, err := r.dao.GetBlockByHeight(nextHeight)
+
+					if !config.Default.Iotex.CatchUpMode {
+						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
+					} else {
+						blk, err = kernel.GetBlockByHeightFromChain(nextHeight)
+					}
 					if err != nil {
 						r.logger.Error("failed to read block from dao",
 							zap.Error(err),
@@ -183,58 +181,7 @@ func (r *runner) Start(ctx context.Context) error {
 							zap.Uint64("height", nextHeight),
 							zap.Uint64("tipHeight", tipHeight),
 						)
-						time.Sleep(retryBlockTime)
-						blk, err = GetBlockByHeight(nextHeight)
-						if err != nil {
-							r.logger.Error("failed to read block from chain",
-								zap.Error(err),
-								zap.String("pluginName", r.plugin.Name()),
-								zap.Uint64("height", nextHeight),
-							)
-							break
-						}
-						integrated = true
-					}
-					if !integrated {
-						receipts, err := r.dao.GetReceipts(nextHeight)
-						if err != nil {
-							r.logger.Error("failed to read receipts from dao",
-								zap.Error(err),
-								zap.String("pluginName", r.plugin.Name()),
-								zap.Uint64("height", nextHeight))
-							break
-						}
-						blk.Receipts = receipts
-						actionReceipts := make(map[hash.Hash256]*action.Receipt, len(receipts))
-						for _, receipt := range receipts {
-							actionReceipts[receipt.ActionHash] = receipt
-						}
-						tlogs, err := r.dao.TransactionLogs(nextHeight)
-						if err != nil {
-							r.logger.Error("failed to read transaction logs from dao",
-								zap.Error(err),
-								zap.String("pluginName", r.plugin.Name()),
-								zap.Uint64("height", nextHeight))
-							break
-						} else {
-							for _, l := range tlogs.Logs {
-								logs := make([]*action.TransactionLog, len(l.Transactions))
-								for i, txn := range l.Transactions {
-									amount, ok := new(big.Int).SetString(txn.Amount, 10)
-									if !ok {
-										r.logger.Error("failed to parse transaction amount", zap.Any("amount", txn.Amount))
-										continue
-									}
-									logs[i] = &action.TransactionLog{
-										Type:      txn.Type,
-										Amount:    amount,
-										Sender:    txn.Sender,
-										Recipient: txn.Recipient,
-									}
-								}
-								actionReceipts[hash.BytesToHash256(l.ActionHash)].AddTransactionLogs(logs...)
-							}
-						}
+						break
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
 						r.logger.Error("failed to put data to plugin, it will be retry in next time",

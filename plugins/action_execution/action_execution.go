@@ -49,6 +49,9 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 			default:
 				continue
 			}
+			if data == nil {
+				data = []byte("")
+			}
 			ae := &ActionExecution{
 				BlockHeight: blk.Height(),
 				ActionHash:  hex.EncodeToString(actionHash[:]),

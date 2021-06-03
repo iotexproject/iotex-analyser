@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 const TableName = "node_delegates"
 
 type delegatesWorkerPlugin struct {

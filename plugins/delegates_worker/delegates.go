@@ -13,6 +13,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
@@ -347,6 +348,10 @@ func sortAndUpdate(message *delegatesMessage) error {
 	}
 	return db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, bp := range message.Delegates {
+			votes, err := decimal.NewFromString(bp.Votes)
+			if err != nil {
+				return err
+			}
 			nd := &NodeDelegates{
 				BlockHeight:     message.StartBlock,
 				ProducerAddress: bp.Address,
@@ -355,7 +360,7 @@ func sortAndUpdate(message *delegatesMessage) error {
 				Rank:            bp.Rank,
 				Blocks:          bp.Production,
 				Probated:        bp.ProbatedStatus,
-				Votes:           bp.Votes,
+				Votes:           votes,
 			}
 			if err := tx.Create(nd).Error; err != nil {
 				return err

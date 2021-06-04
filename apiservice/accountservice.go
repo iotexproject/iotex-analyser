@@ -7,7 +7,7 @@ import (
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/api"
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-core/ioctl/util"
 )
 
@@ -20,7 +20,7 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 	resp := &api.AccountResponse{
 		Height: req.GetHeight(),
 	}
-	db := kernel.GetDB()
+	db := db.DB()
 	height := req.GetHeight()
 	for _, addr := range req.GetAddress() {
 		if addr[:2] == "0x" || addr[:2] == "0X" {
@@ -33,7 +33,7 @@ func (s *AccountService) GetIotexBalanceByHeight(ctx context.Context, req *api.A
 		}
 		var amount sql.NullString
 		query := "SELECT sum(in_flow)-sum(out_flow) from account_income WHERE block_height<=? and account_address=?"
-		err := db.QueryRow(query, height, addr).Scan(&amount)
+		err := db.Raw(query, height, addr).Scan(&amount).Error
 		if err != nil {
 			return nil, err
 		}
@@ -54,7 +54,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 		Height:          req.GetHeight(),
 		ContractAddress: req.GetContractAddress(),
 	}
-	db := kernel.GetDB()
+	db := db.DB()
 	height := req.GetHeight()
 	contractAddress := req.GetContractAddress()
 	for _, addr := range req.GetAddress() {
@@ -78,7 +78,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 		//get receive amount
 		var toAmount sql.NullString
 		query := "SELECT SUM(amount) FROM token_erc20 WHERE block_height<=? AND `to`=? AND `contract_address`=?"
-		err := db.QueryRow(query, height, addr, contractAddress).Scan(&toAmount)
+		err := db.Raw(query, height, addr, contractAddress).Scan(&toAmount).Error
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 		//get cost amount
 		var fromAmount sql.NullString
 		query = "SELECT SUM(amount) FROM token_erc20 WHERE block_height<=? AND `from`=? AND `contract_address`=?"
-		err = db.QueryRow(query, height, addr, contractAddress).Scan(&fromAmount)
+		err = db.Raw(query, height, addr, contractAddress).Scan(&fromAmount).Error
 		if err != nil {
 			return nil, err
 		}

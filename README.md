@@ -26,7 +26,12 @@ make #both server and plugins
 ### simple config.yml
 ```
 database:
-  dsn: root:root@tcp(127.0.0.1:3306)/iotex-analyser
+  driver: postgres
+  host: 127.0.0.1
+  port: 5432
+  user: postgres
+  password: admin
+  name: test
 iotex:
   chainEndPoint: api.testnet.iotex.one:80
 blockDB:

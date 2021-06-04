@@ -9,11 +9,12 @@ import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/gammazero/workerpool"
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/urfave/cli/v2"
+	"gorm.io/gorm"
 )
 
 var VerifyBlockReceipt = &cli.Command{
@@ -42,14 +43,13 @@ var VerifyBlockReceipt = &cli.Command{
 
 func verifyBlockReceipt(c *cli.Context) error {
 	fmt.Printf("min=%d max=%d worker=%d\n", c.Uint64("min"), c.Uint64("max"), c.Int("worker"))
-	db := kernel.GetDB()
-	defer db.Close()
+	db := db.DB()
 	min := c.Uint64("min")
 	max := c.Uint64("max")
 
 	var height sql.NullInt64
 	query := "SELECT height FROM index_heights WHERE name='block_receipt'"
-	db.QueryRow(query).Scan(&height)
+	db.Raw(query).Scan(&height)
 	if height.Int64 == 0 {
 		return nil
 	}
@@ -92,7 +92,7 @@ func verifyBlockReceipt(c *cli.Context) error {
 			}
 			var count sql.NullInt32
 			query := `select count(1) from block_receipt_transaction where block_height=?`
-			if err := db.QueryRow(query, i).Scan(&count); err != nil && err != sql.ErrNoRows {
+			if err := db.Raw(query, i).Scan(&count).Error; err != nil && err != gorm.ErrRecordNotFound {
 				panic(err)
 			}
 			if int(count.Int32) != tlogsLen {

@@ -8,8 +8,9 @@ import (
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/gammazero/workerpool"
-	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/urfave/cli/v2"
+	"gorm.io/gorm"
 )
 
 var FixAccountIncome = &cli.Command{
@@ -35,12 +36,11 @@ func fixAccountIncome(c *cli.Context) error {
 	if blkHeight == 0 {
 		return errors.New("--block must > 0")
 	}
-	db := kernel.GetDB()
-	defer db.Close()
+	db := db.DB()
 
 	var height sql.NullInt64
 	query := "SELECT height FROM index_heights WHERE name='account_income'"
-	db.QueryRow(query).Scan(&height)
+	db.Raw(query).Scan(&height)
 	if height.Int64 == 0 {
 		return nil
 	}
@@ -57,16 +57,16 @@ func fixAccountIncome(c *cli.Context) error {
 	wp.StopWait()
 	bar.Finish()
 	fmt.Println("rebuilding account_income_count table")
-	err := kernel.Transaction(func(tx *sql.Tx) error {
-		_, err := tx.Exec("truncate account_income_count")
+	err := db.Transaction(func(tx *gorm.DB) error {
+		err := tx.Exec("truncate account_income_count").Error
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec("insert into account_income_count(account_address,in_flow,in_num_actions,out_flow,out_num_actions) select account_address,SUM(in_flow),SUM(in_num_actions),SUM(out_flow),SUM(out_num_actions) from account_income GROUP BY account_address")
+		err = tx.Exec("insert into account_income_count(account_address,in_flow,in_num_actions,out_flow,out_num_actions) select account_address,SUM(in_flow),SUM(in_num_actions),SUM(out_flow),SUM(out_num_actions) from account_income GROUP BY account_address").Error
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec("update index_heights set height=? where name='account_income'", blkHeight-1)
+		err = tx.Exec("update index_heights set height=? where name='account_income'", blkHeight-1).Error
 		if err != nil {
 			return err
 		}
@@ -77,8 +77,8 @@ func fixAccountIncome(c *cli.Context) error {
 
 func deleteAccountIncomeRow(blkHeight uint64) {
 	bar.Increment()
-	err := kernel.Transaction(func(t *sql.Tx) error {
-		_, err := t.Exec("DELETE FROM account_income WHERE block_height=?", blkHeight)
+	err := db.DB().Transaction(func(t *gorm.DB) error {
+		err := t.Exec("DELETE FROM account_income WHERE block_height=?", blkHeight).Error
 		return err
 	})
 	if err != nil {

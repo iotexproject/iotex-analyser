@@ -36,7 +36,10 @@ func fixAccountIncome(c *cli.Context) error {
 	if blkHeight == 0 {
 		return errors.New("--block must > 0")
 	}
-	db := db.DB()
+	db, err := db.Connect()
+	if err != nil {
+		return err
+	}
 
 	var height sql.NullInt64
 	query := "SELECT height FROM index_heights WHERE name='account_income'"
@@ -57,7 +60,7 @@ func fixAccountIncome(c *cli.Context) error {
 	wp.StopWait()
 	bar.Finish()
 	fmt.Println("rebuilding account_income_count table")
-	err := db.Transaction(func(tx *gorm.DB) error {
+	err = db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Exec("truncate account_income_count").Error
 		if err != nil {
 			return err

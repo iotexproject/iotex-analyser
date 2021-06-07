@@ -34,8 +34,11 @@ func fixBlockReceipt(c *cli.Context) error {
 		return errors.New("missing --block <height>")
 	}
 
-	db := db.DB()
-	err := db.Transaction(func(t *gorm.DB) error {
+	db, err := db.Connect()
+	if err != nil {
+		return err
+	}
+	err = db.Transaction(func(t *gorm.DB) error {
 		var err error
 		var id int64
 		var minBlkHeight uint64

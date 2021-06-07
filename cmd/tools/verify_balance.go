@@ -42,17 +42,19 @@ var (
 
 func verifyBalance(c *cli.Context) error {
 	fmt.Printf("min=%d max=%d worker=%d\n", c.Uint64("min"), c.Uint64("max"), c.Int("worker"))
-	db := db.DB()
-
+	db, err := db.Connect()
+	if err != nil {
+		return err
+	}
 	var count int
-	query := `select count(DISTINCT account_address) from account_income where block_height>=? and block_height<?`
+	query := `select count(DISTINCT address) from account_income where block_height>=? and block_height<?`
 	if err := db.Raw(query, c.Uint64("min"), c.Uint64("max")).Scan(&count).Error; err != nil {
 		return err
 	}
 	bar = pb.StartNew(count)
 	wp := workerpool.New(c.Int("worker"))
 
-	query = `select DISTINCT account_address from account_income where block_height>=? and block_height<?`
+	query = `select DISTINCT address from account_income where block_height>=? and block_height<?`
 	rows, err := db.Raw(query, c.Uint64("min"), c.Uint64("max")).Rows()
 	if err != nil {
 		return err
@@ -86,14 +88,14 @@ func verifyBalanceWorker(addr string, c *cli.Context) {
 	db := db.DB()
 	min := c.Uint64("min")
 	max := c.Uint64("max")
-	query := `select (SELECT IFNULL(sum(amount),0) FROM block_receipt_transaction WHERE  block_height>=? and block_height<? and recipient=?)- (SELECT IFNULL(sum(amount),0) FROM block_receipt_transaction WHERE block_height>=? and block_height<? and sender=?)`
+	query := `select (SELECT COALESCE(sum(amount),0) FROM block_receipt_transaction WHERE  block_height>=? and block_height<? and recipient=?)- (SELECT COALESCE(sum(amount),0) FROM block_receipt_transaction WHERE block_height>=? and block_height<? and sender=?)`
 	var amount1 sql.NullString
 	err = db.Raw(query, min, max, addr, min, max, addr).Scan(&amount1).Error
 	if err != nil && err != sql.ErrNoRows {
 		log.Printf("%s got error %v", addr, err)
 		return
 	}
-	query = `SELECT sum(in_flow)-sum(out_flow) FROM account_income WHERE account_address=? and block_height>=? and block_height<?`
+	query = `SELECT sum(in_flow)-sum(out_flow) FROM account_income WHERE address=? and block_height>=? and block_height<?`
 	var amount2 sql.NullString
 	err = db.Raw(query, addr, min, max).Scan(&amount2).Error
 	if err != nil && err != sql.ErrNoRows {

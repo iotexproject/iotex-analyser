@@ -35,8 +35,10 @@ jobs:
           cp *.so /home/ubuntu/iotex-analyser/
           cd /home/ubuntu/iotex-analyser/ 
           cp config.yml.j2 config.yml
-          for i in $(ls *.so); do sed -i "/plugins:/a\    -\ $i" config.yml ;done       
-          sudo supervisorctl restart analyser           
+          cp config_testnet.yml.j2 config_testnet.yml
+          for i in $(ls *.so); do sed -i "/plugins:/a\    -\ $i" config.yml config_testnet.yml;done       
+          sudo supervisorctl restart analyser
+          sudo supervisorctl restart analyser_testnet
 #cd /home/ubuntu/iotex-analyser/ && for i in $(ls *.so); do ./iotex-analyser -c /home/ubuntu/iotex-analyser/config.yml plugin load $i ;done
           
 #       - name: print env

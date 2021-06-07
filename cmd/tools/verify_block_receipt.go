@@ -13,6 +13,7 @@ import (
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"gorm.io/gorm"
 )
@@ -43,13 +44,18 @@ var VerifyBlockReceipt = &cli.Command{
 
 func verifyBlockReceipt(c *cli.Context) error {
 	fmt.Printf("min=%d max=%d worker=%d\n", c.Uint64("min"), c.Uint64("max"), c.Int("worker"))
-	db := db.DB()
+	db, err := db.Connect()
+	if err != nil {
+		return err
+	}
 	min := c.Uint64("min")
 	max := c.Uint64("max")
 
 	var height sql.NullInt64
 	query := "SELECT height FROM index_heights WHERE name='block_receipt'"
-	db.Raw(query).Scan(&height)
+	if err := db.Raw(query).Scan(&height).Error; err != nil {
+		return errors.Wrap(err, "")
+	}
 	if height.Int64 == 0 {
 		return nil
 	}

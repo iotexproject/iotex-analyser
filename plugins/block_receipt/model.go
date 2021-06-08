@@ -34,6 +34,21 @@ func (BlockReceiptTransaction) TableName() string {
 	return "block_receipt_transaction"
 }
 
+type BlockReceiptTransaction2 struct {
+	ID          uint64          `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+	ActionHash  string          `gorm:"size:64;not null;index:,length:9"`
+	UniqueKey   string          `gorm:"size:128;not null;unique"`
+	Type        string          `gorm:"size:32;not null;default:'';"`
+	Amount      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	Sender      string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Recipient   string          `gorm:"size:42;not null;default:'';index:,length:9"`
+}
+
+func (BlockReceiptTransaction2) TableName() string {
+	return "block_receipt_transaction_2"
+}
+
 type BlockReceiptLog struct {
 	ID                 uint64 `gorm:"primary_key;" sql:"type:bigint"`
 	BlockHeight        uint64 `gorm:"unsigned;index" sql:"type:bigint"`

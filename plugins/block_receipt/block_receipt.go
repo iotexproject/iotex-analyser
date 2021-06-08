@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
@@ -14,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 const (
 	transfer                   = "transfer"
@@ -53,7 +54,7 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
 	}
-	if err := db.DB().AutoMigrate(&BlockReceipt{}, &BlockReceiptLog{}, &BlockReceiptTransaction{}); err != nil {
+	if err := db.DB().AutoMigrate(&BlockReceipt{}, &BlockReceiptLog{}, &BlockReceiptTransaction{}, &BlockReceiptTransaction2{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
@@ -103,7 +104,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				return err
 			}
 			//transaction
-			for _, transation := range receipt.TransactionLogs() {
+			for idx, transation := range receipt.TransactionLogs() {
 				transation := transation
 				amountDec := decimal.NewFromBigInt(transation.Amount, 0)
 				brt := &BlockReceiptTransaction{
@@ -116,6 +117,18 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				}
 				if err := tx.Create(brt).Error; err != nil {
 					return err
+				}
+				brt2 := &BlockReceiptTransaction2{
+					BlockHeight: blk.Height(),
+					ActionHash:  actionHash,
+					UniqueKey:   fmt.Sprintf("%s:%d", actionHash, idx),
+					Type:        getActionType(transation.Type),
+					Amount:      amountDec,
+					Sender:      transation.Sender,
+					Recipient:   transation.Recipient,
+				}
+				if err := tx.Create(brt2).Error; err != nil {
+					panic(err)
 				}
 			}
 			//logs

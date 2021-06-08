@@ -77,7 +77,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 		}
 		//get receive amount
 		var toAmount sql.NullString
-		query := "SELECT SUM(amount) FROM token_erc20 WHERE block_height<=? AND `to`=? AND `contract_address`=?"
+		query := "SELECT SUM(amount) FROM token_erc20 t WHERE block_height<=? AND t.to=? AND t.contract_address=?"
 		err := db.Raw(query, height, addr, contractAddress).Scan(&toAmount).Error
 		if err != nil {
 			return nil, err
@@ -85,7 +85,7 @@ func (s *AccountService) GetErc20TokenBalanceByHeight(ctx context.Context, req *
 
 		//get cost amount
 		var fromAmount sql.NullString
-		query = "SELECT SUM(amount) FROM token_erc20 WHERE block_height<=? AND `from`=? AND `contract_address`=?"
+		query = "SELECT SUM(amount) FROM token_erc20 t WHERE block_height<=? AND t.from=? AND contract_address=?"
 		err = db.Raw(query, height, addr, contractAddress).Scan(&fromAmount).Error
 		if err != nil {
 			return nil, err

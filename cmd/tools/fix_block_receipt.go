@@ -53,7 +53,7 @@ func fixBlockReceipt(c *cli.Context) error {
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
-			err = t.Exec("alter sequence block_receipt_seq restart with " + strconv.FormatUint(uint64(id), 10)).Error
+			err = t.Exec("alter sequence block_receipt_id_seq restart with " + strconv.FormatUint(uint64(id), 10)).Error
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
@@ -65,7 +65,7 @@ func fixBlockReceipt(c *cli.Context) error {
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
-			err = t.Exec("alter sequence block_receipt_log_seq restart with " + strconv.FormatUint(uint64(id), 10)).Error
+			err = t.Exec("alter sequence block_receipt_log_id_seq restart with " + strconv.FormatUint(uint64(id), 10)).Error
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
@@ -76,7 +76,7 @@ func fixBlockReceipt(c *cli.Context) error {
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
-			err = t.Exec("alter sequence block_transaction_seq restart with " + strconv.FormatUint(uint64(id), 10)).Error
+			err = t.Exec("alter sequence block_transaction_id_seq restart with " + strconv.FormatUint(uint64(id), 10)).Error
 			if err != nil {
 				return errors.Wrap(err, "")
 			}

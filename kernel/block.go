@@ -33,6 +33,8 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*blo
 			l := l
 			logs := make([]*action.TransactionLog, len(l.Transactions))
 			for i, txn := range l.Transactions {
+				i := i
+				txn := txn
 				amount, ok := new(big.Int).SetString(txn.Amount, 10)
 				if !ok {
 					return nil, errors.New("failed to parse transaction amount")
@@ -44,9 +46,12 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*blo
 					Recipient: txn.Recipient,
 				}
 			}
-			for i, j := range blk.Receipts {
-				if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
-					blk.Receipts[i].AddTransactionLogs(logs...)
+			for k, j := range blk.Receipts {
+				k := k
+				j := j
+				if j.ActionHash == hash.BytesToHash256(l.ActionHash) && len(j.TransactionLogs()) == 0 {
+					j.AddTransactionLogs(logs...)
+					blk.Receipts[k] = j
 				}
 			}
 		}

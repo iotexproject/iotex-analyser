@@ -65,7 +65,7 @@ func fixAccountIncome(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		err = tx.Exec("insert into account_income_count(account_address,in_flow,in_num_actions,out_flow,out_num_actions) select account_address,SUM(in_flow),SUM(in_num_actions),SUM(out_flow),SUM(out_num_actions) from account_income GROUP BY account_address").Error
+		err = tx.Exec("insert into account_income_count(address,in_flow,in_num_actions,out_flow,out_num_actions) select address,SUM(in_flow),SUM(in_num_actions),SUM(out_flow),SUM(out_num_actions) from account_income GROUP BY address").Error
 		if err != nil {
 			return err
 		}

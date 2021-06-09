@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/cheggaaa/pb/v3"
@@ -50,7 +51,9 @@ func verifyBlockReceipt(c *cli.Context) error {
 	}
 	min := c.Uint64("min")
 	max := c.Uint64("max")
-
+	if _, err := os.Stat(config.Default.Server.Addr); !os.IsNotExist(err) {
+		return errors.New("server is running")
+	}
 	var height sql.NullInt64
 	query := "SELECT height FROM index_heights WHERE name='block_receipt'"
 	if err := db.Raw(query).Scan(&height).Error; err != nil {

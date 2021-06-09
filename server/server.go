@@ -126,6 +126,10 @@ func (srv *Server) Start(ctx context.Context) error {
 func (srv *Server) Stop(ctx context.Context) error {
 	srv.m.RLock()
 	defer srv.m.RUnlock()
+	sockAddr := config.Default.Server.Addr
+	if _, err := os.Stat(sockAddr); err == nil {
+		os.Remove(sockAddr)
+	}
 	srv.isRunning.Set(false)
 	if err := srv.service.Stop(ctx); err != nil {
 		return err

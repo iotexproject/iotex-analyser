@@ -48,10 +48,13 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*blo
 			}
 			for k, j := range blk.Receipts {
 				k := k
-				j := j
-				if j.ActionHash == hash.BytesToHash256(l.ActionHash) && len(j.TransactionLogs()) == 0 {
-					j.AddTransactionLogs(logs...)
-					blk.Receipts[k] = j
+				if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
+					if len(j.TransactionLogs()) == 0 {
+						blk.Receipts[k] = j.AddTransactionLogs(logs...)
+					}
+					if len(blk.Receipts[k].TransactionLogs()) != len(l.GetTransactions()) {
+						return nil, errors.New("transaction log length does not match")
+					}
 				}
 			}
 		}

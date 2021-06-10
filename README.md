@@ -2,10 +2,20 @@
 async analyser for iotex
 
 ## Install
+### protoc
+
+protoc download https://github.com/protocolbuffers/protobuf
+```
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.4
+make proto
+
+```
 
 ```
 make plugins #auto make plugin so file
-make plugin name=xxx #compiile single plugin,xxx means plugins/xxx/*.go
+make plugin name=xxx #compile single plugin,xxx means plugins/xxx/*.go
 make build #server
 make #both server and plugins
 ```

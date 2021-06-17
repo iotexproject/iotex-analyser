@@ -7,7 +7,7 @@ import (
 type StakingBucket struct {
 	ID         uint64          `gorm:"primary_key;" sql:"type:bigint"`
 	ActionHash string          `gorm:"size:64;not null;index:,length:9"`
-	BucketID   decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	BucketID   decimal.Decimal `gorm:"type:decimal(42,0);not null;index;default:0;"`
 }
 
 func (StakingBucket) TableName() string {

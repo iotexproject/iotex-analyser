@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 const successStatus = uint64(1)
 

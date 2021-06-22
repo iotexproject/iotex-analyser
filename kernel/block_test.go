@@ -2,11 +2,13 @@ package kernel
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
@@ -76,6 +78,68 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 		for k, r := range blk.Receipts {
 			require.Equal(blkCache.Receipts[k].ActionHash, r.ActionHash)
 			require.Equal(len(blkCache.Receipts[k].TransactionLogs()), len(r.TransactionLogs()))
+		}
+	}
+}
+
+func TestGetBlockByHeight(t *testing.T) {
+	require := require.New(t)
+	corecfg.SetEVMNetworkID(4689)
+	var tip protocol.TipInfo
+	ctx := protocol.WithBlockchainCtx(
+		context.Background(),
+		protocol.BlockchainCtx{
+			Genesis: genesis.Default,
+			Tip:     tip,
+		},
+	)
+	var indexers []blockdao.BlockIndexer
+	var dao blockdao.BlockDAO
+	cfg := corecfg.Default.DB
+	cfg.DbPath = "/media/millken/SAMSUNG/iotex-var/mainnet-data-11293622/chain.db"
+	dao = blockdao.NewBlockDAO(indexers, cfg)
+	require.NoError(dao.Start(ctx))
+	defer func() {
+		require.NoError(dao.Stop(ctx))
+	}()
+	blkHeight := uint64(11392458)
+	blk, err := dao.GetBlockByHeight(blkHeight)
+	require.NoError(err)
+	require.Equal(len(blk.Receipts), 0)
+	blk.Receipts, err = dao.GetReceipts(blkHeight)
+	require.NoError(err)
+	require.Equal(len(blk.Receipts), 3)
+	for _, receipt := range blk.Receipts {
+		require.Equal(len(receipt.TransactionLogs()), 0)
+	}
+	tlogs, err := dao.TransactionLogs(blkHeight)
+	require.NoError(err)
+	for _, l := range tlogs.Logs {
+		if len(l.Transactions) == 0 {
+			continue
+		}
+		l := l
+		logs := make([]*action.TransactionLog, len(l.Transactions))
+		for i, txn := range l.Transactions {
+			i := i
+			txn := txn
+			amount, ok := new(big.Int).SetString(txn.Amount, 10)
+			require.Equal(ok, true)
+			logs[i] = &action.TransactionLog{
+				Type:      txn.Type,
+				Amount:    amount,
+				Sender:    txn.Sender,
+				Recipient: txn.Recipient,
+			}
+		}
+		for k, j := range blk.Receipts {
+			k := k
+			j := j
+			if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
+				if len(j.TransactionLogs()) == 0 {
+					blk.Receipts[k] = j.AddTransactionLogs(logs...)
+				}
+			}
 		}
 	}
 }

@@ -12,9 +12,20 @@ import (
 	"github.com/pkg/errors"
 )
 
-func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*block.Block, error) {
-	var err error
-	blk, err := dao.GetBlockByHeight(blkHeight)
+func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk *block.Block, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch x := r.(type) {
+			case string:
+				err = errors.New(x)
+			case error:
+				err = x
+			default:
+				err = errors.New("Unknown panic")
+			}
+		}
+	}()
+	blk, err = dao.GetBlockByHeight(blkHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +70,7 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (*blo
 			}
 		}
 	}
-	return blk, nil
+	return
 }
 
 func GetBlockByHeightFromChain(height uint64) (*block.Block, error) {

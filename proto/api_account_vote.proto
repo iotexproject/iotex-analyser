@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package api;
+import "google/api/annotations.proto";
+
+option go_package = "./api";
+
+message AccountVoteRequest {
+  repeated string address = 1;
+  uint64 height = 2;
+}
+
+message AccountVoteResponse {
+  uint64 height = 1;
+  repeated string stakeAmount  = 2;
+  repeated string voteWeight  = 3;
+}
+
+service AccountVoteService {
+  rpc GetVoteByHeight(AccountVoteRequest) returns (AccountVoteResponse) {
+    option (google.api.http) = {
+      post: "/api.AccountVoteService.GetVoteByHeight"
+      body: "*"
+    };
+  };
+
+}

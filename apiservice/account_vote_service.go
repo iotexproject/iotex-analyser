@@ -2,11 +2,15 @@ package apiservice
 
 import (
 	"context"
+	"database/sql"
+	"math"
 	"math/big"
+	"time"
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/api"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-core/ioctl/util"
 )
 
@@ -18,12 +22,11 @@ type voteRow struct {
 	StakeAmount, VoteWeight string
 }
 
-//curl -d '{"address": ["io1kp8alrznh2alvld3e34awq8aku7llqjjv9vkxk", "io1f8jdhlux5tja5f79gry6n6xjcdexufu0rl2hxj"], "height":5161495 }' http://127.0.0.1:7778/api.AccountVoteService.GetVoteByHeight
+//curl -d '{"address": ["io10avlgwgxv2k22dup4q0ah998vklg4rcrgl04m8", "io1fuhhg9jgdxwpms9dsdfwjdc90nt7v67hx40cd8"], "height":11900487 }' http://127.0.0.1:7778/api.AccountVoteService.GetVoteByHeight
 func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.AccountVoteRequest) (*api.AccountVoteResponse, error) {
 	resp := &api.AccountVoteResponse{
 		Height: req.GetHeight(),
 	}
-	db := db.DB()
 	height := req.GetHeight()
 	for _, addr := range req.GetAddress() {
 		if addr[:2] == "0x" || addr[:2] == "0X" {
@@ -34,23 +37,113 @@ func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.Accou
 
 			addr = add.String()
 		}
-		var row voteRow
-		query := "SELECT sum(create_stake_amount)-sum(un_stake_amount) as stake_amount,sum(create_stake_vote_weight-un_stake_vote_weight) as vote_weight from account_vote WHERE block_height<=? and address=?"
-		err := db.Raw(query, height, addr).First(&row).Error
+		bucketIDs, err := getBucketIDsByAddressWithHeight(addr, height)
 		if err != nil {
 			return nil, err
 		}
-		stakeAmount, ok := big.NewInt(0).SetString(row.StakeAmount, 10)
-		if !ok {
-			stakeAmount = big.NewInt(0)
+		stakeAmounts := big.NewInt(0)
+		voteWeights := big.NewInt(0)
+		for _, bucketID := range bucketIDs {
+			stakeAmount, err := getSumStake(addr, height, bucketID)
+			if err != nil {
+				return nil, err
+			}
+			stakeAmounts = stakeAmounts.Add(stakeAmounts, stakeAmount)
+			duration, autoStake, selfAutoStake := getVoteBucketParams(addr, height, bucketID)
+			voteBucket := &VoteBucket{
+				StakedAmount:   stakeAmount,
+				AutoStake:      autoStake,
+				StakedDuration: time.Duration(duration),
+			}
+			voteWeight := calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfAutoStake)
+			voteWeights = voteWeights.Add(voteWeights, voteWeight)
 		}
-		resp.StakeAmount = append(resp.StakeAmount, util.RauToString(stakeAmount, util.IotxDecimalNum))
-		voteWeight, ok := big.NewInt(0).SetString(row.VoteWeight, 10)
-		if !ok {
-			voteWeight = big.NewInt(0)
-		}
-		resp.VoteWeight = append(resp.VoteWeight, util.RauToString(voteWeight, util.IotxDecimalNum))
+		resp.StakeAmount = append(resp.StakeAmount, util.RauToString(stakeAmounts, util.IotxDecimalNum))
+		resp.VoteWeight = append(resp.VoteWeight, util.RauToString(voteWeights, util.IotxDecimalNum))
 	}
 
 	return resp, nil
+}
+
+func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, error) {
+	db := db.DB()
+	var ids []struct {
+		BucketID uint64
+	}
+	if err := db.Table("account_vote").Debug().Distinct("bucket_id").Where("block_height<=? and address=?", height, addr).Find(&ids).Error; err != nil {
+		return nil, err
+	}
+	bucketID := []uint64{}
+	for _, id := range ids {
+		bucketID = append(bucketID, id.BucketID)
+	}
+	return bucketID, nil
+}
+
+type VoteBucket struct {
+	Index            uint64
+	Candidate        string
+	Owner            string
+	StakedAmount     *big.Int
+	StakedDuration   time.Duration
+	CreateTime       time.Time
+	StakeStartTime   time.Time
+	UnstakeStartTime time.Time
+	AutoStake        bool
+}
+
+func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
+	remainingTime := v.StakedDuration.Seconds()
+	weight := float64(1)
+	var m float64
+	if v.AutoStake {
+		m = c.AutoStake
+	}
+	if remainingTime > 0 {
+		weight += math.Log(math.Ceil(remainingTime/86400)*(1+m)) / math.Log(c.DurationLg) / 100
+	}
+	if selfStake && v.AutoStake && v.StakedDuration >= time.Duration(91)*24*time.Hour {
+		// self-stake extra bonus requires enable auto-stake for at least 3 months
+		weight *= c.SelfStake
+	}
+
+	amount := new(big.Float).SetInt(v.StakedAmount)
+	weightedAmount, _ := amount.Mul(amount, big.NewFloat(weight)).Int(nil)
+	return weightedAmount
+}
+
+type AccountVote struct {
+	ID          uint64
+	BlockHeight uint64
+	BucketID    uint64
+	Address     string
+	Candidate   string
+	Amount      string
+	ActType     string
+	AutoStake   bool
+	Duration    uint32
+}
+
+func getSumStake(addr string, height, bucketID uint64) (*big.Int, error) {
+	db := db.DB()
+	var amount sql.NullString
+	if err := db.Table("account_vote").Select("sum(amount)").Where("block_height<=? and bucket_id=? and address=?", height, bucketID, addr).Scan(&amount).Error; err != nil {
+		return nil, err
+	}
+	stakeAmount, _ := big.NewInt(0).SetString(amount.String, 0)
+	return stakeAmount, nil
+}
+
+func getVoteBucketParams(addr string, height, bucketID uint64) (uint32, bool, bool) {
+	var av AccountVote
+	db := db.DB()
+	if err := db.Table("account_vote").Debug().Where("block_height<=? and bucket_id=? and address=?", height, bucketID, addr).Order("id desc").Scan(&av).Error; err != nil {
+		return 0, false, false
+	}
+
+	selfAutoStake := false
+	if addr == av.Candidate {
+		selfAutoStake = true
+	}
+	return av.Duration, av.AutoStake, selfAutoStake
 }

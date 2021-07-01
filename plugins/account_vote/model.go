@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"math"
 	"math/big"
 	"time"
@@ -8,18 +9,19 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type AccountVote struct {
-	ID                    uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight           uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	BucketID              uint64          `gorm:"unsigned;index"`
-	Address               string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Candidate             string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	CreateStakeAmount     decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	UnStakeAmount         decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	CreateStakeVoteWeight decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	UnStakeVoteWeight     decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	ID          uint64          `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+	BucketID    uint64          `gorm:"unsigned;index"`
+	Address     string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Candidate   string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Amount      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	ActType     string
+	AutoStake   bool
+	Duration    uint32
 }
 
 func (AccountVote) TableName() string {
@@ -52,6 +54,37 @@ type VoteBucket struct {
 	StakeStartTime   time.Time
 	UnstakeStartTime time.Time
 	AutoStake        bool
+}
+
+func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
+	var amount sql.NullString
+	zero := decimal.NewFromInt(0)
+	if err := tx.Model(&AccountVote{}).Select("sum(amount)").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
+		return zero, err
+	}
+	if amount.String == "" {
+		return zero, nil
+	}
+	decmailAmount, err := decimal.NewFromString(amount.String)
+	if err != nil {
+		return zero, err
+	}
+	return decmailAmount, nil
+}
+
+type BucketInfo struct {
+	Address   string
+	Candidate string
+	AutoStake bool
+	Duration  uint32
+}
+
+func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
+	var bi BucketInfo
+	if err := tx.Model(&AccountVote{}).Select("address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Scan(&bi).Error; err != nil {
+		return nil, err
+	}
+	return &bi, nil
 }
 
 func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {

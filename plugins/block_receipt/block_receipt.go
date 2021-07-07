@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.2"
 
 const (
 	transfer                   = "transfer"
@@ -123,6 +123,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				log := log
 				topics := [][]byte{}
 				for _, topic := range log.Topics {
+					topic := topic
 					topics = append(topics, topic[:])
 				}
 

@@ -25,3 +25,4 @@ config_mainlive.yml
 config_testnet.yml
 .vscode/launch.json
 config_maintest.yml
+.DS_Store

@@ -15,7 +15,13 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.2.0"
+
+const (
+	GovernaceForwardAddress = "io1xfdn0z046hzm03jrtm8hf4scw2w07t7a0mqtmz"
+	GovernaceForwardToHash  = "87f136fb149a2751c6cc2ee9d9d2f7fc786ac7a163f58ef9fdbe2f1d7e7c78e8"
+	GovernaceCacelHash      = "dfae2e44eee3429afab9409ee9f946d11d84e8eee5d3c81525197a2925b0ceb9"
+)
 
 type accountVotePlugin struct {
 }
@@ -212,7 +218,120 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				continue
 			}
 		}
-
+		for _, receipt := range blk.Receipts {
+			for _, log := range receipt.Logs() {
+				if log.Address != GovernaceForwardAddress {
+					continue
+				}
+				if len(log.Topics) < 2 {
+					return errors.New("topics len must >= 2")
+				}
+				topics := log.Topics
+				funcHash := hex.EncodeToString(topics[0][:])
+				switch funcHash {
+				case GovernaceForwardToHash:
+					from, err := getAddresFromHash256(topics[1])
+					if err != nil {
+						return err
+					}
+					to, err := getAddresFromHash256(topics[2])
+					if err != nil {
+						return err
+					}
+					bucketIDs, err := getBucketIDsByAddressWithHeight(from.String(), blk.Height())
+					if err != nil {
+						return err
+					}
+					for _, bucketID := range bucketIDs {
+						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+						if err != nil {
+							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+						}
+						info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+						if err != nil {
+							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+						}
+						accountVote = AccountVote{
+							BlockHeight: blk.Height(),
+							BucketID:    bucketID,
+							Address:     from.String(),
+							ForwardTo:   to.String(),
+							Candidate:   info.Candidate,
+							AutoStake:   info.AutoStake,
+							ActType:     "GovernaceForward",
+							Duration:    info.Duration,
+							Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+						}
+						if err := tx.Create(&accountVote).Error; err != nil {
+							return err
+						}
+						accountVote = AccountVote{
+							BlockHeight: blk.Height(),
+							BucketID:    bucketID,
+							Address:     to.String(),
+							Candidate:   info.Candidate,
+							AutoStake:   info.AutoStake,
+							ActType:     "GovernaceForward",
+							Duration:    info.Duration,
+							Amount:      decmailAmount,
+						}
+						if err := tx.Create(&accountVote).Error; err != nil {
+							return err
+						}
+					}
+				case GovernaceCacelHash:
+					from, err := getAddresFromHash256(topics[1])
+					if err != nil {
+						return err
+					}
+					to, err := getForwardToAddressByFrom(from.String())
+					if err != nil {
+						return err
+					}
+					bucketIDs, err := getBucketIDsByAddressWithHeight(to, blk.Height())
+					if err != nil {
+						return err
+					}
+					for _, bucketID := range bucketIDs {
+						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+						if err != nil {
+							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+						}
+						info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+						if err != nil {
+							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+						}
+						accountVote = AccountVote{
+							BlockHeight: blk.Height(),
+							BucketID:    bucketID,
+							Address:     to,
+							ForwardTo:   from.String(),
+							Candidate:   info.Candidate,
+							AutoStake:   info.AutoStake,
+							ActType:     "GovernaceCacel",
+							Duration:    info.Duration,
+							Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+						}
+						if err := tx.Create(&accountVote).Error; err != nil {
+							return err
+						}
+						accountVote = AccountVote{
+							BlockHeight: blk.Height(),
+							BucketID:    bucketID,
+							Address:     from.String(),
+							Candidate:   info.Candidate,
+							AutoStake:   info.AutoStake,
+							ActType:     "GovernaceCacel",
+							Duration:    info.Duration,
+							Amount:      decmailAmount,
+						}
+						if err := tx.Create(&accountVote).Error; err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 

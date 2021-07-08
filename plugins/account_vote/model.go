@@ -2,10 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"math"
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/shopspring/decimal"
@@ -18,6 +22,7 @@ type AccountVote struct {
 	BucketID    uint64          `gorm:"unsigned;index"`
 	Address     string          `gorm:"size:42;not null;default:'';index:,length:9"`
 	Candidate   string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	ForwardTo   string          `gorm:"size:42;not null;default:'';"` //store Governace Forward To Address
 	Amount      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	ActType     string
 	AutoStake   bool
@@ -87,6 +92,36 @@ func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, 
 	return &bi, nil
 }
 
+func getAddresFromHash256(h hash.Hash256) (address.Address, error) {
+	hexStr := hex.EncodeToString(h[:])
+	ethAddr := hexStr[24:]
+	ethAddress := common.HexToAddress(ethAddr)
+	return address.FromBytes(ethAddress.Bytes())
+}
+
+func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, error) {
+	db := db.DB()
+	var ids []struct {
+		BucketID uint64
+	}
+	if err := db.Table("account_vote").Distinct("bucket_id").Where("block_height<=? and address=?", height, addr).Find(&ids).Error; err != nil {
+		return nil, err
+	}
+	bucketID := []uint64{}
+	for _, id := range ids {
+		bucketID = append(bucketID, id.BucketID)
+	}
+	return bucketID, nil
+}
+
+func getForwardToAddressByFrom(addr string) (string, error) {
+	var to string
+	db := db.DB()
+	if err := db.Model(&AccountVote{}).Select("forward_to").Where("address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Scan(&to).Error; err != nil {
+		return "", err
+	}
+	return to, nil
+}
 func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
 	remainingTime := v.StakedDuration.Seconds()
 	weight := float64(1)

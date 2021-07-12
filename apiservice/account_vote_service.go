@@ -44,6 +44,9 @@ func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.Accou
 		stakeAmounts := big.NewInt(0)
 		voteWeights := big.NewInt(0)
 		for _, bucketID := range bucketIDs {
+			if bucketID == 0 {
+				continue
+			}
 			stakeAmount, err := getSumStake(addr, height, bucketID)
 			if err != nil {
 				return nil, err
@@ -70,7 +73,7 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 	var ids []struct {
 		BucketID uint64
 	}
-	if err := db.Table("account_vote").Debug().Distinct("bucket_id").Where("block_height<=? and address=?", height, addr).Find(&ids).Error; err != nil {
+	if err := db.Table("account_vote").Distinct("bucket_id").Where("block_height<=? and address=?", height, addr).Find(&ids).Error; err != nil {
 		return nil, err
 	}
 	bucketID := []uint64{}

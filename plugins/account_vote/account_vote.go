@@ -4,18 +4,20 @@ import (
 	"context"
 	"encoding/hex"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.0"
+const VERSION = "2.2.1"
 
 const (
 	GovernaceForwardAddress = "io1xfdn0z046hzm03jrtm8hf4scw2w07t7a0mqtmz"
@@ -50,7 +52,19 @@ func (b accountVotePlugin) Start(ctx context.Context) error {
 func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		var accountVote AccountVote
+		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
+			actions[selp.Hash()] = selp
+		}
+		for _, receipt := range blk.Receipts {
+
+			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+				continue
+			}
+			selp, ok := actions[receipt.ActionHash]
+			if !ok {
+				continue
+			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 			act := selp.Action()
 			switch a := act.(type) {
@@ -214,11 +228,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				if err := tx.Create(&accountVote).Error; err != nil {
 					return err
 				}
-			default:
-				continue
 			}
-		}
-		for _, receipt := range blk.Receipts {
 			for _, log := range receipt.Logs() {
 				if log.Address != GovernaceForwardAddress {
 					continue

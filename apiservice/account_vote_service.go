@@ -44,9 +44,6 @@ func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.Accou
 		stakeAmounts := big.NewInt(0)
 		voteWeights := big.NewInt(0)
 		for _, bucketID := range bucketIDs {
-			if bucketID == 0 {
-				continue
-			}
 			stakeAmount, err := getSumStake(addr, height, bucketID)
 			if err != nil {
 				return nil, err
@@ -78,9 +75,22 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 	}
 	bucketID := []uint64{}
 	for _, id := range ids {
+		bucketOwner, _ := getBucketOwnerWithHeight(id.BucketID, height)
+		if addr != bucketOwner {
+			continue
+		}
 		bucketID = append(bucketID, id.BucketID)
 	}
 	return bucketID, nil
+}
+
+func getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
+	var addr sql.NullString
+	db := db.DB()
+	if err := db.Table("account_vote").Select("address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
+		return "", err
+	}
+	return addr.String, nil
 }
 
 type VoteBucket struct {
@@ -140,7 +150,7 @@ func getSumStake(addr string, height, bucketID uint64) (*big.Int, error) {
 func getVoteBucketParams(addr string, height, bucketID uint64) (uint32, bool, bool) {
 	var av AccountVote
 	db := db.DB()
-	if err := db.Table("account_vote").Debug().Where("block_height<=? and bucket_id=? and address=?", height, bucketID, addr).Order("id desc").Scan(&av).Error; err != nil {
+	if err := db.Table("account_vote").Where("block_height<=? and bucket_id=? and address=?", height, bucketID, addr).Order("id desc").Scan(&av).Error; err != nil {
 		return 0, false, false
 	}
 

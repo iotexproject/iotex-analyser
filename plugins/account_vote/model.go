@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/hex"
-	"math"
 	"math/big"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -61,10 +59,10 @@ type VoteBucket struct {
 	AutoStake        bool
 }
 
-func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64, addr string) (decimal.Decimal, error) {
+func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
 	var amount sql.NullString
 	zero := decimal.NewFromInt(0)
-	if err := tx.Model(&AccountVote{}).Select("sum(amount)").Where("bucket_id=? and address=?", bucketID, addr).Scan(&amount).Error; err != nil {
+	if err := tx.Model(&AccountVote{}).Select("sum(amount)").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
 		return zero, err
 	}
 	if amount.String == "" {
@@ -86,7 +84,7 @@ type BucketInfo struct {
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&AccountVote{}).Select("address,candidate,auto_stake,duration").Where("bucket_id=? and (act_type='StakeCreate' or act_type='TransferStake')", bucketID).Order("id desc").Scan(&bi).Error; err != nil {
+	if err := tx.Model(&AccountVote{}).Select("address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil
@@ -109,35 +107,29 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 	}
 	bucketID := []uint64{}
 	for _, id := range ids {
+		bucketOwner, _ := getBucketOwnerWithHeight(id.BucketID, height)
+		if addr != bucketOwner {
+			continue
+		}
 		bucketID = append(bucketID, id.BucketID)
 	}
 	return bucketID, nil
 }
 
+func getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
+	var addr sql.NullString
+	db := db.DB()
+	if err := db.Model(&AccountVote{}).Select("address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
+		return "", err
+	}
+	return addr.String, nil
+}
+
 func getForwardToAddressByFrom(addr string) (string, error) {
 	var to string
 	db := db.DB()
-	if err := db.Model(&AccountVote{}).Select("forward_to").Where("address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Scan(&to).Error; err != nil {
+	if err := db.Model(&AccountVote{}).Select("forward_to").Where("address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Limit(1).Scan(&to).Error; err != nil {
 		return "", err
 	}
 	return to, nil
-}
-func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
-	remainingTime := v.StakedDuration.Seconds()
-	weight := float64(1)
-	var m float64
-	if v.AutoStake {
-		m = c.AutoStake
-	}
-	if remainingTime > 0 {
-		weight += math.Log(math.Ceil(remainingTime/86400)*(1+m)) / math.Log(c.DurationLg) / 100
-	}
-	if selfStake && v.AutoStake && v.StakedDuration >= time.Duration(91)*24*time.Hour {
-		// self-stake extra bonus requires enable auto-stake for at least 3 months
-		weight *= c.SelfStake
-	}
-
-	amount := new(big.Float).SetInt(v.StakedAmount)
-	weightedAmount, _ := amount.Mul(amount, big.NewFloat(weight)).Int(nil)
-	return weightedAmount
 }

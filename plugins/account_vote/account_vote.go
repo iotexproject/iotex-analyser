@@ -17,7 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.2"
+const VERSION = "2.2.3"
 
 const (
 	GovernaceForwardAddress = "io1xfdn0z046hzm03jrtm8hf4scw2w07t7a0mqtmz"
@@ -93,7 +93,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			case *action.TransferStake:
 				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, sender.String())
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 				if err != nil {
 					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 				}
@@ -148,7 +148,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			case *action.ChangeCandidate:
 				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, sender.String())
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 				if err != nil {
 					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 				}
@@ -195,7 +195,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				accountVote = AccountVote{
 					BlockHeight: blk.Height(),
 					BucketID:    bucketID,
-					Address:     sender.String(),
+					Address:     info.Address,
 					Candidate:   info.Candidate,
 					AutoStake:   info.AutoStake,
 					ActType:     "DepositToStake",
@@ -207,7 +207,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			case *action.Unstake:
 				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, sender.String())
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 				if err != nil {
 					return errors.Wrap(err, "getBucketSumAmountByBucketID error")
 				}
@@ -253,7 +253,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 						return err
 					}
 					for _, bucketID := range bucketIDs {
-						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, from.String())
+						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 						if err != nil {
 							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 						}
@@ -261,10 +261,13 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 						if err != nil {
 							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 						}
+						if info.Address != from.String() {
+							continue
+						}
 						accountVote = AccountVote{
 							BlockHeight: blk.Height(),
 							BucketID:    bucketID,
-							Address:     from.String(),
+							Address:     info.Address,
 							ForwardTo:   to.String(),
 							Candidate:   info.Candidate,
 							AutoStake:   info.AutoStake,
@@ -303,13 +306,16 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 						return err
 					}
 					for _, bucketID := range bucketIDs {
-						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, from.String())
+						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 						if err != nil {
 							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 						}
 						info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 						if err != nil {
 							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+						}
+						if info.Address != from.String() {
+							continue
 						}
 						accountVote = AccountVote{
 							BlockHeight: blk.Height(),
@@ -328,7 +334,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 						accountVote = AccountVote{
 							BlockHeight: blk.Height(),
 							BucketID:    bucketID,
-							Address:     from.String(),
+							Address:     info.Address,
 							Candidate:   info.Candidate,
 							AutoStake:   info.AutoStake,
 							ActType:     "GovernaceCacel",

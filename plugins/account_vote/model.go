@@ -61,10 +61,10 @@ type VoteBucket struct {
 	AutoStake        bool
 }
 
-func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
+func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64, addr string) (decimal.Decimal, error) {
 	var amount sql.NullString
 	zero := decimal.NewFromInt(0)
-	if err := tx.Model(&AccountVote{}).Select("sum(amount)").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
+	if err := tx.Model(&AccountVote{}).Select("sum(amount)").Where("bucket_id=? and address=?", bucketID, addr).Scan(&amount).Error; err != nil {
 		return zero, err
 	}
 	if amount.String == "" {
@@ -86,7 +86,7 @@ type BucketInfo struct {
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&AccountVote{}).Select("address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Scan(&bi).Error; err != nil {
+	if err := tx.Model(&AccountVote{}).Select("address,candidate,auto_stake,duration").Where("bucket_id=? and (act_type='StakeCreate' or act_type='TransferStake')", bucketID).Order("id desc").Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil

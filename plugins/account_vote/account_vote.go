@@ -17,7 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.1"
+const VERSION = "2.2.2"
 
 const (
 	GovernaceForwardAddress = "io1xfdn0z046hzm03jrtm8hf4scw2w07t7a0mqtmz"
@@ -93,7 +93,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			case *action.TransferStake:
 				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, sender.String())
 				if err != nil {
 					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 				}
@@ -148,7 +148,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			case *action.ChangeCandidate:
 				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, sender.String())
 				if err != nil {
 					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 				}
@@ -207,7 +207,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			case *action.Unstake:
 				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, sender.String())
 				if err != nil {
 					return errors.Wrap(err, "getBucketSumAmountByBucketID error")
 				}
@@ -253,7 +253,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 						return err
 					}
 					for _, bucketID := range bucketIDs {
-						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, from.String())
 						if err != nil {
 							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 						}
@@ -303,7 +303,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 						return err
 					}
 					for _, bucketID := range bucketIDs {
-						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID, from.String())
 						if err != nil {
 							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 						}

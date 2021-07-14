@@ -53,7 +53,7 @@ func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.Accou
 			voteBucket := &VoteBucket{
 				StakedAmount:   stakeAmount,
 				AutoStake:      autoStake,
-				StakedDuration: time.Duration(duration),
+				StakedDuration: duration,
 			}
 			voteWeight := calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfAutoStake)
 			voteWeights = voteWeights.Add(voteWeights, voteWeight)
@@ -98,7 +98,7 @@ type VoteBucket struct {
 	Candidate        string
 	Owner            string
 	StakedAmount     *big.Int
-	StakedDuration   time.Duration
+	StakedDuration   uint32
 	CreateTime       time.Time
 	StakeStartTime   time.Time
 	UnstakeStartTime time.Time
@@ -106,7 +106,7 @@ type VoteBucket struct {
 }
 
 func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
-	remainingTime := v.StakedDuration.Seconds()
+	remainingTime := float64(v.StakedDuration * 86400)
 	weight := float64(1)
 	var m float64
 	if v.AutoStake {
@@ -115,7 +115,7 @@ func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake
 	if remainingTime > 0 {
 		weight += math.Log(math.Ceil(remainingTime/86400)*(1+m)) / math.Log(c.DurationLg) / 100
 	}
-	if selfStake && v.AutoStake && v.StakedDuration >= time.Duration(91)*24*time.Hour {
+	if selfStake && v.AutoStake && v.StakedDuration >= 91 {
 		// self-stake extra bonus requires enable auto-stake for at least 3 months
 		weight *= c.SelfStake
 	}

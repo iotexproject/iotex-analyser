@@ -26,3 +26,4 @@ config_testnet.yml
 .vscode/launch.json
 config_maintest.yml
 .DS_Store
+config_mainonline.yml

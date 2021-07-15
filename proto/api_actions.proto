@@ -23,10 +23,22 @@ message ActionsByAddressResult {
   string gasFee = 8;
 }
 message ActionsByAddressResponse {
-  uint64 total = 1;
+  uint64 count = 1;
   repeated ActionsByAddressResult results = 2;
 }
-
+message Xrc20ByAddressResult {
+  string actHash = 1;
+  uint64 blkHeight = 2;
+  string from = 3;
+  string to = 4;
+  string contractAddress = 5;
+  string amount = 6;
+  uint64 timeStamp = 7;
+}
+message Xrc20ByAddressResponse {
+  uint64 count = 1;
+  repeated Xrc20ByAddressResult results = 2;
+}
 service ActionsService {
   rpc GetActionsByAddress(ActionsRequest) returns (ActionsByAddressResponse) {
     option (google.api.http) = {
@@ -34,5 +46,10 @@ service ActionsService {
       body: "*"
     };
   };
-
+  rpc GetXrc20ByAddress(ActionsRequest) returns (Xrc20ByAddressResponse) {
+    option (google.api.http) = {
+      post: "/api.ActionsService.GetXrc20ByAddress"
+      body: "*"
+    };
+  };
 }

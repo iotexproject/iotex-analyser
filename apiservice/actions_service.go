@@ -15,7 +15,7 @@ type ActionsService struct {
 //curl -d '{"address": "io102s4660k3cynae2r8gde6scg74mf6f7k9dq955", "height":11900487 }' http://127.0.0.1:7778/api.ActionsService.GetActionsByAddress
 func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.ActionsRequest) (*api.ActionsByAddressResponse, error) {
 	resp := &api.ActionsByAddressResponse{
-		Total: 0,
+		Count: 0,
 	}
 	db := db.DB()
 	addr := req.GetAddress()
@@ -33,7 +33,7 @@ func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.Actio
 		size = 25
 	}
 	sort := req.GetSort()
-	if sort != "asc" || sort == "desc" {
+	if sort != "asc" && sort != "desc" {
 		sort = "asc"
 	}
 
@@ -43,7 +43,7 @@ func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.Actio
 	if err != nil {
 		return nil, err
 	}
-	resp.Total = uint64(count)
+	resp.Count = uint64(count)
 
 	query := "SELECT a.action_hash,a.action_type,a.block_height,a.from,a.to,a.gas_price*r.gas_consumed,a.gas_limit,a.nonce,a.amount,r.status,b.block_hash,b.timestamp FROM block_action a inner join block b on b.block_height=a.block_height inner join block_receipt r on r.action_hash=a.action_hash where a.from=? or a.to=? order by a.id " + sort + " limit ? offset ?"
 	rows, err := db.Raw(query, addr, addr, size, offset).Rows()
@@ -66,6 +66,63 @@ func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.Actio
 			Recipient: to,
 			Amount:    amount,
 			GasFee:    gasFee,
+		})
+	}
+	return resp, nil
+}
+
+func (s *ActionsService) GetXrc20ByAddress(ctx context.Context, req *api.ActionsRequest) (*api.Xrc20ByAddressResponse, error) {
+	resp := &api.Xrc20ByAddressResponse{
+		Count: 0,
+	}
+	db := db.DB()
+	addr := req.GetAddress()
+	if addr[:2] == "0x" || addr[:2] == "0X" {
+		add, err := address.FromHex(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		addr = add.String()
+	}
+	offset := req.GetOffset()
+	size := req.GetSize()
+	if size == 0 {
+		size = 25
+	}
+	sort := req.GetSort()
+	if sort != "asc" && sort != "desc" {
+		sort = "asc"
+	}
+
+	var count int64
+	err := db.Table("token_erc20 a").Where("a.from=? or a.to=?", addr, addr).Count(&count).Error
+
+	if err != nil {
+		return nil, err
+	}
+	resp.Count = uint64(count)
+
+	query := "select t.*,(select timestamp from block where block_height=t.block_height) from (select a.block_height,a.action_hash,a.contract_address,a.amount,a.from,a.to from token_erc20 a where a.from=? or a.to=? order by a.id " + sort + " limit ? offset ?) t"
+	rows, err := db.Raw(query, addr, addr, size, offset).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var actHash, contractAddress, from, to, amount string
+	var blkHeight, timestamp uint64
+	for rows.Next() {
+		if err := rows.Scan(&blkHeight, &actHash, &contractAddress, &amount, &from, &to, &timestamp); err != nil {
+			return nil, err
+		}
+		resp.Results = append(resp.Results, &api.Xrc20ByAddressResult{
+			ActHash:         actHash,
+			BlkHeight:       blkHeight,
+			TimeStamp:       timestamp,
+			ContractAddress: contractAddress,
+			From:            from,
+			To:              to,
+			Amount:          amount,
 		})
 	}
 	return resp, nil

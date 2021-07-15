@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type candidatePlugin struct {
 }
@@ -35,7 +37,19 @@ func (b candidatePlugin) Start(ctx context.Context) error {
 
 func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
+			actions[selp.Hash()] = selp
+		}
+
+		for _, receipt := range blk.Receipts {
+			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+				continue
+			}
+			selp, ok := actions[receipt.ActionHash]
+			if !ok {
+				continue
+			}
 			act := selp.Action()
 			switch a := act.(type) {
 			case *action.CandidateRegister:
@@ -49,9 +63,6 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					ActType:         "CandidateRegister",
 					AutoStake:       a.AutoStake(),
 					Duration:        a.Duration(),
-					Nonce:           a.Nonce(),
-					GasLimit:        a.GasLimit(),
-					GasPrice:        decimal.NewFromBigInt(a.GasPrice(), 0),
 					Payload:         a.Payload(),
 				}
 				if err := tx.Create(&createData).Error; err != nil {
@@ -64,9 +75,6 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					OperatorAddress: a.OperatorAddress().String(),
 					RewardAddress:   a.RewardAddress().String(),
 					ActType:         "CandidateUpdate",
-					Nonce:           a.Nonce(),
-					GasLimit:        a.GasLimit(),
-					GasPrice:        decimal.NewFromBigInt(a.GasPrice(), 0),
 				}
 				if err := tx.Create(&createData).Error; err != nil {
 					return err

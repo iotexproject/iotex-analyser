@@ -63,6 +63,9 @@ func Connect() (*gorm.DB, error) {
 		err = errors.New("unsopport gorm driver: " + driver)
 	}
 
+	if config.Default.Database.Debug {
+		db = db.Debug()
+	}
 	db.AutoMigrate(&IndexHeight{})
 	return db, err
 }

@@ -12,28 +12,12 @@ type ActionsService struct {
 	api.UnimplementedActionsServiceServer
 }
 
-// type rawActionByAddr struct {
-// 	ActionHash  string
-// 	ActionType  string
-// 	BlockHeight uint64
-// 	From        string
-// 	To          string
-// 	GasPrice    string
-// 	GasLimit    uint64
-// 	GasConsumed uint64
-// 	Nonce       uint32
-// 	Amount      string
-// 	Status      int32
-// 	BlockHash   string
-// 	Timestamp   uint64
-// }
-
 //curl -d '{"address": "io102s4660k3cynae2r8gde6scg74mf6f7k9dq955", "height":11900487 }' http://127.0.0.1:7778/api.ActionsService.GetActionsByAddress
 func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.ActionsRequest) (*api.ActionsByAddressResponse, error) {
 	resp := &api.ActionsByAddressResponse{
 		Total: 0,
 	}
-	db := db.DB().Debug()
+	db := db.DB()
 	addr := req.GetAddress()
 	if addr[:2] == "0x" || addr[:2] == "0X" {
 		add, err := address.FromHex(addr)
@@ -48,6 +32,10 @@ func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.Actio
 	if size == 0 {
 		size = 25
 	}
+	sort := req.GetSort()
+	if sort != "asc" || sort == "desc" {
+		sort = "asc"
+	}
 
 	var count int64
 	err := db.Table("block_action a").Where("a.from=? or a.to=?", addr, addr).Count(&count).Error
@@ -56,7 +44,8 @@ func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.Actio
 		return nil, err
 	}
 	resp.Total = uint64(count)
-	query := "SELECT a.action_hash,a.action_type,a.block_height,a.from,a.to,a.gas_price*r.gas_consumed,a.gas_limit,a.nonce,a.amount,r.status,b.block_hash,b.timestamp FROM block_action a, (select id from (SELECT a.id FROM block_action a WHERE a.from=? union SELECT a.id FROM block_action a WHERE a.to=?) tmp order by id desc limit ? offset ?) aa, block b, block_receipt r where a.id=aa.id and b.block_height=a.block_height and r.action_hash=a.action_hash"
+
+	query := "SELECT a.action_hash,a.action_type,a.block_height,a.from,a.to,a.gas_price*r.gas_consumed,a.gas_limit,a.nonce,a.amount,r.status,b.block_hash,b.timestamp FROM block_action a inner join block b on b.block_height=a.block_height inner join block_receipt r on r.action_hash=a.action_hash where a.from=? or a.to=? order by a.id " + sort + " limit ? offset ?"
 	rows, err := db.Raw(query, addr, addr, size, offset).Rows()
 	if err != nil {
 		return nil, err

@@ -22,6 +22,7 @@ func registerAPIService(ctx context.Context, grpcServer *grpc.Server) {
 	}
 	api.RegisterAccountServiceServer(grpcServer, &AccountService{})
 	api.RegisterAccountVoteServiceServer(grpcServer, &AccountVoteService{})
+	api.RegisterActionsServiceServer(grpcServer, &ActionsService{})
 }
 
 func registerProxyAPIService(ctx context.Context, mux *runtime.ServeMux) error {
@@ -29,6 +30,9 @@ func registerProxyAPIService(ctx context.Context, mux *runtime.ServeMux) error {
 		return err
 	}
 	if err := api.RegisterAccountVoteServiceHandlerServer(ctx, mux, &AccountVoteService{}); err != nil {
+		return err
+	}
+	if err := api.RegisterActionsServiceHandlerServer(ctx, mux, &ActionsService{}); err != nil {
 		return err
 	}
 	return nil

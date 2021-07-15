@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package api;
+import "google/api/annotations.proto";
+
+option go_package = "./api";
+
+message ActionsRequest {
+  string address = 1;
+  uint64 height = 2;
+  uint64 offset = 3;
+  uint64 size = 4;
+}
+message ActionsByAddressResult {
+  string actHash = 1;
+  string blkHash = 2;
+  uint64 timeStamp = 3;
+  string actType = 4;
+  string sender = 5;
+  string recipient = 6;
+  string amount = 7;
+  string gasFee = 8;
+}
+message ActionsByAddressResponse {
+  uint64 total = 1;
+  repeated ActionsByAddressResult results = 2;
+}
+
+service ActionsService {
+  rpc GetActionsByAddress(ActionsRequest) returns (ActionsByAddressResponse) {
+    option (google.api.http) = {
+      post: "/api.ActionsService.GetActionsByAddress"
+      body: "*"
+    };
+  };
+
+}

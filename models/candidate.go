@@ -1,6 +1,9 @@
 package models
 
-import "github.com/shopspring/decimal"
+import (
+	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/shopspring/decimal"
+)
 
 type Candidate struct {
 	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
@@ -18,4 +21,14 @@ type Candidate struct {
 
 func (Candidate) TableName() string {
 	return "candidate"
+}
+
+func (m *Candidate) FetchByName(name string) (*Candidate, error) {
+	var err error
+	db := db.DB()
+	err = db.Model(m).Where("name = ?", name).Order("block_height desc,id desc").Take(&m).Error
+	if err != nil {
+		return nil, err
+	}
+	return m, err
 }

@@ -18,10 +18,6 @@ type AccountVoteService struct {
 	api.UnimplementedAccountVoteServiceServer
 }
 
-type voteRow struct {
-	StakeAmount, VoteWeight string
-}
-
 //curl -d '{"address": ["io10avlgwgxv2k22dup4q0ah998vklg4rcrgl04m8", "io1fuhhg9jgdxwpms9dsdfwjdc90nt7v67hx40cd8"], "height":11900487 }' http://127.0.0.1:7778/api.AccountVoteService.GetVoteByHeight
 func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.AccountVoteRequest) (*api.AccountVoteResponse, error) {
 	resp := &api.AccountVoteResponse{

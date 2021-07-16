@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package api;
 import "google/api/annotations.proto";
-
+import "include/graphql.proto";
 option go_package = "./api";
 
 message ActionsRequest {
@@ -41,6 +41,10 @@ message Xrc20ByAddressResponse {
 }
 service ActionsService {
   rpc GetActionsByAddress(ActionsRequest) returns (ActionsByAddressResponse) {
+    option (graphql.schema) = {
+      type: QUERY   // declare as Query
+      name: "GetActionsByAddress" // query name
+    };
     option (google.api.http) = {
       post: "/api.ActionsService.GetActionsByAddress"
       body: "*"

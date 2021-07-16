@@ -31,7 +31,9 @@ plugin:
 	$(GOBUILD) -o $(name).so -buildmode=plugin plugins/$(name)/*.go
 
 proto:
-	protoc -I ./proto --go_out ./  --go-grpc_out ./ --grpc-gateway_out ./ proto/*.proto
+	#protoc -I ./proto --go_out ./  --go-grpc_out ./ --grpc-gateway_out ./ proto/*.proto
+	protoc -I ./proto --go_out ./ --go-grpc_out ./ --graphql_out ./ proto/api_actions.proto
+	rm -f api/api_actions.graphql.go && mv api/api.graphql.go api/api_actions.graphql.go
 
 clean:
 	rf -f *.so iotex-analyser

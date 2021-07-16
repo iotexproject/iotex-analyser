@@ -53,3 +53,18 @@ genesis: #testnet is here, mainnet see https://github.com/iotexproject/iotex-boo
       io120au9ra0nffdle04jx2g5gccn6gq8qd4fy03l4: "7000000000000000000000000000"
       io1yrzvkucxpytn4fru35lc8r8jk4jtue4syg8d4h: "800000000000000000000000000"
 ```
+
+### API 
+API supports GRPC/HTTP/GraphQL
+```
+curl -g "http://localhost:7778/graphql" -d '
+{
+  GetActionsByAddress(address: "io14u5d66rt465ykm7t2847qllj0reml27q30kr75") {
+    count
+    results{
+      actHash
+      amount
+    }
+  }
+}'
+```

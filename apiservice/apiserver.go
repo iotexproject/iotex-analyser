@@ -10,6 +10,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/api"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
+	graphqlruntime "github.com/ysugimoto/grpc-graphql-gateway/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -38,6 +39,18 @@ func registerProxyAPIService(ctx context.Context, mux *runtime.ServeMux) error {
 	return nil
 }
 
+func registerGraphQLAPIService(ctx context.Context, mux *graphqlruntime.ServeMux) error {
+	addr := fmt.Sprintf("127.0.0.1:%d", config.Default.Server.GrpcPort)
+	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure())
+	if err != nil {
+		return err
+	}
+	if err := api.RegisterActionsServiceGraphqlHandler(mux, conn); err != nil {
+		return err
+	}
+	return nil
+}
+
 func StartGRPCService(ctx context.Context) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Default.Server.GrpcPort))
 	if err != nil {
@@ -55,10 +68,15 @@ func StartGRPCProxyService() error {
 	if err := registerProxyAPIService(ctx, gwmux); err != nil {
 		return err
 	}
-	port := fmt.Sprintf(":%d", config.Default.Server.GrpcProxyPort)
-	gwServer := &http.Server{
-		Addr:    port,
-		Handler: gwmux,
+
+	graphqlMux := graphqlruntime.NewServeMux()
+	if err := registerGraphQLAPIService(ctx, graphqlMux); err != nil {
+		return err
 	}
-	return gwServer.ListenAndServe()
+
+	http.Handle("/graphql", graphqlMux)
+	http.Handle("/", gwmux)
+
+	port := fmt.Sprintf(":%d", config.Default.Server.GrpcProxyPort)
+	return http.ListenAndServe(port, nil)
 }

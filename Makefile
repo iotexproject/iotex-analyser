@@ -36,7 +36,7 @@ proto:
 	rm -f api/api_actions.graphql.go && mv api/api.graphql.go api/api_actions.graphql.go
 
 clean:
-	rf -f *.so iotex-analyser
+	rm -f *.so iotex-analyser
 	
 build:
 	$(GOBUILD) -v .

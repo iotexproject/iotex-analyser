@@ -15,9 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.3"
-
-type Candidate models.Candidate
+const VERSION = "2.0.4"
 
 type candidatePlugin struct {
 }
@@ -31,7 +29,7 @@ func (b candidatePlugin) Type() plugin.Type {
 }
 
 func (b candidatePlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&Candidate{}); err != nil {
+	if err := db.DB().AutoMigrate(&models.Candidate{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
@@ -56,7 +54,7 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			act := selp.Action()
 			switch a := act.(type) {
 			case *action.CandidateRegister:
-				createData := Candidate{
+				createData := models.Candidate{
 					BlockHeight:     blk.Height(),
 					Name:            a.Name(),
 					OperatorAddress: a.OperatorAddress().String(),
@@ -76,7 +74,7 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				if a.RewardAddress() != nil {
 					rewardAddress = a.RewardAddress().String()
 				}
-				createData := Candidate{
+				createData := models.Candidate{
 					BlockHeight:     blk.Height(),
 					Name:            a.Name(),
 					OperatorAddress: a.OperatorAddress().String(),

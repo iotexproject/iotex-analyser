@@ -16,9 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
-
-type BlockAction models.BlockAction
+const VERSION = "2.0.2"
 
 type blockActionPlugin struct {
 }
@@ -32,7 +30,7 @@ func (b blockActionPlugin) Type() plugin.Type {
 }
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&BlockAction{}); err != nil {
+	if err := db.DB().AutoMigrate(&models.BlockAction{}); err != nil {
 		return errors.Wrap(err, "failed to start block plugin")
 	}
 
@@ -72,7 +70,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			}
 
 			amountDec := decimal.NewFromBigInt(amount, 0)
-			m := &BlockAction{
+			m := &models.BlockAction{
 				ActionHash:  hex.EncodeToString(actionHash[:]),
 				ActionType:  actionType,
 				BlockHeight: blk.Height(),

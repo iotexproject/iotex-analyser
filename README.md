@@ -67,4 +67,11 @@ curl -g "http://localhost:7778/graphql" -d '
     }
   }
 }'
+
+curl -g "http://localhost:7778/api.ActionsService.GetActionsByAddress" -d '
+{
+  "address": "io14u5d66rt465ykm7t2847qllj0reml27q30kr75"
+}'
+
+grpcurl -plaintext -d '{"address": "io14u5d66rt465ykm7t2847qllj0reml27q30kr75"}' 127.0.0.1:7777 api.ActionsService.GetActionsByAddress
 ```

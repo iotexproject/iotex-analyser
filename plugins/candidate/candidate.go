@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.0.3"
 
 type Candidate models.Candidate
 
@@ -72,11 +72,15 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					return err
 				}
 			case *action.CandidateUpdate:
+				rewardAddress := ""
+				if a.RewardAddress() != nil {
+					rewardAddress = a.RewardAddress().String()
+				}
 				createData := Candidate{
 					BlockHeight:     blk.Height(),
 					Name:            a.Name(),
 					OperatorAddress: a.OperatorAddress().String(),
-					RewardAddress:   a.RewardAddress().String(),
+					RewardAddress:   rewardAddress,
 					ActType:         "CandidateUpdate",
 				}
 				if err := tx.Create(&createData).Error; err != nil {

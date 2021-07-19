@@ -149,3 +149,60 @@ func (s *ActionsService) getXrcByAddress(xrcType XrcType, req *api.ActionsReques
 	}
 	return resp, nil
 }
+
+func (s *ActionsService) GetEvmTransferDetailListByAddress(ctx context.Context, req *api.ActionsRequest) (*api.EvmTransferDetailListByAddressResponse, error) {
+	resp := &api.EvmTransferDetailListByAddressResponse{
+		Count: 0,
+	}
+	db := db.DB()
+	addr := req.GetAddress()
+	if addr[:2] == "0x" || addr[:2] == "0X" {
+		add, err := address.FromHex(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		addr = add.String()
+	}
+	offset := req.GetOffset()
+	size := req.GetSize()
+	if size == 0 {
+		size = 25
+	}
+	sort := req.GetSort()
+	if sort != "asc" && sort != "desc" {
+		sort = "asc"
+	}
+
+	var count int64
+	err := db.Table("block_receipt_transaction a").Where("a.sender=? or a.recipient=?", addr, addr).Count(&count).Error
+
+	if err != nil {
+		return nil, err
+	}
+	resp.Count = uint64(count)
+
+	query := "SELECT a.action_hash,a.block_height,a.sender,a.recipient,a.amount,b.block_hash,b.timestamp FROM block_receipt_transaction a inner join block b on b.block_height=a.block_height where a.sender=? or a.recipient=? order by a.id " + sort + " limit ? offset ?"
+	rows, err := db.Raw(query, addr, addr, size, offset).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var actHash, sender, recipient, blkHash, amount string
+	var blkHeight, timestamp uint64
+	for rows.Next() {
+		if err := rows.Scan(&actHash, &blkHeight, &sender, &recipient, &amount, &blkHash, &timestamp); err != nil {
+			return nil, err
+		}
+		resp.Results = append(resp.Results, &api.EvmTransferDetailResult{
+			ActHash:   actHash,
+			TimeStamp: timestamp,
+			BlkHeight: blkHeight,
+			BlkHash:   blkHash,
+			Sender:    sender,
+			Recipient: recipient,
+			Amount:    amount,
+		})
+	}
+	return resp, nil
+}

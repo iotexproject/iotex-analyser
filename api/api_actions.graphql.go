@@ -11,16 +11,20 @@ import (
 )
 
 var (
-	gql__type_Xrc20ByAddressResult      *graphql.Object      // message Xrc20ByAddressResult in api_actions.proto
-	gql__type_Xrc20ByAddressResponse    *graphql.Object      // message Xrc20ByAddressResponse in api_actions.proto
-	gql__type_ActionsRequest            *graphql.Object      // message ActionsRequest in api_actions.proto
-	gql__type_ActionsByAddressResult    *graphql.Object      // message ActionsByAddressResult in api_actions.proto
-	gql__type_ActionsByAddressResponse  *graphql.Object      // message ActionsByAddressResponse in api_actions.proto
-	gql__input_Xrc20ByAddressResult     *graphql.InputObject // message Xrc20ByAddressResult in api_actions.proto
-	gql__input_Xrc20ByAddressResponse   *graphql.InputObject // message Xrc20ByAddressResponse in api_actions.proto
-	gql__input_ActionsRequest           *graphql.InputObject // message ActionsRequest in api_actions.proto
-	gql__input_ActionsByAddressResult   *graphql.InputObject // message ActionsByAddressResult in api_actions.proto
-	gql__input_ActionsByAddressResponse *graphql.InputObject // message ActionsByAddressResponse in api_actions.proto
+	gql__type_Xrc20ByAddressResult                    *graphql.Object      // message Xrc20ByAddressResult in api_actions.proto
+	gql__type_Xrc20ByAddressResponse                  *graphql.Object      // message Xrc20ByAddressResponse in api_actions.proto
+	gql__type_EvmTransferDetailResult                 *graphql.Object      // message EvmTransferDetailResult in api_actions.proto
+	gql__type_EvmTransferDetailListByAddressResponse  *graphql.Object      // message EvmTransferDetailListByAddressResponse in api_actions.proto
+	gql__type_ActionsRequest                          *graphql.Object      // message ActionsRequest in api_actions.proto
+	gql__type_ActionsByAddressResult                  *graphql.Object      // message ActionsByAddressResult in api_actions.proto
+	gql__type_ActionsByAddressResponse                *graphql.Object      // message ActionsByAddressResponse in api_actions.proto
+	gql__input_Xrc20ByAddressResult                   *graphql.InputObject // message Xrc20ByAddressResult in api_actions.proto
+	gql__input_Xrc20ByAddressResponse                 *graphql.InputObject // message Xrc20ByAddressResponse in api_actions.proto
+	gql__input_EvmTransferDetailResult                *graphql.InputObject // message EvmTransferDetailResult in api_actions.proto
+	gql__input_EvmTransferDetailListByAddressResponse *graphql.InputObject // message EvmTransferDetailListByAddressResponse in api_actions.proto
+	gql__input_ActionsRequest                         *graphql.InputObject // message ActionsRequest in api_actions.proto
+	gql__input_ActionsByAddressResult                 *graphql.InputObject // message ActionsByAddressResult in api_actions.proto
+	gql__input_ActionsByAddressResponse               *graphql.InputObject // message ActionsByAddressResponse in api_actions.proto
 )
 
 func Gql__type_Xrc20ByAddressResult() *graphql.Object {
@@ -70,6 +74,55 @@ func Gql__type_Xrc20ByAddressResponse() *graphql.Object {
 		})
 	}
 	return gql__type_Xrc20ByAddressResponse
+}
+
+func Gql__type_EvmTransferDetailResult() *graphql.Object {
+	if gql__type_EvmTransferDetailResult == nil {
+		gql__type_EvmTransferDetailResult = graphql.NewObject(graphql.ObjectConfig{
+			Name: "Api_Type_EvmTransferDetailResult",
+			Fields: graphql.Fields{
+				"actHash": &graphql.Field{
+					Type: graphql.String,
+				},
+				"blkHeight": &graphql.Field{
+					Type: graphql.Int,
+				},
+				"sender": &graphql.Field{
+					Type: graphql.String,
+				},
+				"recipient": &graphql.Field{
+					Type: graphql.String,
+				},
+				"blkHash": &graphql.Field{
+					Type: graphql.String,
+				},
+				"amount": &graphql.Field{
+					Type: graphql.String,
+				},
+				"timeStamp": &graphql.Field{
+					Type: graphql.Int,
+				},
+			},
+		})
+	}
+	return gql__type_EvmTransferDetailResult
+}
+
+func Gql__type_EvmTransferDetailListByAddressResponse() *graphql.Object {
+	if gql__type_EvmTransferDetailListByAddressResponse == nil {
+		gql__type_EvmTransferDetailListByAddressResponse = graphql.NewObject(graphql.ObjectConfig{
+			Name: "Api_Type_EvmTransferDetailListByAddressResponse",
+			Fields: graphql.Fields{
+				"count": &graphql.Field{
+					Type: graphql.Int,
+				},
+				"results": &graphql.Field{
+					Type: graphql.NewList(Gql__type_EvmTransferDetailResult()),
+				},
+			},
+		})
+	}
+	return gql__type_EvmTransferDetailListByAddressResponse
 }
 
 func Gql__type_ActionsRequest() *graphql.Object {
@@ -197,6 +250,55 @@ func Gql__input_Xrc20ByAddressResponse() *graphql.InputObject {
 		})
 	}
 	return gql__input_Xrc20ByAddressResponse
+}
+
+func Gql__input_EvmTransferDetailResult() *graphql.InputObject {
+	if gql__input_EvmTransferDetailResult == nil {
+		gql__input_EvmTransferDetailResult = graphql.NewInputObject(graphql.InputObjectConfig{
+			Name: "Api_Input_EvmTransferDetailResult",
+			Fields: graphql.InputObjectConfigFieldMap{
+				"actHash": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"blkHeight": &graphql.InputObjectFieldConfig{
+					Type: graphql.Int,
+				},
+				"sender": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"recipient": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"blkHash": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"amount": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"timeStamp": &graphql.InputObjectFieldConfig{
+					Type: graphql.Int,
+				},
+			},
+		})
+	}
+	return gql__input_EvmTransferDetailResult
+}
+
+func Gql__input_EvmTransferDetailListByAddressResponse() *graphql.InputObject {
+	if gql__input_EvmTransferDetailListByAddressResponse == nil {
+		gql__input_EvmTransferDetailListByAddressResponse = graphql.NewInputObject(graphql.InputObjectConfig{
+			Name: "Api_Input_EvmTransferDetailListByAddressResponse",
+			Fields: graphql.InputObjectConfigFieldMap{
+				"count": &graphql.InputObjectFieldConfig{
+					Type: graphql.Int,
+				},
+				"results": &graphql.InputObjectFieldConfig{
+					Type: graphql.NewList(Gql__input_EvmTransferDetailResult()),
+				},
+			},
+		})
+	}
+	return gql__input_EvmTransferDetailListByAddressResponse
 }
 
 func Gql__input_ActionsRequest() *graphql.InputObject {
@@ -411,6 +513,38 @@ func (x *graphql__resolver_ActionsService) GetQueries(conn *grpc.ClientConn) gra
 				resp, err := client.GetXrc721ByAddress(p.Context, &req)
 				if err != nil {
 					return nil, errors.Wrap(err, "Failed to call RPC GetXrc721ByAddress")
+				}
+				return resp, nil
+			},
+		},
+		"GetEvmTransferDetailListByAddress": &graphql.Field{
+			Type: Gql__type_EvmTransferDetailListByAddressResponse(),
+			Args: graphql.FieldConfigArgument{
+				"address": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+				"height": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"offset": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"size": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"sort": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+			},
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				var req ActionsRequest
+				if err := runtime.MarshalRequest(p.Args, &req, false); err != nil {
+					return nil, errors.Wrap(err, "Failed to marshal request for GetEvmTransferDetailListByAddress")
+				}
+				client := NewActionsServiceClient(conn)
+				resp, err := client.GetEvmTransferDetailListByAddress(p.Context, &req)
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to call RPC GetEvmTransferDetailListByAddress")
 				}
 				return resp, nil
 			},

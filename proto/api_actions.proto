@@ -39,6 +39,19 @@ message Xrc20ByAddressResponse {
   uint64 count = 1;
   repeated Xrc20ByAddressResult results = 2;
 }
+message EvmTransferDetailResult {
+  string actHash = 1;
+  uint64 blkHeight = 2;
+  string sender = 3;
+  string recipient = 4;
+  string blkHash = 5;
+  string amount = 6;
+  uint64 timeStamp = 7;
+}
+message EvmTransferDetailListByAddressResponse {
+  uint64 count = 1;
+  repeated EvmTransferDetailResult results = 2;
+}
 service ActionsService {
   rpc GetActionsByAddress(ActionsRequest) returns (ActionsByAddressResponse) {
     option (graphql.schema) = {
@@ -67,6 +80,16 @@ service ActionsService {
     };
     option (google.api.http) = {
       post: "/api.ActionsService.GetXrc721ByAddress"
+      body: "*"
+    };
+  };
+  rpc GetEvmTransferDetailListByAddress(ActionsRequest) returns (EvmTransferDetailListByAddressResponse) {
+    option (graphql.schema) = {
+      type: QUERY 
+      name: "GetEvmTransferDetailListByAddress" 
+    };
+    option (google.api.http) = {
+      post: "/api.ActionsService.GetEvmTransferDetailListByAddress"
       body: "*"
     };
   };

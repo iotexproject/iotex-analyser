@@ -8,6 +8,13 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 )
 
+type XrcType int
+
+const (
+	Xrc20 XrcType = iota
+	Xrc721
+)
+
 type ActionsService struct {
 	api.UnimplementedActionsServiceServer
 }
@@ -72,6 +79,21 @@ func (s *ActionsService) GetActionsByAddress(ctx context.Context, req *api.Actio
 }
 
 func (s *ActionsService) GetXrc20ByAddress(ctx context.Context, req *api.ActionsRequest) (*api.Xrc20ByAddressResponse, error) {
+	return s.getXrcByAddress(Xrc20, req)
+}
+
+func (s *ActionsService) GetXrc721ByAddress(ctx context.Context, req *api.ActionsRequest) (*api.Xrc20ByAddressResponse, error) {
+	return s.getXrcByAddress(Xrc721, req)
+}
+
+func (s *ActionsService) getXrcByAddress(xrcType XrcType, req *api.ActionsRequest) (*api.Xrc20ByAddressResponse, error) {
+	var xrcTable string
+	switch xrcType {
+	case Xrc20:
+		xrcTable = "token_erc20 a"
+	case Xrc721:
+		xrcTable = "token_erc721 a"
+	}
 	resp := &api.Xrc20ByAddressResponse{
 		Count: 0,
 	}
@@ -96,14 +118,14 @@ func (s *ActionsService) GetXrc20ByAddress(ctx context.Context, req *api.Actions
 	}
 
 	var count int64
-	err := db.Table("token_erc20 a").Where("a.from=? or a.to=?", addr, addr).Count(&count).Error
+	err := db.Table(xrcTable).Where("a.from=? or a.to=?", addr, addr).Count(&count).Error
 
 	if err != nil {
 		return nil, err
 	}
 	resp.Count = uint64(count)
 
-	query := "select t.*,(select timestamp from block where block_height=t.block_height) from (select a.block_height,a.action_hash,a.contract_address,a.amount,a.from,a.to from token_erc20 a where a.from=? or a.to=? order by a.id " + sort + " limit ? offset ?) t"
+	query := "select t.*,(select timestamp from block where block_height=t.block_height) from (select a.block_height,a.action_hash,a.contract_address,a.amount,a.from,a.to from " + xrcTable + " where a.from=? or a.to=? order by a.id " + sort + " limit ? offset ?) t"
 	rows, err := db.Raw(query, addr, addr, size, offset).Rows()
 	if err != nil {
 		return nil, err

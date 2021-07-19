@@ -51,8 +51,22 @@ service ActionsService {
     };
   };
   rpc GetXrc20ByAddress(ActionsRequest) returns (Xrc20ByAddressResponse) {
+    option (graphql.schema) = {
+      type: QUERY 
+      name: "GetXrc20ByAddress" 
+    };
     option (google.api.http) = {
       post: "/api.ActionsService.GetXrc20ByAddress"
+      body: "*"
+    };
+  };
+  rpc GetXrc721ByAddress(ActionsRequest) returns (Xrc20ByAddressResponse) {
+    option (graphql.schema) = {
+      type: QUERY 
+      name: "GetXrc721ByAddress" 
+    };
+    option (google.api.http) = {
+      post: "/api.ActionsService.GetXrc721ByAddress"
       body: "*"
     };
   };

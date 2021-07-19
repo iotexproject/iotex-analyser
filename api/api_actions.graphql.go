@@ -351,6 +351,70 @@ func (x *graphql__resolver_ActionsService) GetQueries(conn *grpc.ClientConn) gra
 				return resp, nil
 			},
 		},
+		"GetXrc20ByAddress": &graphql.Field{
+			Type: Gql__type_Xrc20ByAddressResponse(),
+			Args: graphql.FieldConfigArgument{
+				"address": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+				"height": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"offset": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"size": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"sort": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+			},
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				var req ActionsRequest
+				if err := runtime.MarshalRequest(p.Args, &req, false); err != nil {
+					return nil, errors.Wrap(err, "Failed to marshal request for GetXrc20ByAddress")
+				}
+				client := NewActionsServiceClient(conn)
+				resp, err := client.GetXrc20ByAddress(p.Context, &req)
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to call RPC GetXrc20ByAddress")
+				}
+				return resp, nil
+			},
+		},
+		"GetXrc721ByAddress": &graphql.Field{
+			Type: Gql__type_Xrc20ByAddressResponse(),
+			Args: graphql.FieldConfigArgument{
+				"address": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+				"height": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"offset": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"size": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"sort": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+			},
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				var req ActionsRequest
+				if err := runtime.MarshalRequest(p.Args, &req, false); err != nil {
+					return nil, errors.Wrap(err, "Failed to marshal request for GetXrc721ByAddress")
+				}
+				client := NewActionsServiceClient(conn)
+				resp, err := client.GetXrc721ByAddress(p.Context, &req)
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to call RPC GetXrc721ByAddress")
+				}
+				return resp, nil
+			},
+		},
 	}
 }
 

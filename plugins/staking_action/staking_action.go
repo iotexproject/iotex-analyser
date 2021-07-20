@@ -123,7 +123,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				stakingAction = models.StakingAction{
 					BlockHeight:  blk.Height(),
 					BucketID:     bucketID,
-					OwnerAddress: info.OwneAddress,
+					OwnerAddress: info.OwnerAddress,
 					Sender:       sender.String(),
 					ActHash:      actHash,
 					Candidate:    info.Candidate,
@@ -184,7 +184,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				stakingAction = models.StakingAction{
 					BlockHeight:  blk.Height(),
 					BucketID:     bucketID,
-					OwnerAddress: info.OwneAddress,
+					OwnerAddress: info.OwnerAddress,
 					Sender:       sender.String(),
 					ActHash:      actHash,
 					Candidate:    info.Candidate,
@@ -203,7 +203,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				stakingAction = models.StakingAction{
 					BlockHeight:  blk.Height(),
 					BucketID:     bucketID,
-					OwnerAddress: info.OwneAddress,
+					OwnerAddress: info.OwnerAddress,
 					Sender:       sender.String(),
 					ActHash:      actHash,
 					Candidate:    cadidateAddr,
@@ -224,7 +224,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				stakingAction = models.StakingAction{
 					BlockHeight:  blk.Height(),
 					BucketID:     bucketID,
-					OwnerAddress: info.OwneAddress,
+					OwnerAddress: info.OwnerAddress,
 					Sender:       sender.String(),
 					ActHash:      actHash,
 					Candidate:    info.Candidate,
@@ -294,13 +294,13 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 						if err != nil {
 							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 						}
-						if info.OwneAddress != from.String() {
+						if info.OwnerAddress != from.String() {
 							continue
 						}
 						stakingAction = models.StakingAction{
 							BlockHeight:  blk.Height(),
 							BucketID:     bucketID,
-							OwnerAddress: info.OwneAddress,
+							OwnerAddress: info.OwnerAddress,
 							Sender:       sender.String(),
 							ActHash:      actHash,
 							ForwardTo:    to.String(),
@@ -351,7 +351,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 						if err != nil {
 							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 						}
-						if info.OwneAddress != from.String() {
+						if info.OwnerAddress != from.String() {
 							continue
 						}
 						stakingAction = models.StakingAction{
@@ -373,7 +373,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 						stakingAction = models.StakingAction{
 							BlockHeight:  blk.Height(),
 							BucketID:     bucketID,
-							OwnerAddress: info.OwneAddress,
+							OwnerAddress: info.OwnerAddress,
 							Sender:       sender.String(),
 							ActHash:      actHash,
 							Candidate:    info.Candidate,

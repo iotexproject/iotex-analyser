@@ -38,15 +38,15 @@ func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal
 }
 
 type BucketInfo struct {
-	OwneAddress string
-	Candidate   string
-	AutoStake   bool
-	Duration    uint32
+	OwnerAddress string
+	Candidate    string
+	AutoStake    bool
+	Duration     uint32
 }
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&models.StakingAction{}).Select("owne_address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
+	if err := tx.Model(&models.StakingAction{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil
@@ -64,7 +64,7 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 	var ids []struct {
 		BucketID uint64
 	}
-	if err := db.Model(&models.StakingAction{}).Distinct("bucket_id").Where("block_height<=? and owne_address=?", height, addr).Find(&ids).Error; err != nil {
+	if err := db.Model(&models.StakingAction{}).Distinct("bucket_id").Where("block_height<=? and owner_address=?", height, addr).Find(&ids).Error; err != nil {
 		return nil, err
 	}
 	bucketID := []uint64{}
@@ -90,7 +90,7 @@ func getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
 func getForwardToAddressByFrom(addr string) (string, error) {
 	var to string
 	db := db.DB()
-	if err := db.Model(&models.StakingAction{}).Select("forward_to").Where("owne_address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Limit(1).Scan(&to).Error; err != nil {
+	if err := db.Model(&models.StakingAction{}).Select("forward_to").Where("owner_address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Limit(1).Scan(&to).Error; err != nil {
 		return "", err
 	}
 	return to, nil

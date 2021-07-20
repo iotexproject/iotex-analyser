@@ -8,18 +8,16 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.2"
 const TableName = "node_delegates"
 
 type delegatesWorkerPlugin struct {
 	tableName string
-	dao       blockdao.BlockDAO
 	stop      chan bool
 	once      *sync.Once
 }
@@ -41,7 +39,7 @@ func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
 		log.L().Warn("failed to delegates", zap.Error(err))
 	}
 	go func() {
-		ticker := time.NewTicker(time.Hour * 24)
+		ticker := time.NewTicker(time.Minute * 1)
 		defer ticker.Stop()
 		for {
 			select {

@@ -32,3 +32,10 @@ func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 	}
 	return m, err
 }
+
+func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {
+	var err error
+	db := db.DB()
+	err = db.Model(m).Where("block_height <=? and name = ?", height, name).Order("block_height desc,id desc").Take(&m).Error
+	return err
+}

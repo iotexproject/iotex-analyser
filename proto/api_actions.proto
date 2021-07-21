@@ -52,6 +52,26 @@ message EvmTransferDetailListByAddressResponse {
   uint64 count = 1;
   repeated EvmTransferDetailResult results = 2;
 }
+message AllActionsByAddressResult {
+  string actHash = 1;
+  uint64 blkHeight = 2;
+  string sender = 3;
+  string recipient = 4;
+  string actType = 5;
+  string amount = 6;
+  uint64 timeStamp = 7;
+  enum RecordType {
+		NATIVE = 0;
+		XRC20 = 1;
+    XRC721 = 2;
+    EVMTRANSFER = 3;
+	}
+  RecordType recordType = 8;
+}
+message AllActionsByAddressResponse {
+  uint64 count = 1;
+  repeated AllActionsByAddressResult results = 2;
+}
 service ActionsService {
   rpc GetActionsByAddress(ActionsRequest) returns (ActionsByAddressResponse) {
     option (graphql.schema) = {
@@ -90,6 +110,16 @@ service ActionsService {
     };
     option (google.api.http) = {
       post: "/api.ActionsService.GetEvmTransferDetailListByAddress"
+      body: "*"
+    };
+  };
+  rpc GetAllActionsByAddress(ActionsRequest) returns (AllActionsByAddressResponse) {
+    option (graphql.schema) = {
+      type: QUERY 
+      name: "GetAllActionsByAddress" 
+    };
+    option (google.api.http) = {
+      post: "/api.ActionsService.GetAllActionsByAddress"
       body: "*"
     };
   };

@@ -11,10 +11,13 @@ import (
 )
 
 var (
+	gql__enum_AllActionsByAddressResult_RecordType    *graphql.Enum        // enum AllActionsByAddressResult_RecordType in api_actions.proto
 	gql__type_Xrc20ByAddressResult                    *graphql.Object      // message Xrc20ByAddressResult in api_actions.proto
 	gql__type_Xrc20ByAddressResponse                  *graphql.Object      // message Xrc20ByAddressResponse in api_actions.proto
 	gql__type_EvmTransferDetailResult                 *graphql.Object      // message EvmTransferDetailResult in api_actions.proto
 	gql__type_EvmTransferDetailListByAddressResponse  *graphql.Object      // message EvmTransferDetailListByAddressResponse in api_actions.proto
+	gql__type_AllActionsByAddressResult               *graphql.Object      // message AllActionsByAddressResult in api_actions.proto
+	gql__type_AllActionsByAddressResponse             *graphql.Object      // message AllActionsByAddressResponse in api_actions.proto
 	gql__type_ActionsRequest                          *graphql.Object      // message ActionsRequest in api_actions.proto
 	gql__type_ActionsByAddressResult                  *graphql.Object      // message ActionsByAddressResult in api_actions.proto
 	gql__type_ActionsByAddressResponse                *graphql.Object      // message ActionsByAddressResponse in api_actions.proto
@@ -22,10 +25,35 @@ var (
 	gql__input_Xrc20ByAddressResponse                 *graphql.InputObject // message Xrc20ByAddressResponse in api_actions.proto
 	gql__input_EvmTransferDetailResult                *graphql.InputObject // message EvmTransferDetailResult in api_actions.proto
 	gql__input_EvmTransferDetailListByAddressResponse *graphql.InputObject // message EvmTransferDetailListByAddressResponse in api_actions.proto
+	gql__input_AllActionsByAddressResult              *graphql.InputObject // message AllActionsByAddressResult in api_actions.proto
+	gql__input_AllActionsByAddressResponse            *graphql.InputObject // message AllActionsByAddressResponse in api_actions.proto
 	gql__input_ActionsRequest                         *graphql.InputObject // message ActionsRequest in api_actions.proto
 	gql__input_ActionsByAddressResult                 *graphql.InputObject // message ActionsByAddressResult in api_actions.proto
 	gql__input_ActionsByAddressResponse               *graphql.InputObject // message ActionsByAddressResponse in api_actions.proto
 )
+
+func Gql__enum_AllActionsByAddressResult_RecordType() *graphql.Enum {
+	if gql__enum_AllActionsByAddressResult_RecordType == nil {
+		gql__enum_AllActionsByAddressResult_RecordType = graphql.NewEnum(graphql.EnumConfig{
+			Name: "Api_Enum_AllActionsByAddressResult_RecordType",
+			Values: graphql.EnumValueConfigMap{
+				"NATIVE": &graphql.EnumValueConfig{
+					Value: AllActionsByAddressResult_RecordType(0),
+				},
+				"XRC20": &graphql.EnumValueConfig{
+					Value: AllActionsByAddressResult_RecordType(1),
+				},
+				"XRC721": &graphql.EnumValueConfig{
+					Value: AllActionsByAddressResult_RecordType(2),
+				},
+				"EVMTRANSFER": &graphql.EnumValueConfig{
+					Value: AllActionsByAddressResult_RecordType(3),
+				},
+			},
+		})
+	}
+	return gql__enum_AllActionsByAddressResult_RecordType
+}
 
 func Gql__type_Xrc20ByAddressResult() *graphql.Object {
 	if gql__type_Xrc20ByAddressResult == nil {
@@ -123,6 +151,58 @@ func Gql__type_EvmTransferDetailListByAddressResponse() *graphql.Object {
 		})
 	}
 	return gql__type_EvmTransferDetailListByAddressResponse
+}
+
+func Gql__type_AllActionsByAddressResult() *graphql.Object {
+	if gql__type_AllActionsByAddressResult == nil {
+		gql__type_AllActionsByAddressResult = graphql.NewObject(graphql.ObjectConfig{
+			Name: "Api_Type_AllActionsByAddressResult",
+			Fields: graphql.Fields{
+				"actHash": &graphql.Field{
+					Type: graphql.String,
+				},
+				"blkHeight": &graphql.Field{
+					Type: graphql.Int,
+				},
+				"sender": &graphql.Field{
+					Type: graphql.String,
+				},
+				"recipient": &graphql.Field{
+					Type: graphql.String,
+				},
+				"actType": &graphql.Field{
+					Type: graphql.String,
+				},
+				"amount": &graphql.Field{
+					Type: graphql.String,
+				},
+				"timeStamp": &graphql.Field{
+					Type: graphql.Int,
+				},
+				"recordType": &graphql.Field{
+					Type: Gql__enum_AllActionsByAddressResult_RecordType(),
+				},
+			},
+		})
+	}
+	return gql__type_AllActionsByAddressResult
+}
+
+func Gql__type_AllActionsByAddressResponse() *graphql.Object {
+	if gql__type_AllActionsByAddressResponse == nil {
+		gql__type_AllActionsByAddressResponse = graphql.NewObject(graphql.ObjectConfig{
+			Name: "Api_Type_AllActionsByAddressResponse",
+			Fields: graphql.Fields{
+				"count": &graphql.Field{
+					Type: graphql.Int,
+				},
+				"results": &graphql.Field{
+					Type: graphql.NewList(Gql__type_AllActionsByAddressResult()),
+				},
+			},
+		})
+	}
+	return gql__type_AllActionsByAddressResponse
 }
 
 func Gql__type_ActionsRequest() *graphql.Object {
@@ -299,6 +379,58 @@ func Gql__input_EvmTransferDetailListByAddressResponse() *graphql.InputObject {
 		})
 	}
 	return gql__input_EvmTransferDetailListByAddressResponse
+}
+
+func Gql__input_AllActionsByAddressResult() *graphql.InputObject {
+	if gql__input_AllActionsByAddressResult == nil {
+		gql__input_AllActionsByAddressResult = graphql.NewInputObject(graphql.InputObjectConfig{
+			Name: "Api_Input_AllActionsByAddressResult",
+			Fields: graphql.InputObjectConfigFieldMap{
+				"actHash": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"blkHeight": &graphql.InputObjectFieldConfig{
+					Type: graphql.Int,
+				},
+				"sender": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"recipient": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"actType": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"amount": &graphql.InputObjectFieldConfig{
+					Type: graphql.String,
+				},
+				"timeStamp": &graphql.InputObjectFieldConfig{
+					Type: graphql.Int,
+				},
+				"recordType": &graphql.InputObjectFieldConfig{
+					Type: Gql__enum_AllActionsByAddressResult_RecordType(),
+				},
+			},
+		})
+	}
+	return gql__input_AllActionsByAddressResult
+}
+
+func Gql__input_AllActionsByAddressResponse() *graphql.InputObject {
+	if gql__input_AllActionsByAddressResponse == nil {
+		gql__input_AllActionsByAddressResponse = graphql.NewInputObject(graphql.InputObjectConfig{
+			Name: "Api_Input_AllActionsByAddressResponse",
+			Fields: graphql.InputObjectConfigFieldMap{
+				"count": &graphql.InputObjectFieldConfig{
+					Type: graphql.Int,
+				},
+				"results": &graphql.InputObjectFieldConfig{
+					Type: graphql.NewList(Gql__input_AllActionsByAddressResult()),
+				},
+			},
+		})
+	}
+	return gql__input_AllActionsByAddressResponse
 }
 
 func Gql__input_ActionsRequest() *graphql.InputObject {
@@ -545,6 +677,38 @@ func (x *graphql__resolver_ActionsService) GetQueries(conn *grpc.ClientConn) gra
 				resp, err := client.GetEvmTransferDetailListByAddress(p.Context, &req)
 				if err != nil {
 					return nil, errors.Wrap(err, "Failed to call RPC GetEvmTransferDetailListByAddress")
+				}
+				return resp, nil
+			},
+		},
+		"GetAllActionsByAddress": &graphql.Field{
+			Type: Gql__type_AllActionsByAddressResponse(),
+			Args: graphql.FieldConfigArgument{
+				"address": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+				"height": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"offset": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"size": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+				"sort": &graphql.ArgumentConfig{
+					Type: graphql.String,
+				},
+			},
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				var req ActionsRequest
+				if err := runtime.MarshalRequest(p.Args, &req, false); err != nil {
+					return nil, errors.Wrap(err, "Failed to marshal request for GetAllActionsByAddress")
+				}
+				client := NewActionsServiceClient(conn)
+				resp, err := client.GetAllActionsByAddress(p.Context, &req)
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to call RPC GetAllActionsByAddress")
 				}
 				return resp, nil
 			},

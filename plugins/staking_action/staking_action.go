@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 const (
 	// h := hash.Hash160b([]byte("staking"))
@@ -257,6 +257,26 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					ActType:      "Unstake",
 					Duration:     info.Duration,
 					Amount:       decmailAmount.Mul(decimal.NewFromInt(-1)),
+				}
+				if err := tx.Create(&stakingAction).Error; err != nil {
+					return err
+				}
+			case *action.CandidateRegister:
+				bucketID, ok := bucketMap[actHash]
+				if !ok {
+					return errors.New("can not found bucketID with actHash:" + actHash)
+				}
+				stakingAction = models.StakingAction{
+					BlockHeight:  blk.Height(),
+					BucketID:     bucketID,
+					Sender:       sender.String(),
+					OwnerAddress: a.OwnerAddress().String(),
+					ActHash:      actHash,
+					Candidate:    a.OwnerAddress().String(),
+					Amount:       decimal.NewFromBigInt(a.Amount(), 0),
+					ActType:      "CandidateRegister",
+					AutoStake:    a.AutoStake(),
+					Duration:     a.Duration(),
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err

@@ -18,7 +18,7 @@ func getCandidateAddressByName(name string, height uint64) (string, error) {
 	if err := candidate.FetchByNameWithHeight(name, height); err != nil {
 		return "", err
 	}
-	return candidate.OperatorAddress, nil
+	return candidate.OwnerAddress, nil
 }
 
 func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {

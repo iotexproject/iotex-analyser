@@ -7,7 +7,7 @@ You can analyze the data on the chain and store it in the database (MySQL, Postg
 
 ![Technical architecture of Iotex analyser](docs/assets/images/162696321861.jpg)
 
-## Feature：
+## Feature
 iotex-analyser enables you to deploy your plugins without any downtime，Dynamic load/unload plugins. 
 The plugins directory has realized several basic functions. 
 You can also write your own plugins to complete the functions you want.
@@ -40,7 +40,7 @@ make
 ### Usage
 
 simple config.yml
-```
+```yml
 server:
   #grpc protocol api
   grpcPort: 7777
@@ -70,19 +70,19 @@ log:
    2. https://t.iotex.me/testnet-data-with-idx-latest
    
 start server
-```
+```sh
 ./iotex-analyser -c config.yml server
 ```
 dynamic load a plugin
-```
+```sh
 ./iotex-analyser -c config.yml plugin load simple.so
 ```
 dynamic unload a plugin
-```
+```sh
 ./iotex-analyser -c config.yml plugin unload simple.so
 ```
 display plugin running infomation
-```
+```sh
 ./iotex-analyser -c config.yml plugin info
 ```
 
@@ -92,7 +92,7 @@ display plugin running infomation
 
 ### API 
 API supports GRPC/HTTP/GraphQL
-```
+```sh
 curl -g "http://localhost:7778/graphql" -d '
 {
   GetActionsByAddress(address: "io14u5d66rt465ykm7t2847qllj0reml27q30kr75") {
@@ -114,7 +114,7 @@ grpcurl -plaintext -d '{"address": "io14u5d66rt465ykm7t2847qllj0reml27q30kr75"}'
 
 ## How to writing a plugin
 Currently, a adapter interface is defined, and the written plugin needs to implement the interface.
-```
+```go
 type Adapter interface {
 	Name() string
 	Version() string
@@ -126,7 +126,7 @@ type Adapter interface {
 ```
 
 The following code `simple/simple.go` demonstrates how to write a plugin
-```
+```go
 package main
 
 import (
@@ -169,7 +169,7 @@ var Plugin = simplePlugin{}
 
 ```
 ### build plugin
-```
+```sh
 make plugin name=simple
 ```
 This  will generates a file of `simple.so` in the current directory, and then load and run the plugin with the following command.

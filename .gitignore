@@ -27,4 +27,4 @@ config_testnet.yml
 config_maintest.yml
 .DS_Store
 config_mainonline.yml
-plugins/account_vote_weight/
+Readme_ZH.md

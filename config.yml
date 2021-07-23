@@ -1,4 +1,5 @@
 server:
+  #plugin metrics
   http: 127.0.0.1:8989
   #debug port
   httpAdminPort: 8988
@@ -9,15 +10,6 @@ server:
   #loaded default plugin list
   plugins:
     - block.so
-    - blockaction.so
-    - blockmeta.so
-    - blockmeta_reward.so
-    - delegates.so
-    - iotexprice_worker.so
-    - action_execution.so
-    - block_receipt.so
-    - account_balance.so
-    - account_income.so
 database:
   driver: postgres
   host: 127.0.0.1
@@ -29,7 +21,7 @@ iotex:
   #catchUpMode: true
   chainEndPoint: api.testnet.iotex.one:80
 blockDB:
-  dbPath: /media/millken/SAMSUNG/iotex-var/data/chain.db
+  dbPath: chain.db
 log:
   zap:
     development: true

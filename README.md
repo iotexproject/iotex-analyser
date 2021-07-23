@@ -1,40 +1,55 @@
-# iotex-analyser
-async analyser for iotex
+[![Build Status](https://github.com/iotexproject/iotex-analyser.svg?branch=main)](https://travis-ci.org/iotexproject/iotex-analyser)
 
-## Install
-### protoc
+# Overview
 
-protoc download https://github.com/protocolbuffers/protobuf
+iotex-analyser is a project developed by Golang for asynchronous analysis of iotex blockchain data. It has the function of synchronous iotex blockchain block data.
+You can analyze the data on the chain and store it in the database (MySQL, PostgreSQL, SQLite3) or other external storage by writing a plugin.
+
+![Technical architecture of Iotex analyser](docs/assets/images/162696321861.jpg)
+
+## Feature：
+iotex-analyser enables you to deploy your plugins without any downtime，Dynamic load/unload plugins. 
+The plugins directory has realized several basic functions. 
+You can also write your own plugins to complete the functions you want.
+
+## Documentation
+### build from code
+
+Google protocol buffers compiler [protoc](https://github.com/protocolbuffers/protobuf) required only when you rebuild API service.
+
+***install required protoc plugins***: 
 ```
+go get github.com/ysugimoto/grpc-graphql-gateway/protoc-gen-graphql/...
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
 go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.4
 make proto
 
 ```
-
+Download and build the code
 ```
-make plugins #auto make plugin so file
-make plugin name=xxx #compile single plugin,xxx means plugins/xxx/*.go
-make build #server
-make #both server and plugins
+git clone https://github.com/iotexproject/iotex-analyser.git
+cd iotex-analyser
+make build
+``` 
+Build the project for general purpose (server, plugins) by
 ```
-
-## Usage
-
-- please use the snapshot with index data:
-   1. mainnet: https://t.iotex.me/mainnet-data-with-idx-latest
-   2. testnet: https://t.iotex.me/testnet-data-with-idx-latest
-
-```
-./iotex-analyser -c config.yml server #start server
-./iotex-analyser -c config.yml plugin load block.so #dynmic load plugin
-./iotex-analyser -c config.yml plugin unload block.so #dynmic unload plugin
-./iotex-analyser -c config.yml plugin info #display plugin running information
+make
 ```
 
-### simple config.yml
+### Usage
+
+simple config.yml
 ```
+server:
+  #grpc protocol api
+  grpcPort: 7777
+  #http protocol api 
+  grpcProxyPort: 7778
+  #loaded default plugin list
+  plugins:
+    #- block.so
+#database config
 database:
   driver: postgres
   host: 127.0.0.1
@@ -46,13 +61,34 @@ iotex:
   chainEndPoint: api.testnet.iotex.one:80
 blockDB:
   dbPath: chain.db
-genesis: #testnet is here, mainnet see https://github.com/iotexproject/iotex-bootstrap/blob/master/genesis_mainnet.yaml
-  account:
-    initBalances:
-      io10t7juxazfteqzjsd6qjk7tkgmngj2tm7n4fvrd: "1000000000000000000000000000"
-      io120au9ra0nffdle04jx2g5gccn6gq8qd4fy03l4: "7000000000000000000000000000"
-      io1yrzvkucxpytn4fru35lc8r8jk4jtue4syg8d4h: "800000000000000000000000000"
+log:
+  zap:
+    level: info
 ```
+- `chain.db` we can use the snapshot with index data:
+   1. https://t.iotex.me/mainnet-data-with-idx-latest
+   2. https://t.iotex.me/testnet-data-with-idx-latest
+   
+start server
+```
+./iotex-analyser -c config.yml server
+```
+dynamic load a plugin
+```
+./iotex-analyser -c config.yml plugin load simple.so
+```
+dynamic unload a plugin
+```
+./iotex-analyser -c config.yml plugin unload simple.so
+```
+display plugin running infomation
+```
+./iotex-analyser -c config.yml plugin info
+```
+
+### plugin lists
+  - [block](plugins/block/)
+
 
 ### API 
 API supports GRPC/HTTP/GraphQL
@@ -75,3 +111,77 @@ curl -g "http://localhost:7778/api.ActionsService.GetActionsByAddress" -d '
 
 grpcurl -plaintext -d '{"address": "io14u5d66rt465ykm7t2847qllj0reml27q30kr75"}' 127.0.0.1:7777 api.ActionsService.GetActionsByAddress
 ```
+
+## How to writing a plugin
+Currently, a adapter interface is defined, and the written plugin needs to implement the interface.
+```
+type Adapter interface {
+	Name() string
+	Version() string
+	Type() Type
+	Start(context.Context) error
+	Stop(context.Context) error
+	PutBlock(context.Context, *block.Block) error
+}
+```
+
+The following code `simple/simple.go` demonstrates how to write a plugin
+```
+package main
+
+import (
+	"context"
+
+	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-core/blockchain/block"
+)
+
+type simplePlugin struct {
+}
+
+func (b simplePlugin) Name() string {
+	return "simple"
+}
+
+func (b simplePlugin) Type() plugin.Type {
+	return plugin.TypeStandard
+}
+
+func (b simplePlugin) Start(ctx context.Context) error {
+	return nil
+}
+
+func (b simplePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+    fmt.Printf("block height: %d", blk.Height())
+	return nil
+}
+
+func (b simplePlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b simplePlugin) Version() string {
+	return "0.0.1"
+}
+
+// exported
+var Plugin = simplePlugin{}
+
+```
+### build plugin
+```
+make plugin name=simple
+```
+This  will generates a file of `simple.so` in the current directory, and then load and run the plugin with the following command.
+```
+./iotex-analyser -c config.yml plugin load simple.so
+```
+After successfully running the plugin, the server will output similar text
+```
+block height: 1
+...
+block height: 3
+```
+
+## License
+This project is licensed under the [Apache License 2.0](LICENSE).

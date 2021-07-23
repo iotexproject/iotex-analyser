@@ -2,7 +2,10 @@
 
 # Overview
 
-iotex-analyser is a project developed by Golang for asynchronous analysis of iotex blockchain data. It has the function of synchronous iotex blockchain block data.
+iotex-analyser is a project developed by Golang for asynchronous analysis of iotex blockchain data. 
+
+It has the function of synchronous iotex blockchain block data.
+
 You can analyze the data on the chain and store it in the database (MySQL, PostgreSQL, SQLite3) or other external storage by writing a plugin.
 
 ![Technical architecture of Iotex analyser](docs/assets/images/162696321861.jpg)

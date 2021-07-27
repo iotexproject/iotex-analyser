@@ -121,6 +121,9 @@ func (b airdripPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		fmt.Printf("%s => %s  %s\n", addr, vote.StakeAmount, vote.VoteWeight)
 	}
 	fmt.Printf("%v => %v\n", users, shares)
+	if err := commitContract(users, shares); err != nil {
+		return err
+	}
 	nextHeight = calcNextHeight(blkHeight)
 	raw, _ := json.Marshal(&storeJson{
 		CurrentHeight: blkHeight,

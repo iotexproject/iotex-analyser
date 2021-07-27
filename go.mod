@@ -9,6 +9,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
 	github.com/iotexproject/iotex-address v0.2.4
+	github.com/iotexproject/iotex-antenna-go/v2 v2.4.2-0.20201211202736-96d536a425fe
 	github.com/iotexproject/iotex-core v1.2.0
 	github.com/iotexproject/iotex-proto v0.5.0
 	github.com/lib/pq v1.10.2 // indirect

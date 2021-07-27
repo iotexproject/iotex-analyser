@@ -47,9 +47,10 @@ func (b airdripPlugin) Start(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			nextHeight = calcNextHeight(currentHeight)
 			js := &storeJson{
 				CurrentHeight: currentHeight,
-				NextHeight:    calcNextHeight(currentHeight),
+				NextHeight:    nextHeight,
 				UpdateTime:    time.Now(),
 			}
 			raw, _ := json.Marshal(js)
@@ -64,8 +65,9 @@ func (b airdripPlugin) Start(ctx context.Context) error {
 		} else {
 			return err
 		}
+	} else {
+		nextHeight = res.NextHeight
 	}
-	nextHeight = res.NextHeight
 	return nil
 }
 

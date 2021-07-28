@@ -66,7 +66,7 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 	var ids []struct {
 		BucketID uint64
 	}
-	if err := db.Table("account_vote").Distinct("bucket_id").Where("block_height<=? and address=?", height, addr).Find(&ids).Error; err != nil {
+	if err := db.Table("staking_action").Distinct("bucket_id").Where("block_height<=? and owner_address=?", height, addr).Find(&ids).Error; err != nil {
 		return nil, err
 	}
 	bucketID := []uint64{}
@@ -83,7 +83,7 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 func getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
 	var addr sql.NullString
 	db := db.DB()
-	if err := db.Table("account_vote").Select("address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
+	if err := db.Table("staking_action").Select("owner_address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
 		return "", err
 	}
 	return addr.String, nil
@@ -136,7 +136,7 @@ type AccountVote struct {
 func getSumStake(addr string, height, bucketID uint64) (*big.Int, error) {
 	db := db.DB()
 	var amount sql.NullString
-	if err := db.Table("account_vote").Select("sum(amount)").Where("block_height<=? and bucket_id=? and address=?", height, bucketID, addr).Scan(&amount).Error; err != nil {
+	if err := db.Table("staking_action").Select("sum(amount)").Where("block_height<=? and bucket_id=? and owner_address=?", height, bucketID, addr).Scan(&amount).Error; err != nil {
 		return nil, err
 	}
 	stakeAmount, _ := big.NewInt(0).SetString(amount.String, 0)
@@ -146,7 +146,7 @@ func getSumStake(addr string, height, bucketID uint64) (*big.Int, error) {
 func getVoteBucketParams(addr string, height, bucketID uint64) (uint32, bool, bool) {
 	var av AccountVote
 	db := db.DB()
-	if err := db.Table("account_vote").Where("block_height<=? and bucket_id=? and address=?", height, bucketID, addr).Order("id desc").Scan(&av).Error; err != nil {
+	if err := db.Table("staking_action").Where("block_height<=? and bucket_id=? and owner_address=?", height, bucketID, addr).Order("id desc").Scan(&av).Error; err != nil {
 		return 0, false, false
 	}
 

@@ -37,6 +37,22 @@ func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal
 	return decmailAmount, nil
 }
 
+func getFixBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
+	var amount sql.NullString
+	zero := decimal.NewFromInt(0)
+	if err := tx.Model(&models.StakingAction{}).Select("sum(amount)").Where("bucket_id=? and act_type<>'Unstake'", bucketID).Scan(&amount).Error; err != nil {
+		return zero, err
+	}
+	if amount.String == "" {
+		return zero, nil
+	}
+	decmailAmount, err := decimal.NewFromString(amount.String)
+	if err != nil {
+		return zero, err
+	}
+	return decmailAmount, nil
+}
+
 type BucketInfo struct {
 	OwnerAddress string
 	Candidate    string

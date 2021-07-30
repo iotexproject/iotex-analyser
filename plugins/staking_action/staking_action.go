@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.0.3"
 
 const (
 	// h := hash.Hash160b([]byte("staking"))

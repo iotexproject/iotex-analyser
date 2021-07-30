@@ -39,7 +39,15 @@ func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal
 
 func getFixBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
 	var amount sql.NullString
+	var count int64
 	zero := decimal.NewFromInt(0)
+	err := tx.Model(&models.StakingAction{}).Where("bucket_id=? and act_type='Unstake'", bucketID).Count(&count).Error
+	if err != nil {
+		return zero, err
+	}
+	if count == 0 {
+		return zero, nil
+	}
 	if err := tx.Model(&models.StakingAction{}).Select("sum(amount)").Where("bucket_id=? and act_type<>'Unstake'", bucketID).Scan(&amount).Error; err != nil {
 		return zero, err
 	}

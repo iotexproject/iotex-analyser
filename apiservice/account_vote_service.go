@@ -3,6 +3,7 @@ package apiservice
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"math"
 	"math/big"
 	"time"
@@ -39,6 +40,7 @@ func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.Accou
 		}
 		stakeAmounts := big.NewInt(0)
 		voteWeights := big.NewInt(0)
+		tmp := ""
 		for _, bucketID := range bucketIDs {
 			stakeAmount, err := getSumStake(addr, height, bucketID)
 			if err != nil {
@@ -53,11 +55,12 @@ func (s *AccountVoteService) GetVoteByHeight(ctx context.Context, req *api.Accou
 			}
 			voteWeight := calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfAutoStake)
 			voteWeights = voteWeights.Add(voteWeights, voteWeight)
+			tmp += fmt.Sprintf("bucket: %d stakeAmount: %d voteWeight: %d\n", bucketID, stakeAmount, voteWeight)
 		}
+		fmt.Println(tmp)
 		resp.StakeAmount = append(resp.StakeAmount, util.RauToString(stakeAmounts, util.IotxDecimalNum))
 		resp.VoteWeight = append(resp.VoteWeight, util.RauToString(voteWeights, util.IotxDecimalNum))
 	}
-
 	return resp, nil
 }
 

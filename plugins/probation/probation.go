@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type probationPlugin struct {
 }
@@ -49,6 +49,7 @@ func (b probationPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 		for _, k := range probationList.ProbationList {
 			m := models.Probation{
+				BlockHeight:   blkHeight,
 				EpochNumber:   epochNum,
 				Address:       k.GetAddress(),
 				IntensityRate: probationList.IntensityRate,

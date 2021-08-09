@@ -1,6 +1,8 @@
 package models
 
 import (
+	"errors"
+
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/shopspring/decimal"
 )
@@ -18,6 +20,8 @@ type Candidate struct {
 	AutoStake       bool
 	Payload         []byte
 }
+
+type Candidates []Candidate
 
 func (Candidate) TableName() string {
 	return "candidate"
@@ -38,4 +42,20 @@ func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {
 	db := db.DB()
 	err = db.Model(m).Where("block_height <=? and name = ?", height, name).Order("block_height desc,id desc").Take(&m).Error
 	return err
+}
+
+func GetAllCandidates() (Candidates, error) {
+	var candidates Candidates
+	db := db.DB()
+	result := db.Model(&Candidate{}).Where("id in (select max(id) from candidate group by owner_address)").Find(&candidates)
+	return candidates, result.Error
+}
+
+func (m Candidates) ByOwnerAddress(addr string) (Candidate, error) {
+	for _, cand := range m {
+		if cand.OwnerAddress == addr {
+			return cand, nil
+		}
+	}
+	return Candidate{}, errors.New("not found: " + addr)
 }

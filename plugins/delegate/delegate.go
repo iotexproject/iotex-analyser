@@ -15,12 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type delegatePlugin struct {
-	tableName string
-	stop      chan bool
-	once      *sync.Once
+	stop chan bool
+	once *sync.Once
 }
 
 func (b delegatePlugin) Name() string {

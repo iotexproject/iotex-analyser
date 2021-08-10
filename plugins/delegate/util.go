@@ -162,10 +162,10 @@ func getCandidateStaking(height uint64) ([]*Staking, error) {
 	return results, nil
 }
 
-// check candidate register and amount = 1200000000000000000000000
+// check candidate register and amount >= 1200000000000000000000000
 func isSelfStake(candidate string) bool {
 	var count int64
-	if err := db.DB().Model(&models.StakingAction{}).Where("candidate=? and act_type='CandidateRegister' and amount=1200000000000000000000000", candidate).Count(&count).Error; err != nil {
+	if err := db.DB().Model(&models.StakingAction{}).Where("candidate=? and act_type='CandidateRegister' and amount>=1200000000000000000000000", candidate).Count(&count).Error; err != nil {
 		return false
 	}
 	if count > 0 {

@@ -18,17 +18,6 @@ You can also write your own plugins to complete the functions you want.
 ## Documentation
 ### build from code
 
-Google protocol buffers compiler [protoc](https://github.com/protocolbuffers/protobuf) required only when you rebuild API service.
-
-***install required protoc plugins***: 
-```
-go get github.com/ysugimoto/grpc-graphql-gateway/protoc-gen-graphql/...
-go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
-go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.4
-make proto
-
-```
 Download and build the code
 ```
 git clone https://github.com/iotexproject/iotex-analyser.git
@@ -42,16 +31,19 @@ make
 
 ### Usage
 
+You needs to create database before start server, use docker here
+
+```
+docker run --name postgres12 -e POSTGRES_PASSWORD=admin --publish 5432:5432 -d postgres:12-alpine
+
+```
+
 simple config.yml
 ```yml
 server:
-  #grpc protocol api
-  grpcPort: 7777
-  #http protocol api 
-  grpcProxyPort: 7778
   #loaded default plugin list
   plugins:
-    #- block.so
+    - block.so
 #database config
 database:
   driver: postgres
@@ -93,28 +85,6 @@ display plugin running infomation
   - [block](plugins/block/)
 
 
-### API 
-API supports GRPC/HTTP/GraphQL
-```sh
-curl -g "http://localhost:7778/graphql" -d '
-{
-  GetActionsByAddress(address: "io14u5d66rt465ykm7t2847qllj0reml27q30kr75") {
-    count
-    results{
-      actHash
-      amount
-    }
-  }
-}'
-
-curl -g "http://localhost:7778/api.ActionsService.GetActionsByAddress" -d '
-{
-  "address": "io14u5d66rt465ykm7t2847qllj0reml27q30kr75"
-}'
-
-grpcurl -plaintext -d '{"address": "io14u5d66rt465ykm7t2847qllj0reml27q30kr75"}' 127.0.0.1:7777 api.ActionsService.GetActionsByAddress
-```
-
 ## How to writing a plugin
 Currently, a adapter interface is defined, and the written plugin needs to implement the interface.
 ```go
@@ -135,6 +105,7 @@ package main
 import (
 	"context"
 
+  "github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 )
@@ -155,8 +126,9 @@ func (b simplePlugin) Start(ctx context.Context) error {
 }
 
 func (b simplePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-    fmt.Printf("block height: %d", blk.Height())
-	return nil
+  fmt.Printf("block height: %d\n", blk.Height())
+  // sync update indexer height
+  return db.UpdateIndexHeight(b.Name(), blk.Height())
 }
 
 func (b simplePlugin) Stop(ctx context.Context) error {

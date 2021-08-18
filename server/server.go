@@ -15,7 +15,6 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/go-pkgs/util/httputil"
-	"github.com/iotexproject/iotex-analyser/apiservice"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
@@ -66,22 +65,6 @@ func (srv *Server) Start(ctx context.Context) error {
 		go func() {
 			if err := srv.startHTTPService(); err != nil {
 				srv.logger.Fatal("failed to start http service", zap.Error(err))
-			}
-		}()
-	}
-
-	if config.Default.Server.GrpcPort > 0 {
-		go func() {
-			if err := apiservice.StartGRPCService(ctx); err != nil {
-				srv.logger.Fatal("failed to start GRPC service", zap.Error(err))
-			}
-		}()
-	}
-
-	if config.Default.Server.GrpcProxyPort > 0 {
-		go func() {
-			if err := apiservice.StartGRPCProxyService(); err != nil {
-				srv.logger.Fatal("failed to start GRPC HTTP Proxy service", zap.Error(err))
 			}
 		}()
 	}

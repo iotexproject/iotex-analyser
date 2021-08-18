@@ -5,7 +5,7 @@ server:
   # httpAdminPort: 8988
   #loaded default plugin list
   plugins:
-    - iotexproice_worker.so
+    - iotexprice_worker.so
     - block.so
     - block_action.so
     - staking_action.so

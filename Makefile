@@ -7,6 +7,7 @@
 # License 2.0 that can be found in the LICENSE file.
 ########################################################################################################################
 
+NAME=iotex/iotex-analyser
 # Go parameters
 GOCMD=go
 GOLINT=golint
@@ -20,7 +21,6 @@ PLUGIN_DIRECTORIES = $(wildcard plugins/*)
 all : plugins build
 
 plugins:
-	rm -f *.so
 	for plugin in $(PLUGIN_DIRECTORIES) ; do \
 		so=`echo $${plugin}.so | sed 's/plugins\///g'` ; \
 		$(GOBUILD) -o $$so -buildmode=plugin $$plugin/*.go ; \
@@ -37,3 +37,6 @@ build:
 	$(GOBUILD) -v .
 
 run: build
+
+docker:
+	docker build --progress=plain -t ${NAME}:latest  .

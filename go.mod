@@ -7,6 +7,7 @@ require (
 	github.com/ethereum/go-ethereum v1.9.5
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/google/go-cmp v0.5.4 // indirect
+	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
 	github.com/iotexproject/iotex-address v0.2.4
 	github.com/iotexproject/iotex-antenna-go/v2 v2.4.2-0.20201211202736-96d536a425fe
@@ -21,6 +22,7 @@ require (
 	github.com/prometheus/client_golang v1.3.0
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rodaine/table v1.0.1
+	github.com/sethvargo/go-envconfig v0.3.5
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0

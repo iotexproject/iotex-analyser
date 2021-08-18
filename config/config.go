@@ -1,14 +1,18 @@
 package config
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/imdario/mergo"
 	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
+	"github.com/sethvargo/go-envconfig"
 	"gopkg.in/yaml.v2"
 )
 
@@ -45,13 +49,13 @@ type (
 		Plugins       []string `yaml:"plugins"`
 	}
 	Database struct {
-		Driver   string `yaml:"driver"`
-		Host     string `yaml:"host"`
-		Port     string `yaml:"port"`
-		User     string `yaml:"user"`
-		Password string `yaml:"password"`
-		Name     string `yaml:"name"`
-		Debug    bool   `yaml:"debug"`
+		Driver   string `yaml:"driver" env:"DB_DRIVER"`
+		Host     string `yaml:"host" env:"DB_HOST"`
+		Port     string `yaml:"port" env:"DB_PORT"`
+		User     string `yaml:"user"  env:"DB_USER"`
+		Password string `yaml:"password"  env:"DB_PASSWORD"`
+		Name     string `yaml:"name"  env:"DB_NAME"`
+		Debug    bool   `yaml:"debug"  env:"DB_DEBUG"`
 	}
 	Iotex struct {
 		CrawlMode          bool     `yaml:"crawlMode"`
@@ -59,7 +63,7 @@ type (
 		DisableRebuildDB   bool     `yaml:"disableRebuildDB"`
 		CatchUpMode        bool     `yaml:"catchUpMode"`
 		CatchUpStartHeight uint64   `yaml:"catchUpStartHeight"`
-		ChainEndPoint      string   `yaml:"chainEndPoint"`
+		ChainEndPoint      string   `yaml:"chainEndPoint" env:"IOTEX_CHAIN_END_POINT"`
 		ChainInsecure      bool     `yaml:"chainInsecure"`
 		BatchSize          uint64   `yaml:"batchSize"` //default 64, ~ 10 blocks
 	}
@@ -79,8 +83,15 @@ func New(path string) (cfg *Config, err error) {
 		return cfg, errors.Wrap(err, "failed to read config content")
 	}
 	cfg = &Default
+	var envCfg Config
+	if err := envconfig.Process(context.Background(), &envCfg); err != nil {
+		return cfg, errors.Wrap(err, "failed to process envconfig to struct")
+	}
 	if err = yaml.Unmarshal(body, cfg); err != nil {
 		return cfg, errors.Wrap(err, "failed to unmarshal config to struct")
+	}
+	if err := mergo.Merge(&Default.Database, envCfg.Database, mergo.WithOverride); err != nil {
+		return cfg, errors.Wrap(err, "failed to merge config")
 	}
 	return
 }
@@ -90,8 +101,16 @@ var (
 	DefaultConfigFiles = []string{"config.yml", "config.yaml"}
 
 	// Launchd doesn't set root env variables, so there is default
-	DefaultConfigDirs = []string{"~/.iotex-analyser", "/usr/local/etc/iotex-analyser", "/etc/iotex-analyser"}
+	DefaultConfigDirs = []string{getCurrentDirectory(), "~/.iotex-analyser", "/usr/local/etc/iotex-analyser", "/etc/iotex-analyser"}
 )
+
+func getCurrentDirectory() string {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		return ""
+	}
+	return strings.Replace(dir, "\\", "/", -1)
+}
 
 // FileExists checks to see if a file exist at the provided path.
 func FileExists(path string) (bool, error) {

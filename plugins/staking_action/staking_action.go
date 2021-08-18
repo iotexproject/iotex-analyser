@@ -12,13 +12,14 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.4"
 
 const (
 	// h := hash.Hash160b([]byte("staking"))
@@ -41,6 +42,10 @@ func (b stakingActionPlugin) Name() string {
 
 func (b stakingActionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
+}
+
+func (b stakingActionPlugin) DependentPlugin() string {
+	return "candidate"
 }
 
 func (b stakingActionPlugin) Start(ctx context.Context) error {
@@ -156,6 +161,14 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if err != nil {
 					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 				}
+				// fix greenland (height=6544441) restake
+				fixAmount := decimal.NewFromInt(0)
+				if blk.Height() < genesis.Default.GreenlandBlockHeight {
+					fixAmount, err = getFixBucketSumAmountByBucketID(tx, bucketID)
+					if err != nil {
+						return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+					}
+				}
 				stakingAction = models.StakingAction{
 					BlockHeight:  blk.Height(),
 					BucketID:     bucketID,
@@ -166,7 +179,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					AutoStake:    a.AutoStake(),
 					ActType:      "Restake",
 					Duration:     a.Duration(),
-					Amount:       decimal.NewFromInt(0),
+					Amount:       fixAmount,
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err

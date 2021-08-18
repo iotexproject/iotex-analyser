@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
@@ -15,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.4"
+const VERSION = "2.0.5"
 
 type candidatePlugin struct {
 }
@@ -51,6 +52,7 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			if !ok {
 				continue
 			}
+			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 			act := selp.Action()
 			switch a := act.(type) {
 			case *action.CandidateRegister:
@@ -78,6 +80,7 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					BlockHeight:     blk.Height(),
 					Name:            a.Name(),
 					OperatorAddress: a.OperatorAddress().String(),
+					OwnerAddress:    sender.String(),
 					RewardAddress:   rewardAddress,
 					ActType:         "CandidateUpdate",
 				}

@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.2"
 
 type probationPlugin struct {
 }
@@ -36,26 +36,26 @@ func (b probationPlugin) Start(ctx context.Context) error {
 func (b probationPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
 	epochNum := kernel.GetEpochNum(blkHeight)
-	// skipping not epoch num
-	if blkHeight != kernel.GetEpochHeight(epochNum) {
-		return nil
-	}
+	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		//pm.GetCountByEpochNum(blkHeight)
-		probationList, err := fetchProbationList(chainClient, epochNum)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
-		}
-		for _, k := range probationList.ProbationList {
-			m := models.Probation{
-				EpochNumber:   epochNum,
-				Address:       k.GetAddress(),
-				IntensityRate: probationList.IntensityRate,
-				Count:         uint64(k.GetCount()),
+
+		if blkHeight == epochHeight {
+			probationList, err := fetchProbationList(chainClient, epochNum)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 			}
-			if err := tx.Create(&m).Error; err != nil {
-				return err
+			for _, k := range probationList.ProbationList {
+				m := models.Probation{
+					BlockHeight:   blkHeight,
+					EpochNumber:   epochNum,
+					Address:       k.GetAddress(),
+					IntensityRate: probationList.IntensityRate,
+					Count:         uint64(k.GetCount()),
+				}
+				if err := tx.Create(&m).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

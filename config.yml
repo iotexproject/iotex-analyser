@@ -1,15 +1,26 @@
 server:
   #plugin metrics
-  http: 127.0.0.1:8989
+  # http: 127.0.0.1:8989
   #debug port
-  httpAdminPort: 8988
-  #grpc api support
-  grpcPort: 7777
-  #http api support
-  grpcProxyPort: 7778
+  # httpAdminPort: 8988
   #loaded default plugin list
   plugins:
+    - iotexproice_worker.so
     - block.so
+    - block_action.so
+    - staking_action.so
+    - account_vote.so
+    - candidate.so
+    - token_erc721.so
+    - action_execution.so
+    - account_income.so
+    - token_erc20.so
+    - delegate.so
+    - probation.so
+    - block_receipt.so
+    - staking_bucket.so
+    - account_meta.so
+    - block_meta.so
 database:
   driver: postgres
   host: 127.0.0.1
@@ -24,7 +35,6 @@ blockDB:
   dbPath: chain.db
 log:
   zap:
-    development: true
     level: info
     encoding: console
     disableCaller: false

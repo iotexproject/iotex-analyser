@@ -1,4 +1,4 @@
-package apiservice
+package main
 
 import (
 	"io/ioutil"
@@ -18,15 +18,37 @@ var (
 				SelfStake:  1.06,
 			},
 		},
+		Iotex: Iotex{
+			ChainEndPoint: "",
+		},
+		Airdrip: Airdrip{
+			InitHeight:      0,
+			ContractAddress: "",
+			GasPrice:        "",
+			GasLimit:        "",
+			PrivateKey:      "",
+		},
 	}
 )
 
 type (
 	Config struct {
+		Airdrip Airdrip `yaml:"airdrip"`
 		Genesis `yaml:"genesis"`
+		Iotex   `yaml:"iotex"`
 	}
 	Genesis struct {
 		VoteWeightCalConsts genesis.VoteWeightCalConsts `yaml:"voteWeightCalConsts"`
+	}
+	Iotex struct {
+		ChainEndPoint string `yaml:"chainEndPoint"`
+	}
+	Airdrip struct {
+		InitHeight      uint64 `yaml:"initHeight"`
+		ContractAddress string `yaml:"contractAddress"`
+		GasPrice        string `yaml:"gasPrice"`
+		GasLimit        string `yaml:"gasLimit"`
+		PrivateKey      string `yaml:"privateKey"`
 	}
 )
 

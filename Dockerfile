@@ -6,7 +6,7 @@ WORKDIR /app
 # ENV GOPROXY https://goproxy.cn
 
 # RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
-# RUN apk add --no-cache make gcc musl-dev linux-headers git
+RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 COPY . .
 RUN go mod download

@@ -28,4 +28,3 @@ config_maintest.yml
 .DS_Store
 config_mainonline.yml
 Readme_ZH.md
-docker-compose.yml

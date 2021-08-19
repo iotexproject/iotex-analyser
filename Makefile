@@ -18,7 +18,7 @@ PLUGIN_DIRECTORIES = $(wildcard plugins/*)
 
 .PHONY: plugins plugin build proto all run
 
-all : plugins build
+all : clean plugins build
 
 plugins:
 	for plugin in $(PLUGIN_DIRECTORIES) ; do \

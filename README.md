@@ -81,6 +81,11 @@ display plugin running infomation
 ./iotex-analyser -c config.yml plugin info
 ```
 
+### Quickstart Docker Compose
+```
+docker-compose up
+```
+
 ### plugin lists
   - [block](plugins/block/)
 

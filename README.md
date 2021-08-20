@@ -88,8 +88,10 @@ docker-compose up
 
 ### plugin lists
   - [block](plugins/block/)
-
-
+  - [block_action](plugins/block_action/)
+  - [candidate](plugins/candidate/)
+  - [staking_action](plugins/staking_action/)
+  - [probation](plugins/probation/)
 ## How to writing a plugin
 Currently, a adapter interface is defined, and the written plugin needs to implement the interface.
 ```go

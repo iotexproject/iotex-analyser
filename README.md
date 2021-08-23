@@ -8,7 +8,7 @@ It has the function of synchronous iotex blockchain block data.
 
 You can analyze the data on the chain and store it in the database (MySQL, PostgreSQL, SQLite3) or other external storage by writing a plugin.
 
-![Technical architecture of Iotex analyser](docs/assets/images/162696321861.jpg)
+![Technical architecture of Iotex analyser](docs/assets/images/162696321861.png)
 
 ## Feature
 iotex-analyser enables you to deploy your plugins without any downtime，Dynamic load/unload plugins. 
@@ -85,6 +85,14 @@ display plugin running infomation
 ```
 docker-compose up
 ```
+
+### GraphQL Support 
+
+[Hasura](https://hasura.io/) is a GraphQL Engine, a tool that places a GraphQL API in front of a PostgreSQL Database.
+
+Hasura Console: `https://iotexscout.io/hasura/console`
+
+GraphQL Endpoint: `https://iotexscout.io/hasura/v1/graphql`
 
 ### plugin lists
   - [block](plugins/block/)

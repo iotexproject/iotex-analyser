@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"time"
 
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
@@ -12,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type tokenPlugin struct {
 }
@@ -26,7 +28,7 @@ func (b tokenPlugin) Type() plugin.Type {
 }
 
 func (b tokenPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&TokenErc20{}); err != nil {
+	if err := db.DB().AutoMigrate(&models.TokenErc20{}, &models.TokenErc20Holder{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
@@ -46,7 +48,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				for _, t := range log.Topics {
 					topics += hex.EncodeToString(t[:])
 				}
-				if !checkTopics(topics, data) {
+				if !isErc20(log.Address, topics, data) {
 					continue
 				}
 
@@ -55,17 +57,36 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					return errors.Wrap(err, "failed to parse contract data")
 				}
 				amountDec := decimal.NewFromBigInt(amount, 0)
-				m := &TokenErc20{
+				m := &models.TokenErc20{
 					BlockHeight:     blk.Height(),
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
 					Amount:          amountDec,
-					From:            from,
-					To:              to,
+					Sender:          from,
+					Recipient:       to,
+					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 				}
 				if err := tx.Create(m).Error; err != nil {
 					return errors.Wrap(err, "failed to insert table data")
 				}
+				for _, addr := range []string{from, to} {
+					if addr == "" {
+						continue
+					}
+					h := &models.TokenErc20Holder{
+						ContractAddress: log.Address,
+						Holder:          addr,
+					}
+					if err := tx.Where("contract_address = ? and holder= ?", log.Address, addr).First(h).Error; err != nil {
+						if err != gorm.ErrRecordNotFound {
+							return err
+						}
+						if err := tx.Create(h).Error; err != nil {
+							return err
+						}
+					}
+				}
+
 			}
 		}
 

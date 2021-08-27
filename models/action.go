@@ -21,7 +21,9 @@ type Action struct {
 	ContractAddress    string          `gorm:"size:42;not null;default:'';"`
 	Status             uint64          `gorm:"type:int2;unsigned;not null;default:0"`
 	ExecutionRevertMsg string          `gorm:"size:255;not null;default:''"`
-	Timestamp          time.Time       `gorm:"type:timestamp;index:,type:brin"`
+	Timestamp          time.Time       `gorm:"type:timestamp;index:,expression:(timestamp::date)"`
+	//CREATE INDEX actions_timestamp_date_idx ON actions ((timestamp::DATE));
+	//use index select timestamp::date, count(1) from actions where timestamp::date between '2021-08-15' and '2021-08-28' group by 1 order by 1;
 }
 
 func (Action) TableName() string {

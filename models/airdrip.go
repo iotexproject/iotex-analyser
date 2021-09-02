@@ -28,6 +28,7 @@ type (
 	AirdripRedemption struct {
 		ID          uint64          `gorm:"primary_key" sql:"type:bigint"`
 		BlockHeight uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+		User        string          `gorm:"size:42;index"`
 		Asset       string          `gorm:"size:42;index"`
 		Amount      decimal.Decimal `gorm:"type:decimal(60,0);not null"`
 		Points      decimal.Decimal `gorm:"type:decimal(60,0);not null"`

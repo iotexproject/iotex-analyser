@@ -1,4 +1,4 @@
-package main
+package models
 
 import "github.com/shopspring/decimal"
 
@@ -8,6 +8,8 @@ type BlockMeta struct {
 	ProducerName    string          `gorm:"size:42;not null;default:'';"`
 	ProducerAddress string          `gorm:"size:42;not null;default:'';"`
 	BlockReward     decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	EpochNum        uint64          `gorm:"unsigned;index"`
+	EpochHeight     uint64          `gorm:"unsigned;index"`
 }
 
 func (BlockMeta) TableName() string {

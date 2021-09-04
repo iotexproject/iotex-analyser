@@ -6,6 +6,8 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -14,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type blockMetaPlugin struct {
 }
@@ -28,7 +30,7 @@ func (b blockMetaPlugin) Type() plugin.Type {
 }
 
 func (b blockMetaPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&BlockMeta{}); err != nil {
+	if err := db.DB().AutoMigrate(&models.BlockMeta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
@@ -62,12 +64,17 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 		}
 	}
-	bm := &BlockMeta{
-		BlockHeight:     blk.Height(),
+	blkHeight := blk.Height()
+	epochNum := kernel.GetEpochNum(blkHeight)
+	epochHeight := kernel.GetEpochHeight(epochNum)
+	bm := &models.BlockMeta{
+		BlockHeight:     blkHeight,
 		GasConsumed:     gasConsumed,
 		ProducerName:    "",
-		ProducerAddress: "",
+		ProducerAddress: blk.ProducerAddress(),
 		BlockReward:     decimal.NewFromBigInt(totalReward, 0),
+		EpochNum:        epochNum,
+		EpochHeight:     epochHeight,
 	}
 
 	err := db.DB().Transaction(func(tx *gorm.DB) error {

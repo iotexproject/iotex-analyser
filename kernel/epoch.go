@@ -1,8 +1,17 @@
 package kernel
 
-import "github.com/iotexproject/iotex-core/blockchain/genesis"
+import (
+	"github.com/iotexproject/iotex-core/blockchain/genesis"
+)
 
-var genesisCfg = genesis.Default
+var (
+	genesisCfg = genesis.Default
+)
+
+func init() {
+	//hardcode here https://raw.githubusercontent.com/iotexproject/iotex-bootstrap/v1.1.3/genesis_mainnet.yaml
+	genesisCfg.Blockchain.NumSubEpochs = 15
+}
 
 //https://github.com/millken/iotex-core/blob/77950cec681d2e441a77b2b9a162ffa1c4ca4f55/action/protocol/rolldpos/epoch.go#L213
 // GetEpochNum returns the number of the epoch for a given height

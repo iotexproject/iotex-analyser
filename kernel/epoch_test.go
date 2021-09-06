@@ -17,7 +17,7 @@ func TestProtocol_NumSubEpochs(t *testing.T) {
 	p1 := rolldpos.NewProtocol(
 		genesis.Default.NumCandidateDelegates,
 		genesis.Default.Blockchain.NumDelegates,
-		genesis.Default.Blockchain.NumSubEpochs,
+		15,
 		rolldpos.EnableDardanellesSubEpoch(genesis.Default.Blockchain.DardanellesBlockHeight, genesis.Default.Blockchain.DardanellesNumSubEpochs),
 	)
 
@@ -37,7 +37,7 @@ func TestGetEpochNum(t *testing.T) {
 	p1 := rolldpos.NewProtocol(
 		genesis.Default.NumCandidateDelegates,
 		genesis.Default.Blockchain.NumDelegates,
-		genesis.Default.Blockchain.NumSubEpochs,
+		15,
 		rolldpos.EnableDardanellesSubEpoch(genesis.Default.Blockchain.DardanellesBlockHeight, genesis.Default.Blockchain.DardanellesNumSubEpochs),
 	)
 	for i := 0; i < len(height); i++ {
@@ -45,6 +45,17 @@ func TestGetEpochNum(t *testing.T) {
 		require.Equal(GetEpochNum(height[i]), epochNum)
 	}
 
+	tests := []struct {
+		epochNum  uint64
+		blkHeight uint64
+	}{
+		{20673, 13068285},
+		{3631, 1306828},
+	}
+	for _, test := range tests {
+		require.Equal(GetEpochNum(test.blkHeight), test.epochNum)
+
+	}
 }
 
 func TestGetEpochHeight(t *testing.T) {
@@ -57,7 +68,7 @@ func TestGetEpochHeight(t *testing.T) {
 		p1 := rolldpos.NewProtocol(
 			genesis.Default.NumCandidateDelegates,
 			genesis.Default.Blockchain.NumDelegates,
-			genesis.Default.Blockchain.NumSubEpochs,
+			15,
 			rolldpos.EnableDardanellesSubEpoch(genesis.Default.Blockchain.DardanellesBlockHeight, genesis.Default.Blockchain.DardanellesNumSubEpochs),
 		)
 		epochHeight := GetEpochHeight(epochNum[i])
@@ -71,7 +82,7 @@ func TestGetEpochLastBlockHeight(t *testing.T) {
 	p1 := rolldpos.NewProtocol(
 		genesis.Default.NumCandidateDelegates,
 		genesis.Default.Blockchain.NumDelegates,
-		genesis.Default.Blockchain.NumSubEpochs,
+		15,
 		rolldpos.EnableDardanellesSubEpoch(genesis.Default.Blockchain.DardanellesBlockHeight, genesis.Default.Blockchain.DardanellesNumSubEpochs),
 	)
 
@@ -87,7 +98,7 @@ func TestGetSubEpochNum(t *testing.T) {
 	p1 := rolldpos.NewProtocol(
 		genesis.Default.NumCandidateDelegates,
 		genesis.Default.Blockchain.NumDelegates,
-		genesis.Default.Blockchain.NumSubEpochs,
+		15,
 		rolldpos.EnableDardanellesSubEpoch(genesis.Default.Blockchain.DardanellesBlockHeight, genesis.Default.Blockchain.DardanellesNumSubEpochs),
 	)
 	epochHeights := []uint64{0, 1, 12, 25, 38, 53, 59, 80, 90, 93, 120}

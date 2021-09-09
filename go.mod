@@ -4,15 +4,14 @@ go 1.14
 
 require (
 	github.com/dustinxie/gmsm v1.2.1 // indirect
-	github.com/ethereum/go-ethereum v1.9.5
+	github.com/ethereum/go-ethereum v1.10.1
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/google/go-cmp v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.12
-	github.com/iotexproject/go-pkgs v0.1.5-0.20210105202208-2dc9b27250a6
+	github.com/iotexproject/go-pkgs v0.1.5-0.20210604060651-be5ee19f2575
 	github.com/iotexproject/iotex-address v0.2.4
-	github.com/iotexproject/iotex-antenna-go/v2 v2.4.2-0.20201211202736-96d536a425fe
-	github.com/iotexproject/iotex-core v1.2.0
-	github.com/iotexproject/iotex-proto v0.5.0
+	github.com/iotexproject/iotex-core v1.3.0
+	github.com/iotexproject/iotex-proto v0.5.1-0.20210622180547-9200a5ad73cb
 	github.com/lib/pq v1.10.2 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.12 // indirect

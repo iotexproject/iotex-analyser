@@ -62,7 +62,11 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
 		bucketMap := make(map[string]uint64)
 		for _, selp := range blk.Actions {
-			actions[selp.Hash()] = selp
+			actHash, err := selp.Hash()
+			if err != nil {
+				return err
+			}
+			actions[actHash] = selp
 		}
 		for _, receipt := range blk.Receipts {
 
@@ -76,7 +80,10 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 			act := selp.Action()
-			actionHash := selp.Hash()
+			actionHash, err := selp.Hash()
+			if err != nil {
+				return err
+			}
 			actHash := hex.EncodeToString(actionHash[:])
 			cmpNum := big.NewInt(100000000)
 			for _, log := range receipt.Logs() {

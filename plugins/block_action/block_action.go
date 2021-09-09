@@ -40,7 +40,10 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, selp := range blk.Actions {
-			actionHash := selp.Hash()
+			actionHash, err := selp.Hash()
+			if err != nil {
+				return err
+			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 
 			dst, _ := selp.Destination()

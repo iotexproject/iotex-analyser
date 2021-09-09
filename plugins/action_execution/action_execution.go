@@ -37,8 +37,10 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 	actions := blk.Actions
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, selp := range actions {
-			actionHash := selp.Hash()
-
+			actionHash, err := selp.Hash()
+			if err != nil {
+				return err
+			}
 			act := selp.Action()
 			var contract string
 			var data []byte

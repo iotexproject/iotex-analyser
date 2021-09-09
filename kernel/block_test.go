@@ -30,10 +30,9 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	corecfg.SetEVMNetworkID(4689)
 	var tip protocol.TipInfo
 	ctx := protocol.WithBlockchainCtx(
-		context.Background(),
+		genesis.WithGenesisContext(context.Background(), genesis.Default),
 		protocol.BlockchainCtx{
-			Genesis: genesis.Default,
-			Tip:     tip,
+			Tip: tip,
 		},
 	)
 	var indexers []blockdao.BlockIndexer
@@ -87,10 +86,9 @@ func TestGetBlockByHeight(t *testing.T) {
 	corecfg.SetEVMNetworkID(4689)
 	var tip protocol.TipInfo
 	ctx := protocol.WithBlockchainCtx(
-		context.Background(),
+		genesis.WithGenesisContext(context.Background(), genesis.Default),
 		protocol.BlockchainCtx{
-			Genesis: genesis.Default,
-			Tip:     tip,
+			Tip: tip,
 		},
 	)
 	var indexers []blockdao.BlockIndexer

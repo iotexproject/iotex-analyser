@@ -23,7 +23,7 @@ func getBlockString(blk *block.Block) string {
 
 	for i, selp := range blk.Actions {
 		res.WriteString(fmt.Sprintf("===== action: #%d =====\n", i))
-		actionHash := selp.Hash()
+		actionHash, _ := selp.Hash()
 		res.WriteString(fmt.Sprintf("actionHash : %s\n", hex.EncodeToString(actionHash[:])))
 		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 		res.WriteString(fmt.Sprintf("from : %s\n", sender))

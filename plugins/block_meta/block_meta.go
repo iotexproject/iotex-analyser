@@ -43,7 +43,11 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	// log action index
 	for _, selp := range blk.Actions {
 		if _, ok := selp.Action().(*action.GrantReward); ok {
-			grantRewardActs[selp.Hash()] = true
+			actionHash, err := selp.Hash()
+			if err != nil {
+				return err
+			}
+			grantRewardActs[actionHash] = true
 		}
 	}
 	totalReward := big.NewInt(0)

@@ -7,9 +7,9 @@ require (
 	github.com/ethereum/go-ethereum v1.10.4
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/imdario/mergo v0.3.12
-	github.com/iotexproject/go-pkgs v0.1.5-0.20210604060651-be5ee19f2575
-	github.com/iotexproject/iotex-address v0.2.4
-	github.com/iotexproject/iotex-core v1.4.0-rc0
+	github.com/iotexproject/go-pkgs v0.1.5
+	github.com/iotexproject/iotex-address v0.2.5
+	github.com/iotexproject/iotex-core v1.3.0-rc1.0.20210907215229-0b65bf08ac88
 	github.com/iotexproject/iotex-proto v0.5.2
 	github.com/lib/pq v1.10.2 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
@@ -17,17 +17,14 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.3.0
+	github.com/prometheus/client_golang v1.10.0
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rodaine/table v1.0.1
 	github.com/sethvargo/go-envconfig v0.3.5
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
-	go.opencensus.io v0.22.6 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
-	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	google.golang.org/genproto v0.0.0-20210224155714-063164c882e6 // indirect
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.25.1-0.20201208041424-160c7477e0e8

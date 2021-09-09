@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/imdario/mergo"
-	coreconfig "github.com/iotexproject/iotex-core/config"
+	coredb "github.com/iotexproject/iotex-core/db"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
@@ -26,7 +26,7 @@ var (
 		Iotex: Iotex{
 			BatchSize: 64,
 		},
-		BlockDB: coreconfig.DB{
+		BlockDB: coredb.Config{
 			NumRetries:            3,
 			MaxCacheSize:          64,
 			BlockStoreBatchSize:   16,
@@ -71,7 +71,7 @@ type (
 		Server   Server                      `yaml:"server"`
 		Database Database                    `yaml:"database"`
 		Iotex    Iotex                       `yaml:"iotex"`
-		BlockDB  coreconfig.DB               `yaml:"blockDB"`
+		BlockDB  coredb.Config               `yaml:"blockDB"`
 		Log      log.GlobalConfig            `yaml:"log" json:"-"`
 		SubLogs  map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
 	}

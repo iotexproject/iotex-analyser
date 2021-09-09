@@ -234,10 +234,9 @@ func (srv *Server) startHTTPService() error {
 func (srv *Server) startDaoService() error {
 	var tip protocol.TipInfo
 	ctxDao := protocol.WithBlockchainCtx(
-		context.Background(),
+		genesis.WithGenesisContext(context.Background(), genesis.Default),
 		protocol.BlockchainCtx{
-			Genesis: genesis.Default,
-			Tip:     tip,
+			Tip: tip,
 		},
 	)
 	var indexers []blockdao.BlockIndexer

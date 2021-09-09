@@ -4,14 +4,13 @@ go 1.14
 
 require (
 	github.com/dustinxie/gmsm v1.2.1 // indirect
-	github.com/ethereum/go-ethereum v1.10.1
+	github.com/ethereum/go-ethereum v1.10.4
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
-	github.com/google/go-cmp v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.5-0.20210604060651-be5ee19f2575
 	github.com/iotexproject/iotex-address v0.2.4
-	github.com/iotexproject/iotex-core v1.3.0
-	github.com/iotexproject/iotex-proto v0.5.1-0.20210622180547-9200a5ad73cb
+	github.com/iotexproject/iotex-core v1.4.0-rc0
+	github.com/iotexproject/iotex-proto v0.5.2
 	github.com/lib/pq v1.10.2 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.12 // indirect
@@ -29,9 +28,6 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
-	golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57 // indirect
-	golang.org/x/text v0.3.5 // indirect
-	golang.org/x/tools v0.0.0-20200825202427-b303f430e36d // indirect
 	google.golang.org/genproto v0.0.0-20210224155714-063164c882e6 // indirect
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.25.1-0.20201208041424-160c7477e0e8
@@ -41,5 +37,4 @@ require (
 	gorm.io/driver/postgres v1.1.0
 	gorm.io/driver/sqlite v1.1.4
 	gorm.io/gorm v1.21.10
-	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 )

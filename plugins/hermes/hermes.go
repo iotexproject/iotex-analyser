@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
@@ -12,7 +14,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
-	"github.com/iotexproject/iotex-core/ioctl/util"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -29,11 +30,20 @@ const (
 )
 
 var DISTRIBUTE hash.Hash256
+var successStatus = uint64(1)
+
+var (
+	hermesABI abi.ABI
+)
 
 func initAddress() error {
 	var err error
 	//Distribute(uint256,uint256,bytes32,uint256,uint256)
 	DISTRIBUTE, err = hash.HexStringToHash256("7de680eab607fdcc6137464e40d375ad63446cf255dcea9bd4a19676f7f24f56")
+	if err != nil {
+		return err
+	}
+	hermesABI, err = abi.JSON(strings.NewReader(HermesABI))
 	if err != nil {
 		return err
 	}
@@ -71,35 +81,91 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
-	if blkHeight == epochHeight && blkHeight > genesis.Default.Blockchain.FairbankBlockHeight {
-		probationList, err := fetchProbationList(chainClient, epochNum)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
+	for _, receipt := range blk.Receipts {
+		if receipt.Status != successStatus {
+			continue
 		}
-		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
-		voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
-		if err != nil {
-			return errors.Wrap(err, "failed to get buckets count")
-		}
-		candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
-		if err != nil {
-			return errors.Wrap(err, "failed to get buckets count")
-		}
-
-		err = db.DB().Transaction(func(tx *gorm.DB) error {
-			// update voting_result table
-			if err = b.updateStakingResult(tx, candidateList, epochNum, blkHeight, chainClient); err != nil {
-				return err
+		for _, log := range receipt.Logs() {
+			topics := log.Topics
+			if log.Address == "" || len(topics) < 2 {
+				continue
 			}
-			// update aggregate_voting and voting_meta table
-			if err = b.updateAggregateStaking(tx, voteBucketList, candidateList, epochNum, probationList); err != nil {
-				return err
+			switch log.Address {
+			case HermesContractAddress:
+				/**
+				 * Distribute(uint256 startEpoch, uint256 endEpoch, bytes32 indexed delegateName, uint256 numOfRecipients, uint256 totalAmount);
+				 */
+				switch topics[0] {
+				case DISTRIBUTE:
+					event := struct {
+						StartEpoch      *big.Int
+						EndEpoch        *big.Int
+						DelegateName    [32]byte
+						NumOfRecipients *big.Int
+						TotalAmount     *big.Int
+					}{}
+					err := hermesABI.UnpackIntoInterface(&event, "Distribute", log.Data)
+					if err != nil {
+						return err
+					}
+					delegateNameTopic := log.Topics[1]
+					delegateName := getDelegateNameFromTopic(delegateNameTopic)
+					m := models.HermesDistribute{
+						BlockHeight:     blkHeight,
+						StartEpoch:      event.StartEpoch.Uint64(),
+						EndEpoch:        event.EndEpoch.Uint64(),
+						DelegateName:    delegateName,
+						NumOfRecipients: event.NumOfRecipients.Uint64(),
+						TotalAmount:     decimal.NewFromBigInt(event.TotalAmount, 0),
+					}
+					if err = db.DB().Create(&m).Error; err != nil {
+						return err
+					}
+				}
 			}
-			return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-		})
-		return err
+		}
 	}
+	if blkHeight == epochHeight && blkHeight > genesis.Default.Blockchain.FairbankBlockHeight {
+		var count int64
+		err := db.DB().Model(&models.HermesVotingResult{}).Where("epoch_number = ?", epochNum).Count(&count).Error
+		if err != nil {
+			return err
+		}
+		if count == 0 {
 
+			probationList, err := fetchProbationList(chainClient, epochNum)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
+			}
+			prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
+			voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
+			if err != nil {
+				return errors.Wrap(err, "failed to get buckets count")
+			}
+			candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
+			if err != nil {
+				return errors.Wrap(err, "failed to get buckets count")
+			}
+			if probationList != nil {
+				candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
+				if err != nil {
+					return errors.Wrap(err, "failed to filter candidate with probation list")
+				}
+			}
+			err = db.DB().Transaction(func(tx *gorm.DB) error {
+				// update voting_result table
+				if err = b.updateStakingResult(tx, candidateList, epochNum, blkHeight, chainClient); err != nil {
+					return err
+				}
+				// update aggregate_voting and voting_meta table
+				if err = b.updateAggregateStaking(tx, voteBucketList, candidateList, epochNum, probationList); err != nil {
+					return err
+				}
+				return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+			})
+			return err
+		}
+	}
 	return db.UpdateIndexHeight(b.Name(), blk.Height())
 }
 
@@ -109,8 +175,6 @@ func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.Ca
 	if err != nil {
 		return errors.Errorf("get delegate reward portions:%d,%s", epochStartheight, err.Error())
 	}
-
-	fmt.Printf("%v epochNumber=%d", candidates.Candidates, epochNumber)
 
 	for _, candidate := range candidates.Candidates {
 
@@ -187,7 +251,13 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 		totalVoted.Add(totalVoted, stakeAmount)
 	}
 
+	uniqueMap := make(map[string]bool)
 	for key, val := range sumOfWeightedVotes {
+		k := fmt.Sprintf("%d%s%s%t", key.epochNumber, key.candidateName, key.voterAddress, key.isNative)
+
+		if _, ok := uniqueMap[k]; ok {
+			continue
+		}
 		if _, ok := probationMap[key.candidateName]; ok {
 			// filter based on probation
 			votingPower := new(big.Float).SetInt(val)
@@ -196,22 +266,20 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 		if _, ok := nameMap[key.candidateName]; !ok {
 			return errors.New("candidate cannot find name through owner address")
 		}
-		voterAddress, err := util.IoAddrToEvmAddr(key.voterAddress)
-		if err != nil {
-			return errors.Wrap(err, "failed to convert IoTeX address to ETH address")
-		}
+
 		aggregateVotes := decimal.NewFromBigInt(val, 0)
 
 		m := models.HermesAggregateVoting{
 			EpochNumber:    key.epochNumber,
 			CandidateName:  nameMap[key.candidateName],
-			VoterAddress:   voterAddress.String(),
+			VoterAddress:   key.voterAddress,
 			NativeFlag:     key.isNative,
 			AggregateVotes: aggregateVotes,
 		}
 		if err = tx.Create(&m).Error; err != nil {
 			return err
 		}
+		uniqueMap[k] = true
 	}
 
 	return

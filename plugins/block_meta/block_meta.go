@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.2"
 
 type blockMetaPlugin struct {
 }
@@ -71,17 +71,24 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
+	producerName := ""
+	var cand models.Candidate
+	err := db.DB().Model(&cand).Where("block_height <=? and operator_address = ?", blkHeight, blk.ProducerAddress()).Order("id desc").Take(&cand).Error
+	if err == nil {
+		producerName = cand.Name
+	}
+
 	bm := &models.BlockMeta{
 		BlockHeight:     blkHeight,
 		GasConsumed:     gasConsumed,
-		ProducerName:    "",
+		ProducerName:    producerName,
 		ProducerAddress: blk.ProducerAddress(),
 		BlockReward:     decimal.NewFromBigInt(totalReward, 0),
 		EpochNum:        epochNum,
 		EpochHeight:     epochHeight,
 	}
 
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(bm).Error; err != nil {
 			return err
 		}

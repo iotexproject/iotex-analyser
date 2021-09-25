@@ -69,7 +69,6 @@ func (b hermesPlugin) Start(ctx context.Context) error {
 		&models.HermesDistribute{},
 		&models.HermesAggregateVoting{},
 		&models.HermesVotingResult{},
-		&models.HermesVotingResult2{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -127,42 +126,50 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	}
 	if blkHeight == epochHeight && blkHeight > genesis.Default.Blockchain.FairbankBlockHeight {
 		var count int64
-		err := db.DB().Model(&models.HermesVotingResult{}).Where("epoch_number = ?", epochNum).Count(&count).Error
-		if err != nil {
-			return err
-		}
-		if count == 0 {
 
-			probationList, err := fetchProbationList(chainClient, epochNum)
+		probationList, err := fetchProbationList(chainClient, epochNum)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
+		}
+		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
+		voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
+		if err != nil {
+			return errors.Wrap(err, "failed to get buckets count")
+		}
+		candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
+		if err != nil {
+			return errors.Wrap(err, "failed to get buckets count")
+		}
+		if probationList != nil {
+			candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
+				return errors.Wrap(err, "failed to filter candidate with probation list")
 			}
-			prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
-			voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
+		}
+		err = db.DB().Transaction(func(tx *gorm.DB) error {
+			// update voting_result table
+			err := tx.Model(&models.HermesVotingResult{}).Where("epoch_number = ?", epochNum).Count(&count).Error
 			if err != nil {
-				return errors.Wrap(err, "failed to get buckets count")
+				return err
 			}
-			candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
-			if err != nil {
-				return errors.Wrap(err, "failed to get buckets count")
-			}
-			if probationList != nil {
-				candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
-				if err != nil {
-					return errors.Wrap(err, "failed to filter candidate with probation list")
-				}
-			}
-			err = db.DB().Transaction(func(tx *gorm.DB) error {
-				// update voting_result table
+			if count == 0 {
 				if err = b.updateStakingResult(tx, candidateList, epochNum, blkHeight, chainClient); err != nil {
 					return err
 				}
+			}
+			err = tx.Model(&models.HermesAggregateVoting{}).Where("epoch_number = ?", epochNum).Count(&count).Error
+			if err != nil {
+				return err
+			}
+			if count == 0 {
 				// update aggregate_voting and voting_meta table
 				if err = b.updateAggregateStaking(tx, voteBucketList, candidateList, epochNum, probationList); err != nil {
 					return err
 				}
-				return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-			})
+			}
+			return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+		})
+		if err != nil {
 			return err
 		}
 	}
@@ -189,7 +196,7 @@ func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.Ca
 		totalWeightedVotes, _ := decimal.NewFromString(candidate.TotalWeightedVotes)
 		selfStakingTokens, _ := decimal.NewFromString(candidate.SelfStakingTokens)
 
-		m := models.HermesVotingResult2{
+		m := models.HermesVotingResult{
 			EpochNumber:               epochNumber,
 			DelegateName:              encodedName,
 			OperatorAddress:           candidate.OperatorAddress,

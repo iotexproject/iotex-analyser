@@ -10,6 +10,7 @@ require (
 	github.com/iotexproject/go-pkgs v0.1.5
 	github.com/iotexproject/iotex-address v0.2.5
 	github.com/iotexproject/iotex-core v1.3.0-rc1.0.20210907215229-0b65bf08ac88
+	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.2
 	github.com/lib/pq v1.10.2 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
@@ -35,3 +36,5 @@ require (
 	gorm.io/driver/sqlite v1.1.4
 	gorm.io/gorm v1.21.10
 )
+
+// replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v0.3.1

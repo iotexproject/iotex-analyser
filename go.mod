@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/dustinxie/gmsm v1.2.1 // indirect
-	github.com/ethereum/go-ethereum v1.10.4
+	github.com/ethereum/go-ethereum v1.10.8
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.5
@@ -13,7 +13,6 @@ require (
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.2
 	github.com/lib/pq v1.10.2 // indirect
-	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.12 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -28,7 +27,7 @@ require (
 	go.uber.org/zap v1.16.0
 	google.golang.org/genproto v0.0.0-20210224155714-063164c882e6 // indirect
 	google.golang.org/grpc v1.36.0
-	google.golang.org/protobuf v1.25.1-0.20201208041424-160c7477e0e8
+	google.golang.org/protobuf v1.26.0-rc.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	gorm.io/driver/mysql v1.1.0

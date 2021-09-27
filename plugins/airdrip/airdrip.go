@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -18,10 +20,15 @@ const VERSION = "2.1.0"
 
 var successStatus = uint64(1)
 
-var REGISTRATION, CLAIM, EXCHANGE, REDEMPTION, ADD_ASSET, DRIP, TERM hash.Hash256
+var REGISTRATION, CLAIM, EXCHANGE, REDEMPTION, ADD_ASSET, DRIP, NEW_TERM hash.Hash256
+var accountantABI, exchangeABI abi.ABI
 
 func initAddress() error {
 	var err error
+	accountantABI, err = abi.JSON(strings.NewReader(AccountantABI))
+	if err != nil {
+		return err
+	}
 	REGISTRATION, err = hash.HexStringToHash256("f6c60b059f60c86b2d612b237ac38bd87bc1f68f87600cd360d68351af1ca95f")
 	if err != nil {
 		return err
@@ -46,7 +53,7 @@ func initAddress() error {
 	if err != nil {
 		return err
 	}
-	TERM, err = hash.HexStringToHash256("98f0d489a1bb3ac90294374182d5b02db885776732c344172c51f27802be6531")
+	NEW_TERM, err = hash.HexStringToHash256("98f0d489a1bb3ac90294374182d5b02db885776732c344172c51f27802be6531")
 	if err != nil {
 		return err
 	}
@@ -109,75 +116,54 @@ func (b airdripPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					 */
 					switch topics[0] {
 					case CLAIM:
-						user, err := getAddressFromHash256ByIndex(topics, 1)
-						if err != nil {
-							return err
-						}
-						points, err := getbigIntFromHash256ByIndex(topics, 2)
-						if err != nil {
+						event := new(AccountantClaim)
+						if err := UnpackLog(accountantABI, event, "Claim", log); err != nil {
 							return err
 						}
 						m := models.AirdripClaim{
 							BlockHeight: blk.Height(),
-							User:        user.String(),
-							Amount:      decimal.NewFromBigInt(points, 0),
+							User:        event.User.String(),
+							Amount:      decimal.NewFromBigInt(event.Points, 0),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err
 						}
-					case TERM:
-						number, err := getbigIntFromHash256ByIndex(topics, 1)
-						if err != nil {
-							return err
-						}
-						height, err := getbigIntFromHash256ByIndex(topics, 2)
-						if err != nil {
+					case NEW_TERM:
+						event := new(AccountantNewTerm)
+						if err := UnpackLog(accountantABI, event, "NewTerm", log); err != nil {
 							return err
 						}
 						m := models.AirdripTerm{
 							BlockHeight: blk.Height(),
-							Number:      number.Uint64(),
-							Height:      height.Uint64(),
+							Number:      event.Term.Uint64(),
+							Height:      event.TermHeight.Uint64(),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err
 						}
 					case EXCHANGE:
-						user, err := getAddressFromHash256ByIndex(topics, 1)
-						if err != nil {
+						event := new(AccountantExchange)
+						if err := UnpackLog(accountantABI, event, "Exchange", log); err != nil {
 							return err
 						}
-						amount, err := getbigIntFromHash256ByIndex(topics, 2)
-						if err != nil {
-							return err
-						}
-						exchangeRate, err := getbigIntFromHash256ByIndex(topics, 3)
-						if err != nil {
-							return err
-						}
-
 						m := models.AirdripExchange{
 							BlockHeight: blk.Height(),
-							User:        user.String(),
-							Amount:      decimal.NewFromBigInt(amount, 0),
-							Rate:        exchangeRate.Uint64(),
+							User:        event.User.String(),
+							Amount:      decimal.NewFromBigInt(event.Amount, 0),
+							Rate:        event.ExchangeRate.Uint64(),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err
 						}
 					case REGISTRATION:
-						user, err := getAddressFromHash256ByIndex(topics, 1)
-						if err != nil {
-							return err
-						}
-						expireAt, err := getbigIntFromHash256ByIndex(topics, 2)
-						if err != nil {
+						event := new(AccountantRegistration)
+						if err := UnpackLog(accountantABI, event, "Registration", log); err != nil {
 							return err
 						}
 						m := models.AirdripRegistration{
 							BlockHeight: blk.Height(),
-							User:        user.String(),
-							ExpireAt:    expireAt.Uint64(),
+							User:        event.User.String(),
+							ExpireAt:    event.ExpireAt.Uint64(),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err
@@ -191,78 +177,45 @@ func (b airdripPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					 */
 					switch topics[0] {
 					case REDEMPTION:
-						user, err := getAddressFromHash256ByIndex(topics, 1)
-						if err != nil {
-							return err
-						}
-						asset, err := getAddressFromHash256ByIndex(topics, 2)
-						if err != nil {
-							return err
-						}
-						amount, err := getbigIntFromHash256ByIndex(topics, 3)
-						if err != nil {
-							return err
-						}
-
-						points, err := getbigIntFromHash256ByIndex(topics, 4)
-						if err != nil {
+						event := new(ExchangeRedemption)
+						if err := UnpackLog(exchangeABI, event, "Redemption", log); err != nil {
 							return err
 						}
 						m := models.AirdripRedemption{
 							BlockHeight: blk.Height(),
-							User:        user.String(),
-							Asset:       asset.String(),
-							Amount:      decimal.NewFromBigInt(amount, 0),
-							Points:      decimal.NewFromBigInt(points, 0),
+							User:        event.User.String(),
+							Asset:       event.Asset.String(),
+							Amount:      decimal.NewFromBigInt(event.Amount, 0),
+							Points:      decimal.NewFromBigInt(event.Points, 0),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err
 						}
 					case ADD_ASSET:
-						provider, err := getAddressFromHash256ByIndex(topics, 1)
-						if err != nil {
-							return err
-						}
-						asset, err := getAddressFromHash256ByIndex(topics, 2)
-						if err != nil {
-							return err
-						}
-						amount, err := getbigIntFromHash256ByIndex(topics, 3)
-						if err != nil {
-							return err
-						}
-						endBlock, err := getbigIntFromHash256ByIndex(topics, 4)
-						if err != nil {
-							return err
-						}
-						konstante, err := getbigIntFromHash256ByIndex(topics, 4)
-						if err != nil {
+						event := new(ExchangeAssetAdded)
+						if err := UnpackLog(exchangeABI, event, "AssetAdded", log); err != nil {
 							return err
 						}
 						m := models.AirdripAddAsset{
 							BlockHeight: blk.Height(),
-							Provider:    provider.String(),
-							Asset:       asset.String(),
-							Amount:      decimal.NewFromBigInt(amount, 0),
-							EndBlock:    endBlock.Uint64(),
-							Konstante:   konstante.Uint64(),
+							Provider:    event.Provider.String(),
+							Asset:       event.Asset.String(),
+							Amount:      decimal.NewFromBigInt(event.Amount, 0),
+							EndBlock:    event.EndBlock.Uint64(),
+							Konstante:   event.Konstante.Uint64(),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err
 						}
 					case DRIP:
-						asset, err := getAddressFromHash256ByIndex(topics, 1)
-						if err != nil {
-							return err
-						}
-						volume, err := getbigIntFromHash256ByIndex(topics, 2)
-						if err != nil {
+						event := new(ExchangeAssetDripped)
+						if err := UnpackLog(exchangeABI, event, "AssetDripped", log); err != nil {
 							return err
 						}
 						m := models.AirdripDrip{
 							BlockHeight: blk.Height(),
-							Asset:       asset.String(),
-							Volume:      decimal.NewFromBigInt(volume, 0),
+							Asset:       event.Asset.String(),
+							Volume:      decimal.NewFromBigInt(event.Volume, 0),
 						}
 						if err := tx.Create(&m).Error; err != nil {
 							return err

@@ -46,10 +46,7 @@ func (b actionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			receipts[receipt.ActionHash] = receipt
 		}
 		for _, selp := range blk.Actions {
-			actionHash, err := selp.Hash()
-			if err != nil {
-				return err
-			}
+			actionHash := selp.Hash()
 			receipt, ok := receipts[actionHash]
 			if !ok {
 				continue

@@ -3,7 +3,8 @@ module github.com/iotexproject/iotex-analyser
 go 1.14
 
 require (
-	github.com/ethereum/go-ethereum v1.10.4
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/ethereum/go-ethereum v1.10.10
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.6

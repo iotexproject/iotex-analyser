@@ -8,16 +8,23 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.1.0"
 
-const successStatus = uint64(1)
+const (
+	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
+)
 
 type stakingBucketPlugin struct {
 }
@@ -30,48 +37,316 @@ func (b stakingBucketPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+func (b stakingBucketPlugin) DependentPlugin() string {
+	return "candidate"
+}
+
 func (b stakingBucketPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&StakingBucket{}); err != nil {
+	var err error
+	config, _ := kernel.GetConfigCtx(ctx)
+	_, err = newConfig(config)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
+	}
+	if err := db.DB().AutoMigrate(&models.StakingBucket{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
 }
 
 func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	h := hash.Hash160b([]byte("staking"))
-	stakingProtocolAddr, err := address.FromBytes(h[:])
-	if err != nil {
-		return err
-	}
-	//io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53
-
-	err = db.DB().Transaction(func(tx *gorm.DB) error {
-		cmpNum := big.NewInt(100000000)
-
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		var stakingBucket models.StakingBucket
+		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
+		bucketMap := make(map[string]uint64)
+		for _, selp := range blk.Actions {
+			actionHash := selp.Hash()
+			actions[actionHash] = selp
+		}
 		for _, receipt := range blk.Receipts {
-			if receipt.Status != successStatus {
+
+			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
 				continue
 			}
-			actionHash := hex.EncodeToString(receipt.ActionHash[:])
+			selp, ok := actions[receipt.ActionHash]
+			if !ok {
+				continue
+			}
+
+			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+			act := selp.Action()
+			actionHash := selp.Hash()
+			actHash := hex.EncodeToString(actionHash[:])
+			cmpNum := big.NewInt(100000000)
 			for _, log := range receipt.Logs() {
-				if log.Address == stakingProtocolAddr.String() && len(log.Topics) > 1 {
+				if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
 					bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
 
 					if bucketIndex.Cmp(cmpNum) > 0 {
 						continue
 					}
-					bucketID := decimal.NewFromBigInt(bucketIndex, 0)
-					m := &StakingBucket{
-						ActionHash: actionHash,
-						BucketID:   bucketID,
+					bucketMap[actHash] = bucketIndex.Uint64()
+				}
+			}
+			switch a := act.(type) {
+			case *action.WithdrawStake:
+				bucketID := a.BucketIndex()
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decimal.NewFromInt(0),
+					VotingPower:      decimal.NewFromInt(0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        false,
+					ActType:          "WithdrawStake",
+					Duration:         0,
+					Amount:           decimal.NewFromInt(0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.CreateStake:
+				cadidateAddr, err := getCandidateAddressByName(a.Candidate(), blk.Height())
+				if err != nil {
+					return err
+				}
+
+				bucketID, ok := bucketMap[actHash]
+				if !ok {
+					return errors.New("can not found bucketID with actHash:" + actHash)
+				}
+
+				voteWeight := getVoteWeight(a.Duration(), a.Amount(), a.AutoStake(), sender.String() == cadidateAddr)
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       blk.Timestamp().Unix(),
+					StakeStartTime:   blk.Timestamp().Unix(),
+					UnstakeStartTime: 0,
+					StakedAmount:     decimal.NewFromBigInt(a.Amount(), 0),
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					Sender:           sender.String(),
+					OwnerAddress:     sender.String(),
+					ActionHash:       actHash,
+					Candidate:        cadidateAddr,
+					Amount:           decimal.NewFromBigInt(a.Amount(), 0),
+					ActType:          "StakeCreate",
+					AutoStake:        a.AutoStake(),
+					Duration:         a.Duration(),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.TransferStake:
+				bucketID := a.BucketIndex()
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				voteWeight := getVoteWeight(info.Duration, decmailAmount.Coefficient(), info.AutoStake, a.VoterAddress().String() == info.Candidate)
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     a.VoterAddress().String(),
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "TransferStake",
+					Duration:         info.Duration,
+					Amount:           decimal.NewFromInt(0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.Restake:
+				bucketID := a.BucketIndex()
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				// fix greenland (height=6544441) restake
+				fixAmount := decimal.NewFromInt(0)
+				if blk.Height() < genesis.Default.GreenlandBlockHeight {
+					fixAmount, err = getFixBucketSumAmountByBucketID(tx, bucketID)
+					if err != nil {
+						return err
 					}
-					if err := tx.Create(m).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
-					}
+				}
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				voteWeight := getVoteWeight(a.Duration(), decmailAmount.Coefficient(), a.AutoStake(), sender.String() == info.Candidate)
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   blk.Timestamp().Unix(),
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     sender.String(),
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        a.AutoStake(),
+					ActType:          "Restake",
+					Duration:         a.Duration(),
+					Amount:           fixAmount,
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.ChangeCandidate:
+				bucketID := a.BucketIndex()
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				cadidateAddr, err := getCandidateAddressByName(a.Candidate(), blk.Height())
+				if err != nil {
+					return err
+				}
+				voteWeight := getVoteWeight(info.Duration, decmailAmount.Coefficient(), info.AutoStake, info.OwnerAddress == cadidateAddr)
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        cadidateAddr,
+					AutoStake:        info.AutoStake,
+					ActType:          "ChangeCandidate",
+					Duration:         info.Duration,
+					Amount:           decimal.NewFromInt(0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.DepositToStake:
+				bucketID := a.BucketIndex()
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				stakedAmount := decmailAmount.Add(decimal.NewFromBigInt(a.Amount(), 0))
+				voteWeight := getVoteWeight(info.Duration, stakedAmount.Coefficient(), info.AutoStake, info.OwnerAddress == info.Candidate)
+
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     stakedAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "DepositToStake",
+					Duration:         info.Duration,
+					Amount:           decimal.NewFromBigInt(a.Amount(), 0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.Unstake:
+				bucketID := a.BucketIndex()
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: blk.Timestamp().Unix(),
+					StakedAmount:     decimal.NewFromInt(0),
+					VotingPower:      decimal.NewFromInt(0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "Unstake",
+					Duration:         info.Duration,
+					Amount:           decimal.NewFromInt(0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.CandidateRegister:
+				bucketID, ok := bucketMap[actHash]
+				if !ok {
+					return errors.New("can not found bucketID with actHash:" + actHash)
+				}
+				stakedAmount := decimal.NewFromBigInt(a.Amount(), 0)
+				voteWeight := getVoteWeight(a.Duration(), a.Amount(), a.AutoStake(), true)
+
+				stakingBucket = models.StakingBucket{
+					BlockHeight:  blk.Height(),
+					BucketID:     bucketID,
+					CreateTime:   blk.Timestamp().Unix(),
+					StakedAmount: stakedAmount,
+					VotingPower:  decimal.NewFromBigInt(voteWeight, 0),
+					Sender:       sender.String(),
+					OwnerAddress: a.OwnerAddress().String(),
+					ActionHash:   actHash,
+					Candidate:    a.OwnerAddress().String(),
+					Amount:       decimal.NewFromBigInt(a.Amount(), 0),
+					ActType:      "CandidateRegister",
+					AutoStake:    a.AutoStake(),
+					Duration:     a.Duration(),
+					Timestamp:    blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
 				}
 			}
 		}
-
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 

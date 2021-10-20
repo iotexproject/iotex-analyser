@@ -8,6 +8,7 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -19,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.1.2"
 
 const (
 	// h := hash.Hash160b([]byte("staking"))
@@ -46,6 +47,12 @@ func (b stakingActionPlugin) DependentPlugin() string {
 }
 
 func (b stakingActionPlugin) Start(ctx context.Context) error {
+	var err error
+	config, _ := kernel.GetConfigCtx(ctx)
+	_, err = newConfig(config)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
+	}
 	if err := db.DB().AutoMigrate(&models.StakingActions{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -98,17 +105,24 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if !ok {
 					return errors.New("can not found bucketID with actHash:" + actHash)
 				}
+
+				voteWeight := getVoteWeight(a.Duration(), a.Amount(), a.AutoStake(), sender.String() == cadidateAddr)
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					Sender:       sender.String(),
-					OwnerAddress: sender.String(),
-					ActHash:      actHash,
-					Candidate:    cadidateAddr,
-					Amount:       decimal.NewFromBigInt(a.Amount(), 0),
-					ActType:      "StakeCreate",
-					AutoStake:    a.AutoStake(),
-					Duration:     a.Duration(),
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       blk.Timestamp().Unix(),
+					StakeStartTime:   blk.Timestamp().Unix(),
+					UnstakeStartTime: 0,
+					StakedAmount:     decimal.NewFromBigInt(a.Amount(), 0),
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					Sender:           sender.String(),
+					OwnerAddress:     sender.String(),
+					ActHash:          actHash,
+					Candidate:        cadidateAddr,
+					Amount:           decimal.NewFromBigInt(a.Amount(), 0),
+					ActType:          "StakeCreate",
+					AutoStake:        a.AutoStake(),
+					Duration:         a.Duration(),
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -123,32 +137,44 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if err != nil {
 					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 				}
+				voteWeight := getVoteWeight(info.Duration, decmailAmount.Coefficient(), info.AutoStake, a.VoterAddress().String() == info.Candidate)
+
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: info.OwnerAddress,
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    info.Candidate,
-					AutoStake:    info.AutoStake,
-					ActType:      "TransferStake",
-					Duration:     info.Duration,
-					Amount:       decmailAmount.Mul(decimal.NewFromInt(-1)),
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "TransferStake",
+					Duration:         info.Duration,
+					Amount:           decmailAmount.Mul(decimal.NewFromInt(-1)),
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
 				}
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: a.VoterAddress().String(),
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    info.Candidate,
-					AutoStake:    info.AutoStake,
-					ActType:      "TransferStake",
-					Duration:     info.Duration,
-					Amount:       decmailAmount,
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     a.VoterAddress().String(),
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "TransferStake",
+					Duration:         info.Duration,
+					Amount:           decmailAmount,
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -167,17 +193,27 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 						return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
 					}
 				}
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+				}
+				voteWeight := getVoteWeight(a.Duration(), decmailAmount.Coefficient(), a.AutoStake(), sender.String() == info.Candidate)
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: sender.String(),
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    info.Candidate,
-					AutoStake:    a.AutoStake(),
-					ActType:      "Restake",
-					Duration:     a.Duration(),
-					Amount:       fixAmount,
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   blk.Timestamp().Unix(),
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     sender.String(),
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        a.AutoStake(),
+					ActType:          "Restake",
+					Duration:         a.Duration(),
+					Amount:           fixAmount,
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -192,17 +228,24 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if err != nil {
 					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 				}
+				voteWeight := getVoteWeight(info.Duration, decmailAmount.Coefficient(), info.AutoStake, info.OwnerAddress == info.Candidate)
+
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: info.OwnerAddress,
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    info.Candidate,
-					AutoStake:    info.AutoStake,
-					ActType:      "ChangeCandidate",
-					Duration:     info.Duration,
-					Amount:       decmailAmount.Mul(decimal.NewFromInt(-1)),
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "ChangeCandidate",
+					Duration:         info.Duration,
+					Amount:           decmailAmount.Mul(decimal.NewFromInt(-1)),
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -211,17 +254,23 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if err != nil {
 					return err
 				}
+				voteWeight = getVoteWeight(info.Duration, decmailAmount.Coefficient(), info.AutoStake, info.OwnerAddress == cadidateAddr)
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: info.OwnerAddress,
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    cadidateAddr,
-					AutoStake:    info.AutoStake,
-					ActType:      "ChangeCandidate",
-					Duration:     info.Duration,
-					Amount:       decmailAmount,
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decmailAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        cadidateAddr,
+					AutoStake:        info.AutoStake,
+					ActType:          "ChangeCandidate",
+					Duration:         info.Duration,
+					Amount:           decmailAmount,
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -232,17 +281,29 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if err != nil {
 					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 				}
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+				}
+				stakedAmount := decmailAmount.Add(decimal.NewFromBigInt(a.Amount(), 0))
+				voteWeight := getVoteWeight(info.Duration, stakedAmount.Coefficient(), info.AutoStake, info.OwnerAddress == info.Candidate)
+
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: info.OwnerAddress,
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    info.Candidate,
-					AutoStake:    info.AutoStake,
-					ActType:      "DepositToStake",
-					Duration:     info.Duration,
-					Amount:       decimal.NewFromBigInt(a.Amount(), 0),
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     stakedAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "DepositToStake",
+					Duration:         info.Duration,
+					Amount:           decimal.NewFromBigInt(a.Amount(), 0),
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -258,16 +319,21 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
 				}
 				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					OwnerAddress: sender.String(),
-					Sender:       sender.String(),
-					ActHash:      actHash,
-					Candidate:    info.Candidate,
-					AutoStake:    info.AutoStake,
-					ActType:      "Unstake",
-					Duration:     info.Duration,
-					Amount:       decmailAmount.Mul(decimal.NewFromInt(-1)),
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: blk.Timestamp().Unix(),
+					StakedAmount:     decimal.NewFromInt(0),
+					VotingPower:      decimal.NewFromInt(0),
+					OwnerAddress:     sender.String(),
+					Sender:           sender.String(),
+					ActHash:          actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "Unstake",
+					Duration:         info.Duration,
+					Amount:           decmailAmount.Mul(decimal.NewFromInt(-1)),
 				}
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
@@ -277,9 +343,15 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if !ok {
 					return errors.New("can not found bucketID with actHash:" + actHash)
 				}
+				stakedAmount := decimal.NewFromBigInt(a.Amount(), 0)
+				voteWeight := getVoteWeight(a.Duration(), a.Amount(), a.AutoStake(), true)
+
 				stakingAction = models.StakingActions{
 					BlockHeight:  blk.Height(),
 					BucketID:     bucketID,
+					CreateTime:   blk.Timestamp().Unix(),
+					StakedAmount: stakedAmount,
+					VotingPower:  decimal.NewFromBigInt(voteWeight, 0),
 					Sender:       sender.String(),
 					OwnerAddress: a.OwnerAddress().String(),
 					ActHash:      actHash,

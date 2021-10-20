@@ -5,22 +5,17 @@ import (
 )
 
 type StakingActions struct {
-	ID               uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BucketID         uint64          `gorm:"unsigned;index"`
-	BlockHeight      uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	CreateTime       int64           `gorm:"type:int4;unsigned;not null;default:0"`
-	StakeStartTime   int64           `gorm:"type:int4;unsigned;not null;default:0"`
-	UnstakeStartTime int64           `gorm:"type:int4;unsigned;not null;default:0"`
-	StakedAmount     decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	VotingPower      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	OwnerAddress     string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Candidate        string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Amount           decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	ActType          string          `gorm:"size:42;not null;default:'';index"`
-	Sender           string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	ActHash          string
-	AutoStake        bool
-	Duration         uint32
+	ID           uint64          `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight  uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+	BucketID     uint64          `gorm:"unsigned;index"`
+	OwnerAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Candidate    string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Amount       decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	ActType      string          `gorm:"size:42;not null;default:'';index"`
+	Sender       string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	ActHash      string
+	AutoStake    bool
+	Duration     uint32
 }
 
 func (StakingActions) TableName() string {

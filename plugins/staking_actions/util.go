@@ -2,12 +2,13 @@ package main
 
 import (
 	"database/sql"
-	"math"
-	"math/big"
-	"time"
+	"encoding/hex"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -61,60 +62,60 @@ func getFixBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Deci
 }
 
 type BucketInfo struct {
-	OwnerAddress     string
-	Candidate        string
-	AutoStake        bool
-	Duration         uint32
-	CreateTime       int64
-	StakeStartTime   int64
-	UnstakeStartTime int64
+	OwnerAddress string
+	Candidate    string
+	AutoStake    bool
+	Duration     uint32
 }
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&models.StakingActions{}).Select("owner_address,candidate,auto_stake,duration,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
+	if err := tx.Model(&models.StakingActions{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil
 }
 
-type VoteBucket struct {
-	Index            uint64
-	Candidate        string
-	Owner            string
-	StakedAmount     *big.Int
-	StakedDuration   uint32
-	CreateTime       time.Time
-	StakeStartTime   time.Time
-	UnstakeStartTime time.Time
-	AutoStake        bool
+func getAddresFromHash256(h hash.Hash256) (address.Address, error) {
+	hexStr := hex.EncodeToString(h[:])
+	ethAddr := hexStr[24:]
+	ethAddress := common.HexToAddress(ethAddr)
+	return address.FromBytes(ethAddress.Bytes())
 }
 
-func getVoteWeight(duration uint32, stakeAmount *big.Int, autoStake, selfStake bool) *big.Int {
-	voteBucket := &VoteBucket{
-		StakedAmount:   stakeAmount,
-		AutoStake:      autoStake,
-		StakedDuration: duration,
+func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, error) {
+	db := db.DB()
+	var ids []struct {
+		BucketID uint64
 	}
-	return calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfStake)
+	if err := db.Model(&models.StakingActions{}).Distinct("bucket_id").Where("block_height<=? and owner_address=?", height, addr).Find(&ids).Error; err != nil {
+		return nil, err
+	}
+	bucketID := []uint64{}
+	for _, id := range ids {
+		bucketOwner, _ := getBucketOwnerWithHeight(id.BucketID, height)
+		if addr != bucketOwner {
+			continue
+		}
+		bucketID = append(bucketID, id.BucketID)
+	}
+	return bucketID, nil
 }
 
-func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
-	remainingTime := float64(v.StakedDuration * 86400)
-	weight := float64(1)
-	var m float64
-	if v.AutoStake {
-		m = c.AutoStake
+func getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
+	var addr sql.NullString
+	db := db.DB()
+	if err := db.Model(&models.StakingActions{}).Select("owner_address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
+		return "", err
 	}
-	if remainingTime > 0 {
-		weight += math.Log(math.Ceil(remainingTime/86400)*(1+m)) / math.Log(c.DurationLg) / 100
-	}
-	if selfStake && v.AutoStake && v.StakedDuration >= 91 {
-		// self-stake extra bonus requires enable auto-stake for at least 3 months
-		weight *= c.SelfStake
-	}
+	return addr.String, nil
+}
 
-	amount := new(big.Float).SetInt(v.StakedAmount)
-	weightedAmount, _ := amount.Mul(amount, big.NewFloat(weight)).Int(nil)
-	return weightedAmount
+func getForwardToAddressByFrom(addr string) (string, error) {
+	var to string
+	db := db.DB()
+	if err := db.Model(&models.StakingActions{}).Select("forward_to").Where("owner_address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Limit(1).Scan(&to).Error; err != nil {
+		return "", err
+	}
+	return to, nil
 }

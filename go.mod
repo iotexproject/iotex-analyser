@@ -3,17 +3,16 @@ module github.com/iotexproject/iotex-analyser
 go 1.14
 
 require (
-	github.com/dustinxie/gmsm v1.2.1 // indirect
-	github.com/ethereum/go-ethereum v1.10.4
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/ethereum/go-ethereum v1.10.10
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/imdario/mergo v0.3.12
-	github.com/iotexproject/go-pkgs v0.1.5
+	github.com/iotexproject/go-pkgs v0.1.6
 	github.com/iotexproject/iotex-address v0.2.5
-	github.com/iotexproject/iotex-core v1.3.0-rc1.0.20210907215229-0b65bf08ac88
+	github.com/iotexproject/iotex-core v1.5.0
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.2
 	github.com/lib/pq v1.10.2 // indirect
-	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.12 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible

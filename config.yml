@@ -26,13 +26,14 @@ database:
   host: 127.0.0.1
   port: 5432
   user: postgres
-  password: admin
-  name: test
+  password: postgres
+  name: iotexmainnet
 iotex:
   #catchUpMode: true
-  chainEndPoint: api.testnet.iotex.one:80
+  chainEndPoint: api.iotex.one:80
+  DisableRebuildDB: true
 blockDB:
-  dbPath: chain.db
+  dbPath: db/chain.db
 log:
   zap:
     level: info

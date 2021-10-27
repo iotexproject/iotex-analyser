@@ -1,20 +1,31 @@
 version: "3.9"
-   
+
 services:
   db:
-    image: postgres:12-alpine
+    image: timescale/timescaledb:2.0.0-pg12
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=iotexmainnet
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
   analyser:
-    image: iotex/iotex-analyser
+    # image: iotex/iotex-analyser
+    build: ./
     command: server
+    restart: always
     environment:
       - IOTEX_CHAIN_END_POINT=api.iotex.one:80
       - DB_HOST=db
       - DB_NAME=iotexmainnet
       - DB_USER=postgres
       - DB_PASSWORD=postgres
+    volumes:
+      - ./config.yml:/app/config.yml
     depends_on:
       - db
+volumes:
+  db_data:

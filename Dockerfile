@@ -18,4 +18,5 @@ WORKDIR /app
 COPY --from=builder /app/*.so /app/
 COPY --from=builder /app/config.yml /app/
 COPY --from=builder /app/iotex-analyser /app/
+RUN for i in $(ls *.so); do sed -i "/plugins:/a\    -\ $i" config.yml config_testnet.yml;done 
 ENTRYPOINT ["./iotex-analyser"]

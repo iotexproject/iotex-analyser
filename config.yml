@@ -5,22 +5,27 @@ server:
   # httpAdminPort: 8988
   #loaded default plugin list
   plugins:
-    - iotexprice_worker.so
+    - account_meta.so
+    - account_vote.so
+    - action.so
+    - action_execution.so
+    # - airdrip.so
     - block.so
     - block_action.so
-    - staking_action.so
-    - account_vote.so
-    - candidate.so
-    - token_erc721.so
-    - action_execution.so
-    - account_income.so
-    - token_erc20.so
-    - delegate.so
-    - probation.so
-    - block_receipt.so
-    - staking_bucket.so
-    - account_meta.so
     - block_meta.so
+    - block_receipt.so
+    - block_reward.so
+    - candidate.so
+    - delegate.so
+    - delegates_worker.so
+    - hermes.so
+    - iotexprice_worker.so
+    - probation.so
+    # - staking_action.so
+    - staking_actions.so
+    - staking_bucket.so
+    - token_erc20.so
+    - token_erc721.so
 database:
   driver: postgres
   host: 127.0.0.1

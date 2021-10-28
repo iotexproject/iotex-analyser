@@ -38,7 +38,7 @@ iotex:
   chainEndPoint: api.iotex.one:80
   DisableRebuildDB: true
 blockDB:
-  dbPath: db/chain.db
+  dbPath: ./db/chain.db
 log:
   zap:
     level: info

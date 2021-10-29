@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type priceWorkerPlugin struct {
 	stop chan bool
@@ -50,38 +50,18 @@ func (b priceWorkerPlugin) Start(ctx context.Context) error {
 			}
 		}
 	}
-	goPrice1d := func() {
-		price1d, err := price1dFetcher()
-		if err != nil {
-			log.L().Error("failed to fetch latest IOTX 1d price", zap.Error(err))
-		} else {
-			raw, _ := json.Marshal(price1d)
-			store := &db.Store{
-				Key:   "iotx_latest_price_1d",
-				Value: string(raw),
-			}
-			if err := store.Save(); err != nil {
-				log.L().Error("failed to exec query", zap.Error(err))
-			}
-		}
-	}
 
 	go func() {
 		goPrice()
-		goPrice1d()
 
 		ticker := time.NewTicker(time.Minute * 5)
-		ticker1d := time.NewTicker(time.Hour * 1)
 		defer func() {
 			ticker.Stop()
-			ticker1d.Stop()
 		}()
 		for {
 			select {
 			case <-b.stop:
 				return
-			case <-ticker1d.C:
-				goPrice1d()
 			case <-ticker.C:
 				goPrice()
 			}

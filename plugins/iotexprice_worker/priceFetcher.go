@@ -27,7 +27,7 @@ type priceCoin struct {
 	Low24H                       float64     `json:"low_24h"`
 	PriceChange24H               float64     `json:"price_change_24h"`
 	PriceChangePercentage24H     float64     `json:"price_change_percentage_24h"`
-	MarketCapChange24H           int         `json:"market_cap_change_24h"`
+	MarketCapChange24H           float64     `json:"market_cap_change_24h"`
 	MarketCapChangePercentage24H float64     `json:"market_cap_change_percentage_24h"`
 	CirculatingSupply            float64     `json:"circulating_supply"`
 	TotalSupply                  float64     `json:"total_supply"`
@@ -62,7 +62,7 @@ func priceFetcher() (*priceCoin, error) {
 
 	defer response.Body.Close()
 
-	// body := []byte(`[{"id":"iotex","symbol":"iotx","name":"IoTeX","image":"https://assets.coingecko.com/coins/images/3334/large/iotex-logo.png?1547037941","current_price":0.064283,"market_cap":611449352,"market_cap_rank":156,"fully_diluted_valuation":611649827,"total_volume":75758611,"high_24h":0.06768,"low_24h":0.060147,"price_change_24h":0.00274793,"price_change_percentage_24h":4.46563,"market_cap_change_24h":40312812,"market_cap_change_percentage_24h":7.05835,"circulating_supply":9493154322.48387,"total_supply":9496266827.32,"max_supply":9496266827.32,"ath":0.14167,"ath_change_percentage":-54.53546,"ath_date":"2021-08-12T01:40:07.028Z","atl":0.00121576,"atl_change_percentage":5197.88814,"atl_date":"2020-03-13T02:29:47.597Z","roi":null,"last_updated":"2021-10-29T02:28:19.654Z"}]`)
+	// body := []byte(`[{"id":"iotex","symbol":"iotx","name":"IoTeX","image":"https://assets.coingecko.com/coins/images/3334/large/iotex-logo.png?1547037941","current_price":0.069861,"market_cap":653984779,"market_cap_rank":152,"fully_diluted_valuation":654227628,"total_volume":69028848,"high_24h":0.073469,"low_24h":0.06747,"price_change_24h":-0.001334770049,"price_change_percentage_24h":-1.87479,"market_cap_change_24h":-39752436.90259278,"market_cap_change_percentage_24h":-5.73019,"circulating_supply":9492741822.48387,"total_supply":9496266827.32,"max_supply":9496266827.32,"ath":0.14167,"ath_change_percentage":-51.19274,"ath_date":"2021-08-12T01:40:07.028Z","atl":0.00121576,"atl_change_percentage":5587.40872,"atl_date":"2020-03-13T02:29:47.597Z","roi":null,"last_updated":"2021-11-01T07:14:23.051Z"}]`)
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, err

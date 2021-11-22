@@ -144,7 +144,7 @@ func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake
 
 func getCandidateStaking(height uint64) ([]*Staking, error) {
 	db := db.DB()
-	query := "select id,block_height,bucket_id,owner_address,candidate,(select sum(b.amount) from staking_action b where b.block_height<=? and b.bucket_id=a.bucket_id) as amount,act_type,auto_stake,duration from staking_action a where id=any(array(select max(id) from staking_action where block_height<=? group by bucket_id))"
+	query := "select id,block_height,bucket_id,owner_address,candidate,(select sum(b.amount) from staking_actions b where b.block_height<=? and b.bucket_id=a.bucket_id) as amount,act_type,auto_stake,duration from staking_actions a where id=any(array(select max(id) from staking_actions where block_height<=? group by bucket_id))"
 	rows, err := db.Raw(query, height, height).Rows()
 	if err != nil {
 		return nil, err

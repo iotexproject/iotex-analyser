@@ -10,6 +10,7 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -41,7 +42,7 @@ func getCandidateAddressByName(name string) (string, error) {
 
 func getBucketIDByActHash(actHash string) (uint64, error) {
 	var bucketID uint64
-	if err := db.DB().Table("staking_bucket").Select("bucket_id").Where("action_hash=?", actHash).Scan(&bucketID).Error; err != nil {
+	if err := db.DB().Model(&models.StakingBucket{}).Select("bucket_id").Where("action_hash=?", actHash).Scan(&bucketID).Error; err != nil {
 		return 0, err
 	}
 	return bucketID, nil

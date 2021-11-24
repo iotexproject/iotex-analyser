@@ -122,7 +122,7 @@ func (b blockRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			}
 		}
-		return nil
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 	return err
 

@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.0.3"
 
 type blockMetaPlugin struct {
 }
@@ -47,7 +47,9 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			grantRewardActs[actionHash] = true
 		}
 	}
-	totalReward := big.NewInt(0)
+	blockReward := big.NewInt(0)
+	epochReward := big.NewInt(0)
+	foundationBonus := big.NewInt(0)
 	// log receipt index
 	for _, receipt := range blk.Receipts {
 		gasConsumed += receipt.GasConsumed
@@ -61,7 +63,9 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				continue
 			}
 			for _, rewards := range rewardInfoMap {
-				totalReward.Add(totalReward, rewards.BlockReward)
+				blockReward.Add(blockReward, rewards.BlockReward)
+				epochReward.Add(epochReward, rewards.EpochReward)
+				foundationBonus.Add(foundationBonus, rewards.FoundationBonus)
 			}
 		}
 	}
@@ -80,7 +84,9 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		GasConsumed:     gasConsumed,
 		ProducerName:    producerName,
 		ProducerAddress: blk.ProducerAddress(),
-		BlockReward:     decimal.NewFromBigInt(totalReward, 0),
+		BlockReward:     decimal.NewFromBigInt(blockReward, 0),
+		EpochReward:     decimal.NewFromBigInt(epochReward, 0),
+		FoundationBonus: decimal.NewFromBigInt(foundationBonus, 0),
 		EpochNum:        epochNum,
 		EpochHeight:     epochHeight,
 	}

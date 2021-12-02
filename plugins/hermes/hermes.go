@@ -73,6 +73,7 @@ func (b hermesPlugin) Start(ctx context.Context) error {
 		&models.HermesDistribute{},
 		&models.HermesAggregateVoting{},
 		&models.HermesVotingResult{},
+		&models.HermesAccountReward{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -131,12 +132,9 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	}
 	if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
 		var count int64
-		rewardAddrToNameMapping, weightedVotesMapping, err := getVotingInfo(epochNum)
-		fmt.Printf("%v  %v", rewardAddrToNameMapping, weightedVotesMapping)
-		return errors.New("x")
-		// if err := rebuildAccountRewardTable( epochNum-1); err != nil {
-		// 	return errors.Wrap(err, "failed to rebuild account reward table")
-		// }
+		if err := rebuildAccountRewardTable(epochNum - 1); err != nil {
+			return errors.Wrap(err, "failed to rebuild account reward table")
+		}
 
 		probationList, err := fetchProbationList(chainClient, epochNum)
 		if err != nil {

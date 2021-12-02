@@ -21,7 +21,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rodaine/table v1.0.1
 	github.com/sethvargo/go-envconfig v0.3.5
-	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
+	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/zap v1.16.0

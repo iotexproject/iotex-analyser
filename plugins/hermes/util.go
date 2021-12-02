@@ -8,14 +8,13 @@ import (
 	"math"
 	"math/big"
 	"strconv"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	etypes "github.com/iotexproject/iotex-election/types"
@@ -28,14 +27,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// DelegateProfileABI is the input ABI used to generate the binding from.
-const DelegateProfileABI = "[{\"constant\":false,\"inputs\":[{\"name\":\"_delegate\",\"type\":\"address\"},{\"name\":\"_name\",\"type\":\"string\"},{\"name\":\"_value\",\"type\":\"bytes\"}],\"name\":\"updateProfileForDelegate\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"register\",\"outputs\":[{\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_delegate\",\"type\":\"address\"}],\"name\":\"getEncodedProfile\",\"outputs\":[{\"name\":\"code_\",\"type\":\"bytes\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"isOwner\",\"outputs\":[{\"name\":\"\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_name\",\"type\":\"string\"}],\"name\":\"getFieldByName\",\"outputs\":[{\"name\":\"verifier_\",\"type\":\"address\"},{\"name\":\"deprecated_\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_byteCode\",\"type\":\"bytes\"}],\"name\":\"updateProfileWithByteCode\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[],\"name\":\"withdraw\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[],\"name\":\"unpause\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"paused\",\"outputs\":[{\"name\":\"\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_name\",\"type\":\"string\"},{\"name\":\"_verifierAddr\",\"type\":\"address\"}],\"name\":\"newField\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_name\",\"type\":\"string\"},{\"name\":\"_value\",\"type\":\"bytes\"}],\"name\":\"updateProfile\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[],\"name\":\"pause\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_idx\",\"type\":\"uint256\"}],\"name\":\"getFieldByIndex\",\"outputs\":[{\"name\":\"name_\",\"type\":\"string\"},{\"name\":\"verifier_\",\"type\":\"address\"},{\"name\":\"deprecated_\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_delegate\",\"type\":\"address\"},{\"name\":\"_byteCode\",\"type\":\"bytes\"}],\"name\":\"updateProfileWithByteCodeForDelegate\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"fieldNames\",\"outputs\":[{\"name\":\"\",\"type\":\"string\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"registered\",\"outputs\":[{\"name\":\"\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_delegate\",\"type\":\"address\"},{\"name\":\"_field\",\"type\":\"string\"}],\"name\":\"getProfileByField\",\"outputs\":[{\"name\":\"\",\"type\":\"bytes\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_name\",\"type\":\"string\"}],\"name\":\"deprecateField\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"numOfFields\",\"outputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"name\":\"registerAddr\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"name\":\"fee\",\"type\":\"uint256\"}],\"name\":\"FeeUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"name\":\"delegate\",\"type\":\"address\"},{\"indexed\":false,\"name\":\"name\",\"type\":\"string\"},{\"indexed\":false,\"name\":\"value\",\"type\":\"bytes\"}],\"name\":\"ProfileUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"name\":\"name\",\"type\":\"string\"}],\"name\":\"FieldDeprecated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"name\":\"name\",\"type\":\"string\"}],\"name\":\"NewField\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[],\"name\":\"Pause\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[],\"name\":\"Unpause\",\"type\":\"event\"}]"
 const (
-	topicProfileUpdated     = "217aa5ef0b78f028d51fd573433bdbe2daf6f8505e6a71f3af1393c8440b341b"
-	blockRewardPortion      = "blockRewardPortion"
-	epochRewardPortion      = "epochRewardPortion"
-	foundationRewardPortion = "foundationRewardPortion"
-	RewardPortionContract   = "io1lfl4ppn2c3wcft04f0rk0jy9lyn4pcjcm7638u"
+	topicProfileUpdated               = "217aa5ef0b78f028d51fd573433bdbe2daf6f8505e6a71f3af1393c8440b341b"
+	blockRewardPortion                = "blockRewardPortion"
+	epochRewardPortion                = "epochRewardPortion"
+	foundationRewardPortion           = "foundationRewardPortion"
+	RewardPortionContract             = "io1lfl4ppn2c3wcft04f0rk0jy9lyn4pcjcm7638u"
+	RewardportionContractDeployHeight = 5095225
 )
 const (
 	// PollProtocolID is ID of poll protocol
@@ -51,10 +49,229 @@ var GenesisVoteWeightCalConsts = genesis.VoteWeightCalConsts{
 	SelfStake:  1.06,
 }
 
+type AggregateReward struct {
+	EpochNumber     uint64
+	RewardAddress   string
+	BlockReward     string
+	EpochReward     string
+	FoundationBonus string
+}
+
+type (
+	Productivity struct {
+		Production         uint64
+		ExpectedProduction uint64
+	}
+)
+
 func getDelegateNameFromTopic(logTopic hash.Hash256) string {
 	n := bytes.IndexByte(logTopic[:], 0)
 	return string(logTopic[:n])
 }
+
+func getVotingInfo(lastEpoch uint64) (map[string][]string, map[string]*big.Int, error) {
+
+	db := db.DB()
+	var rows []models.HermesVotingResult
+	if err := db.Model(models.HermesVotingResult{}).Where("epoch_number=?", lastEpoch).Find(&rows).Error; err != nil {
+		return nil, nil, err
+	}
+
+	if len(rows) == 0 {
+		return nil, nil, errors.New("empty records")
+	}
+	rewardAddrToNameMapping := make(map[string][]string)
+	weightedVotesMapping := make(map[string]*big.Int)
+	for _, row := range rows {
+		if _, ok := rewardAddrToNameMapping[row.RewardAddress]; !ok {
+			rewardAddrToNameMapping[row.RewardAddress] = make([]string, 0)
+		}
+		rewardAddrToNameMapping[row.RewardAddress] = append(rewardAddrToNameMapping[row.RewardAddress], row.DelegateName)
+
+		totalWeightedVotes := row.TotalWeightedVotes.BigInt()
+		// totalWeightedVotes, err := big.NewInt(0).SetString(row.TotalWeightedVotes, 10)
+		// if err != nil {
+		// 	return nil, nil, errors.Wrap(err, "failed to covert string to big int")
+		// }
+		weightedVotesMapping[row.DelegateName] = totalWeightedVotes
+	}
+	return rewardAddrToNameMapping, weightedVotesMapping, nil
+}
+
+// func rebuildAccountRewardTable(lastEpoch uint64) error {
+// 	if lastEpoch == 0 {
+// 		return nil
+// 	}
+// 	db := db.DB()
+// 	// Get voting result from last epoch
+// 	rewardAddrToNameMapping, weightedVotesMapping, err := getVotingInfo(lastEpoch)
+// 	if err != nil {
+// 		return errors.Wrap(err, "failed to get voting info")
+// 	}
+// 	// Get aggregate reward	records from last epoch
+// 	var rows []AggregateReward
+// 	if err := db.Raw("SELECT epoch_number, reward_address, SUM(block_reward), SUM(epoch_reward), SUM(foundation_bonus) "+
+// 		"FROM hermes_voting_results WHERE epoch_number = ? GROUP BY epoch_number, reward_address", lastEpoch).Find(&rows).Error; err != nil {
+// 		return err
+// 	}
+
+// 	valStrs := make([]string, 0)
+// 	valArgs := make([]interface{}, 0)
+// 	for _, row := range rows {
+// 		epochNumber := row.EpochNumber
+// 		rewardAddress := row.RewardAddress
+// 		candidateNames := rewardAddrToNameMapping[rewardAddress]
+// 		if len(candidateNames) == 1 {
+// 			candidateName := candidateNames[0]
+// 			valStrs = append(valStrs, "(?, ?, CAST(? as DECIMAL(65, 0)), CAST(? as DECIMAL(65, 0)), CAST(? as DECIMAL(65, 0)))")
+// 			valArgs = append(valArgs, epochNumber, candidateName, row.BlockReward, row.EpochReward, row.FoundationBonus)
+// 			continue
+// 		}
+
+// 		// Multiple delegates share reward address
+// 		totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
+// 		if !ok {
+// 			return errors.New("failed to convert string to big int")
+// 		}
+// 		totalEpochReward, ok := big.NewInt(0).SetString(row.EpochReward, 10)
+// 		if !ok {
+// 			return errors.New("failed to convert string to big int")
+// 		}
+// 		totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
+// 		if !ok {
+// 			return errors.New("failed to convert string to big int")
+// 		}
+// 		candidateRewardsMap, err := p.breakdownRewards(epochNumber, candidateNames, weightedVotesMapping,
+// 			exemptionMap, totalBlockReward, totalEpochReward, totalFoundationBonus)
+// 		if err != nil {
+// 			return errors.Wrap(err, "failed to get candidate rewards map")
+// 		}
+// 		for candidateName, rewards := range candidateRewardsMap {
+// 			valStrs = append(valStrs, "(?, ?, CAST(? as DECIMAL(65, 0)), CAST(? as DECIMAL(65, 0)), CAST(? as DECIMAL(65, 0)))")
+// 			valArgs = append(valArgs, epochNumber, candidateName, rewards[0], rewards[1], rewards[2])
+// 		}
+// 	}
+
+// 	insertQuery := fmt.Sprintf(insertAccountReward, AccountRewardTableName, strings.Join(valStrs, ","))
+// 	if _, err := tx.Exec(insertQuery, valArgs...); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
+
+// func breakdownRewards(
+// 	epochNumber uint64,
+// 	candidateNames []string,
+// 	weightedVotesMap map[string]*big.Int,
+// 	exemptionMap map[string]bool,
+// 	totalBlockReward *big.Int,
+// 	totalEpochReward *big.Int,
+// 	totalFoundationBonus *big.Int,
+// ) (map[string][]string, error) {
+// 	candidateVoteList := make([]*CandidateVote, 0, len(weightedVotesMap))
+// 	for name, votes := range weightedVotesMap {
+// 		candidateVoteList = append(candidateVoteList, &CandidateVote{
+// 			CandidateName:      name,
+// 			TotalWeightedVotes: votes,
+// 		})
+// 	}
+// 	// Sort list by votes in decreasing order
+// 	sort.Slice(candidateVoteList, func(i, j int) bool {
+// 		return candidateVoteList[i].TotalWeightedVotes.Cmp(candidateVoteList[j].TotalWeightedVotes) == 1
+// 	})
+// 	candidateRank := make(map[string]uint64)
+// 	for i, candidateVote := range candidateVoteList {
+// 		candidateRank[candidateVote.CandidateName] = uint64(i + 1)
+// 	}
+// 	productivityMap, err := p.getProductivity(epochNumber)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "failed to get productivity map")
+// 	}
+// 	productionSum := big.NewInt(0)
+// 	qualifiedTotalVotes := big.NewInt(0)
+// 	foundationBonusCount := big.NewInt(0)
+// 	earnBlockReward := make(map[string]bool)
+// 	earnEpochReward := make(map[string]bool)
+// 	earnFoundationBonus := make(map[string]bool)
+// 	for _, candidateName := range candidateNames {
+// 		productive := true
+// 		if productivity, ok := productivityMap[candidateName]; ok {
+// 			productionSum.Add(productionSum, big.NewInt(int64(productivity.Production)))
+// 			earnBlockReward[candidateName] = true
+// 			if productivity.Production*100/productivity.ExpectedProduction < p.RewardConfig.ProductivityThreshold {
+// 				productive = false
+// 			}
+// 		}
+// 		// qualify for epoch reward
+// 		if candidateRank[candidateName] <= p.RewardConfig.NumDelegatesForEpochReward && !exemptionMap[candidateName] && productive {
+// 			qualifiedTotalVotes.Add(qualifiedTotalVotes, weightedVotesMap[candidateName])
+// 			earnEpochReward[candidateName] = true
+// 		}
+// 		// qualify for foundation bonus
+// 		if candidateRank[candidateName] <= p.RewardConfig.NumDelegatesForFoundationBonus && !exemptionMap[candidateName] {
+// 			foundationBonusCount.Add(foundationBonusCount, big.NewInt(1))
+// 			earnFoundationBonus[candidateName] = true
+// 		}
+// 	}
+// 	candidateRewardsMap := make(map[string][]string)
+// 	for _, candidateName := range candidateNames {
+// 		blockReward := big.NewInt(0)
+// 		epochReward := big.NewInt(0)
+// 		foundationBonus := big.NewInt(0)
+// 		if productionSum.Sign() > 0 && earnBlockReward[candidateName] {
+// 			production := big.NewInt(0).SetUint64(productivityMap[candidateName].Production)
+// 			blockReward = big.NewInt(0).Div(big.NewInt(0).Mul(totalBlockReward, production), productionSum)
+// 		}
+// 		if qualifiedTotalVotes.Sign() > 0 && earnEpochReward[candidateName] {
+// 			epochReward = big.NewInt(0).Div(big.NewInt(0).Mul(totalEpochReward, weightedVotesMap[candidateName]), qualifiedTotalVotes)
+// 		}
+// 		if totalFoundationBonus.Sign() > 0 && earnFoundationBonus[candidateName] {
+// 			foundationBonus = big.NewInt(0).Div(totalFoundationBonus, foundationBonusCount)
+// 		}
+
+// 		if blockReward.Sign() == 0 && epochReward.Sign() == 0 && foundationBonus.Sign() == 0 {
+// 			continue
+// 		}
+// 		candidateRewardsMap[candidateName] = []string{blockReward.String(), epochReward.String(), foundationBonus.String()}
+// 	}
+// 	return candidateRewardsMap, nil
+// }
+
+// func getProductivity(epochNumber uint64) (map[string]*Productivity, error) {
+// 	// get voting results
+// 	getQuery := fmt.Sprintf(selectBlockHistory, blocks.BlockHistoryTableName, blocks.BlockHistoryTableName)
+// 	db := p.Store.GetDB()
+// 	stmt, err := db.Prepare(getQuery)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "failed to prepare get query")
+// 	}
+// 	defer stmt.Close()
+
+// 	rows, err := stmt.Query(epochNumber, epochNumber)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "failed to execute get query")
+// 	}
+
+// 	var productivity blocks.ProductivityHistory
+// 	parsedRows, err := s.ParseSQLRows(rows, &productivity)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "failed to parse results")
+// 	}
+
+// 	if len(parsedRows) == 0 {
+// 		return nil, indexprotocol.ErrNotExist
+// 	}
+
+// 	productivityMap := make(map[string]*Productivity)
+// 	for _, parsedRow := range parsedRows {
+// 		p := parsedRow.(*blocks.ProductivityHistory)
+// 		productivityMap[p.ProducerName] = &Productivity{
+// 			Production:         p.Production,
+// 			ExpectedProduction: p.ExpectedProduction,
+// 		}
+// 	}
+// 	return productivityMap, nil
+// }
 
 // GetAllStakingBuckets get all buckets by height
 func GetAllStakingBuckets(chainClient iotexapi.APIServiceClient, height uint64) (voteBucketListAll *iotextypes.VoteBucketList, err error) {
@@ -166,7 +383,7 @@ func getStakingCandidates(chainClient iotexapi.APIServiceClient, offset, limit u
 		ProtocolID: []byte(protocolID),
 		MethodName: methodName,
 		Arguments:  [][]byte{arg},
-		Height:     fmt.Sprintf("%d", height),
+		Height:     strconv.FormatUint(height, 10),
 	}
 	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_CANDIDATES)
 	readStateRes, err := chainClient.ReadState(ctx, readStateRequest)
@@ -248,28 +465,30 @@ func getAllStakingDelegateRewardPortions(epochStartHeight, epochNumber uint64, c
 	blockRewardPercentage = make(map[string]float64)
 	epochRewardPercentage = make(map[string]float64)
 	foundationBonusPercentage = make(map[string]float64)
-	delegateABI, err := abi.JSON(strings.NewReader(DelegateProfileABI))
-	if err != nil {
-		err = errors.Wrap(err, "failed to get parsed delegate profile ABI interface")
-		return
-	}
 
-	// get from mysql first
-	blockRewardPercentage, epochRewardPercentage, foundationBonusPercentage, err = getLastEpochPortion(epochNumber - 1)
-	if err != nil {
-		err = errors.Wrap(err, "failed to get last epoch portion")
-		return
-	}
+	// if epochStartHeight == kernel.FairbankEffectiveHeight() {
+	// 	count := epochStartHeight - RewardportionContractDeployHeight
+	// 	blockRewardPercentage, epochRewardPercentage, foundationBonusPercentage, err = getLog(RewardPortionContract, RewardportionContractDeployHeight, count, chainClient, delegateProfileABI)
+	// 	if err != nil {
+	// 		err = errors.Wrap(err, "failed to get log from chain")
+	// 	}
+	// 	return
+	// }
 
+	// if len(BlockRewardPercentage) == 0 &&
+	// 	len(EpochRewardPercentage) == 0 &&
+	// 	len(FoundationBonusPercentage) == 0 {
+	// 	count := epochStartHeight - RewardportionContractDeployHeight
+	// 	blockRewardPercentage, epochRewardPercentage, foundationBonusPercentage, err = getLog(RewardPortionContract, RewardportionContractDeployHeight, count, chainClient, delegateProfileABI)
+	// 	if err != nil {
+	// 		err = errors.Wrap(err, "failed to get log from chain")
+	// 	}
+	// }
 	//and then update from contract from last epochstartHeight to this epochStartheight-1
-	lastEpochStartHeight := kernel.GetEpochHeight(epochNumber - 1)
-	if epochStartHeight < lastEpochStartHeight {
-		err = errors.Wrap(err, "epoch start height less than last epoch start height")
-		return
-	}
-	count := epochStartHeight - lastEpochStartHeight
+
+	count := epochStartHeight - RewardportionContractDeployHeight
 	var blockRewardFromLog, epochRewardFromLog, foundationBonusFromLog map[string]float64
-	blockRewardFromLog, epochRewardFromLog, foundationBonusFromLog, err = getLog(RewardPortionContract, lastEpochStartHeight, count, chainClient, delegateABI)
+	blockRewardFromLog, epochRewardFromLog, foundationBonusFromLog, err = getLog(RewardPortionContract, RewardportionContractDeployHeight, count, chainClient, delegateProfileABI)
 	if err != nil {
 		err = errors.Wrap(err, "failed to get log from chain")
 		return
@@ -285,35 +504,6 @@ func getAllStakingDelegateRewardPortions(epochStartHeight, epochNumber uint64, c
 		foundationBonusPercentage[k] = v
 	}
 
-	return
-}
-
-func getLastEpochPortion(epochNumber uint64) (blockReward, epochReward, foundationReward map[string]float64, err error) {
-	blockReward = make(map[string]float64)
-	epochReward = make(map[string]float64)
-	foundationReward = make(map[string]float64)
-
-	var res []models.HermesVotingResult
-	db := db.DB()
-	result := db.Model(&models.HermesVotingResult{}).Where("epoch_number=?", epochNumber).Find(&res)
-	if result.Error != nil {
-		err = result.Error
-		return
-	}
-
-	if len(res) == 0 {
-		err = errors.New("record empty")
-		return
-	}
-
-	for _, vr := range res {
-		brp, _ := vr.BlockRewardPercentage.Float64()
-		blockReward[vr.StakingAddress] = brp
-		erp, _ := vr.EpochRewardPercentage.Float64()
-		epochReward[vr.StakingAddress] = erp
-		fbp, _ := vr.FoundationBonusPercentage.Float64()
-		foundationReward[vr.StakingAddress] = fbp
-	}
 	return
 }
 
@@ -353,21 +543,21 @@ func getLog(contractAddress string, from, count uint64, chainClient iotexapi.API
 		for _, topic := range l.Topics {
 			switch hex.EncodeToString(topic) {
 			case topicProfileUpdated:
-
-				evt, err := delegateProfileABI.Unpack("ProfileUpdated", l.Data)
+				event := &DelegateProfileProfileUpdated{}
+				err := delegateProfileABI.UnpackIntoInterface(event, "ProfileUpdated", l.Data)
 				if err != nil {
 					continue
 				}
-				fmt.Printf("%v", evt)
-				// event := evt.(*DelegateProfileProfileUpdated)
-				// switch event.Name {
-				// case blockRewardPortion:
-				// 	blockReward[hex.EncodeToString(event.Delegate.Bytes())] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
-				// case epochRewardPortion:
-				// 	epochReward[hex.EncodeToString(event.Delegate.Bytes())] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
-				// case foundationRewardPortion:
-				// 	foundationReward[hex.EncodeToString(event.Delegate.Bytes())] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
-				// }
+				addr, _ := address.FromHex(event.Delegate.String())
+
+				switch event.Name {
+				case blockRewardPortion:
+					blockReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+				case epochRewardPortion:
+					epochReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+				case foundationRewardPortion:
+					foundationReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+				}
 			}
 		}
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -33,7 +32,8 @@ var DISTRIBUTE hash.Hash256
 var successStatus = uint64(1)
 
 var (
-	hermesABI abi.ABI
+	hermesABI          abi.ABI
+	delegateProfileABI abi.ABI
 )
 
 func initAddress() error {
@@ -44,6 +44,10 @@ func initAddress() error {
 		return err
 	}
 	hermesABI, err = abi.JSON(strings.NewReader(HermesABI))
+	if err != nil {
+		return err
+	}
+	delegateProfileABI, err = abi.JSON((strings.NewReader(DelegateProfileABI)))
 	if err != nil {
 		return err
 	}
@@ -80,6 +84,7 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
+	fmt.Printf("blkHeight = %d epochNum = %d epochHeight = %d\n", blkHeight, epochNum, epochHeight)
 	for _, receipt := range blk.Receipts {
 		if receipt.Status != successStatus {
 			continue
@@ -124,22 +129,31 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 		}
 	}
-	if blkHeight == epochHeight && blkHeight > genesis.Default.Blockchain.FairbankBlockHeight {
+	if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
 		var count int64
+		rewardAddrToNameMapping, weightedVotesMapping, err := getVotingInfo(epochNum)
+		fmt.Printf("%v  %v", rewardAddrToNameMapping, weightedVotesMapping)
+		return errors.New("x")
+		// if err := rebuildAccountRewardTable( epochNum-1); err != nil {
+		// 	return errors.Wrap(err, "failed to rebuild account reward table")
+		// }
 
 		probationList, err := fetchProbationList(chainClient, epochNum)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
+		fmt.Printf("probationList = [%d]\n", len(probationList.ProbationList))
 		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
 		voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}
+		fmt.Printf("voteBucketList = [%d]\n", len(voteBucketList.Buckets))
 		candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
 		if err != nil {
-			return errors.Wrap(err, "failed to get buckets count")
+			return errors.Wrap(err, "failed to get candidates count")
 		}
+		fmt.Printf("candidateList = [%d]\n", len(candidateList.Candidates))
 		if probationList != nil {
 			candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
 			if err != nil {
@@ -182,6 +196,9 @@ func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.Ca
 	if err != nil {
 		return errors.Errorf("get delegate reward portions:%d,%s", epochStartheight, err.Error())
 	}
+	fmt.Printf("blockRewardPortionMap = %+v\n", blockRewardPortionMap)
+	fmt.Printf("epochRewardPortionMap = %+v\n", epochRewardPortionMap)
+	fmt.Printf("foundationBonusPortionMap = %+v\n", foundationBonusPortionMap)
 
 	for _, candidate := range candidates.Candidates {
 

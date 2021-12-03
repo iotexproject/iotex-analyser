@@ -61,3 +61,9 @@ func GetSubEpochNum(height uint64) uint64 {
 	p := genesisCfg.Blockchain
 	return (height - GetEpochHeight(GetEpochNum(height))) / p.NumDelegates
 }
+
+// FairbankEffectiveHeight returns the effective height of fairbank  = 5166361
+func FairbankEffectiveHeight() uint64 {
+	p := genesisCfg.Blockchain
+	return p.FairbankBlockHeight + p.NumDelegates*p.DardanellesNumSubEpochs
+}

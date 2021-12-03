@@ -48,3 +48,16 @@ type HermesAggregateVoting struct {
 func (HermesAggregateVoting) TableName() string {
 	return "hermes_aggregate_votings"
 }
+
+type HermesAccountReward struct {
+	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
+	EpochNumber     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+	CandidateName   string          `gorm:"size:42;index;not null"`
+	BlockReward     decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	EpochReward     decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	FoundationBonus decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+}
+
+func (HermesAccountReward) TableName() string {
+	return "hermes_account_rewards"
+}

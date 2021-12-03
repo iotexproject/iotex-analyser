@@ -13,7 +13,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -21,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.3.1"
 
 var FairbankBlockHeight = 5165641
 
@@ -33,7 +32,8 @@ var DISTRIBUTE hash.Hash256
 var successStatus = uint64(1)
 
 var (
-	hermesABI abi.ABI
+	hermesABI          abi.ABI
+	delegateProfileABI abi.ABI
 )
 
 func initAddress() error {
@@ -44,6 +44,10 @@ func initAddress() error {
 		return err
 	}
 	hermesABI, err = abi.JSON(strings.NewReader(HermesABI))
+	if err != nil {
+		return err
+	}
+	delegateProfileABI, err = abi.JSON((strings.NewReader(DelegateProfileABI)))
 	if err != nil {
 		return err
 	}
@@ -61,6 +65,10 @@ func (b hermesPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+func (b hermesPlugin) DependentPlugin() string {
+	return "block_meta"
+}
+
 func (b hermesPlugin) Start(ctx context.Context) error {
 	if err := initAddress(); err != nil {
 		return errors.Wrap(err, "cannot init address")
@@ -69,6 +77,7 @@ func (b hermesPlugin) Start(ctx context.Context) error {
 		&models.HermesDistribute{},
 		&models.HermesAggregateVoting{},
 		&models.HermesVotingResult{},
+		&models.HermesAccountReward{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -124,8 +133,11 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 		}
 	}
-	if blkHeight == epochHeight && blkHeight > genesis.Default.Blockchain.FairbankBlockHeight {
+	if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
 		var count int64
+		if err := rebuildAccountRewardTable(epochNum - 1); err != nil {
+			return errors.Wrap(err, "failed to rebuild account reward table")
+		}
 
 		probationList, err := fetchProbationList(chainClient, epochNum)
 		if err != nil {
@@ -138,7 +150,7 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 		candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
 		if err != nil {
-			return errors.Wrap(err, "failed to get buckets count")
+			return errors.Wrap(err, "failed to get candidates count")
 		}
 		if probationList != nil {
 			candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)

@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.3.1"
 
 var FairbankBlockHeight = 5165641
 
@@ -65,6 +65,10 @@ func (b hermesPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+func (b hermesPlugin) DependentPlugin() string {
+	return "block_meta"
+}
+
 func (b hermesPlugin) Start(ctx context.Context) error {
 	if err := initAddress(); err != nil {
 		return errors.Wrap(err, "cannot init address")
@@ -85,7 +89,6 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
-	fmt.Printf("blkHeight = %d epochNum = %d epochHeight = %d\n", blkHeight, epochNum, epochHeight)
 	for _, receipt := range blk.Receipts {
 		if receipt.Status != successStatus {
 			continue
@@ -140,18 +143,15 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
-		fmt.Printf("probationList = [%d]\n", len(probationList.ProbationList))
 		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
 		voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}
-		fmt.Printf("voteBucketList = [%d]\n", len(voteBucketList.Buckets))
 		candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
 		if err != nil {
 			return errors.Wrap(err, "failed to get candidates count")
 		}
-		fmt.Printf("candidateList = [%d]\n", len(candidateList.Candidates))
 		if probationList != nil {
 			candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
 			if err != nil {
@@ -194,9 +194,6 @@ func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.Ca
 	if err != nil {
 		return errors.Errorf("get delegate reward portions:%d,%s", epochStartheight, err.Error())
 	}
-	fmt.Printf("blockRewardPortionMap = %+v\n", blockRewardPortionMap)
-	fmt.Printf("epochRewardPortionMap = %+v\n", epochRewardPortionMap)
-	fmt.Printf("foundationBonusPortionMap = %+v\n", foundationBonusPortionMap)
 
 	for _, candidate := range candidates.Candidates {
 

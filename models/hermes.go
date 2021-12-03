@@ -59,5 +59,5 @@ type HermesAccountReward struct {
 }
 
 func (HermesAccountReward) TableName() string {
-	return "hermes_account_reward"
+	return "hermes_account_rewards"
 }

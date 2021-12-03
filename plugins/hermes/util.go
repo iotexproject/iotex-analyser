@@ -483,26 +483,6 @@ func getAllStakingDelegateRewardPortions(epochStartHeight, epochNumber uint64, c
 	epochRewardPercentage = make(map[string]float64)
 	foundationBonusPercentage = make(map[string]float64)
 
-	// if epochStartHeight == kernel.FairbankEffectiveHeight() {
-	// 	count := epochStartHeight - RewardportionContractDeployHeight
-	// 	blockRewardPercentage, epochRewardPercentage, foundationBonusPercentage, err = getLog(RewardPortionContract, RewardportionContractDeployHeight, count, chainClient, delegateProfileABI)
-	// 	if err != nil {
-	// 		err = errors.Wrap(err, "failed to get log from chain")
-	// 	}
-	// 	return
-	// }
-
-	// if len(BlockRewardPercentage) == 0 &&
-	// 	len(EpochRewardPercentage) == 0 &&
-	// 	len(FoundationBonusPercentage) == 0 {
-	// 	count := epochStartHeight - RewardportionContractDeployHeight
-	// 	blockRewardPercentage, epochRewardPercentage, foundationBonusPercentage, err = getLog(RewardPortionContract, RewardportionContractDeployHeight, count, chainClient, delegateProfileABI)
-	// 	if err != nil {
-	// 		err = errors.Wrap(err, "failed to get log from chain")
-	// 	}
-	// }
-	//and then update from contract from last epochstartHeight to this epochStartheight-1
-
 	count := epochStartHeight - RewardportionContractDeployHeight
 	var blockRewardFromLog, epochRewardFromLog, foundationBonusFromLog map[string]float64
 	blockRewardFromLog, epochRewardFromLog, foundationBonusFromLog, err = getLog(RewardPortionContract, RewardportionContractDeployHeight, count, chainClient, delegateProfileABI)

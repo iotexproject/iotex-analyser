@@ -73,3 +73,19 @@ func Connect() (*gorm.DB, error) {
 func DB() *gorm.DB {
 	return db
 }
+
+// AutoMigrate run auto migration for given models
+func AutoMigrate(index string, dst ...interface{}) error {
+	height, err := GetIndexHeight(index)
+	if err != nil {
+		return err
+	}
+	if height == 0 {
+		err = db.Migrator().DropTable(dst...)
+		if err != nil {
+			return err
+		}
+		return db.Migrator().CreateTable(dst...)
+	}
+	return nil
+}

@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type accountMetaPlugin struct {
 	cachedAccounts sync.Map
@@ -27,7 +27,7 @@ func (b accountMetaPlugin) Type() plugin.Type {
 
 func (b accountMetaPlugin) Start(ctx context.Context) error {
 	b.cachedAccounts = sync.Map{}
-	if err := db.DB().AutoMigrate(&AccountMeta{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &AccountMeta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

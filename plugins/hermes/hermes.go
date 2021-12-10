@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.1"
+const VERSION = "2.3.2"
 
 var FairbankBlockHeight = 5165641
 
@@ -73,7 +73,7 @@ func (b hermesPlugin) Start(ctx context.Context) error {
 	if err := initAddress(); err != nil {
 		return errors.Wrap(err, "cannot init address")
 	}
-	if err := db.DB().AutoMigrate(
+	if err := db.AutoMigrate(b.Name(),
 		&models.HermesDistribute{},
 		&models.HermesAggregateVoting{},
 		&models.HermesVotingResult{},

@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.1.1"
 
 const (
 	transfer                   = "transfer"
@@ -47,7 +47,7 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
 	}
-	if err := db.DB().AutoMigrate(&models.BlockReceipt{}, &models.BlockReceiptLog{}, &models.BlockReceiptTransaction{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.BlockReceipt{}, &models.BlockReceiptLog{}, &models.BlockReceiptTransaction{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

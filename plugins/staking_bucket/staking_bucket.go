@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.1.1"
 
 const (
 	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
@@ -48,7 +48,7 @@ func (b stakingBucketPlugin) Start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
 	}
-	if err := db.DB().AutoMigrate(&models.StakingBucket{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.StakingBucket{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil

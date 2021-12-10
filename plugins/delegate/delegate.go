@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.0.3"
 
 type delegatePlugin struct {
 	stop chan bool
@@ -31,7 +31,7 @@ func (b delegatePlugin) Type() plugin.Type {
 }
 
 func (b delegatePlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.Delegate{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.Delegate{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	var err error

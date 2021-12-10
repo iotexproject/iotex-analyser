@@ -26,7 +26,7 @@ func (b probationPlugin) Type() plugin.Type {
 }
 
 func (b probationPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.Probation{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.Probation{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

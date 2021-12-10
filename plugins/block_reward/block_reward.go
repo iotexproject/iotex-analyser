@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.1.1"
 
 type blockRewardPlugin struct {
 }
@@ -41,7 +41,7 @@ func (b blockRewardPlugin) Type() plugin.Type {
 }
 
 func (b blockRewardPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.BlockReward{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.BlockReward{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

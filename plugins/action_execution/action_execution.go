@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type actionExecutionPlugin struct {
 }
@@ -26,7 +26,7 @@ func (b actionExecutionPlugin) Type() plugin.Type {
 }
 
 func (b actionExecutionPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&ActionExecution{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &ActionExecution{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

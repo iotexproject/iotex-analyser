@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.5"
+const VERSION = "2.0.6"
 
 type candidatePlugin struct {
 }
@@ -30,7 +30,7 @@ func (b candidatePlugin) Type() plugin.Type {
 }
 
 func (b candidatePlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.Candidate{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.Candidate{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

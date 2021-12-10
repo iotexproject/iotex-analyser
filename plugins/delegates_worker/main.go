@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.0.3"
 const TableName = "node_delegates"
 
 type delegatesWorkerPlugin struct {
@@ -31,7 +31,7 @@ func (b delegatesWorkerPlugin) Type() plugin.Type {
 }
 
 func (b delegatesWorkerPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&NodeDelegates{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &NodeDelegates{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

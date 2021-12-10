@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.0.3"
 
 type blockActionPlugin struct {
 }
@@ -30,7 +30,7 @@ func (b blockActionPlugin) Type() plugin.Type {
 }
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.BlockAction{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.BlockAction{}); err != nil {
 		return errors.Wrap(err, "failed to start block plugin")
 	}
 

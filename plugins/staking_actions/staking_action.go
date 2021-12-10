@@ -46,7 +46,7 @@ func (b stakingActionPlugin) DependentPlugin() string {
 }
 
 func (b stakingActionPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.StakingActions{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.StakingActions{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil

@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.3"
+const VERSION = "2.0.4"
 
 type blockMetaPlugin struct {
 }
@@ -30,7 +30,7 @@ func (b blockMetaPlugin) Type() plugin.Type {
 }
 
 func (b blockMetaPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&models.BlockMeta{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.BlockMeta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

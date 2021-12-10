@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type income struct {
 	inFlow        *big.Int
@@ -35,7 +35,7 @@ func (b accountIncomePlugin) Type() plugin.Type {
 func (b accountIncomePlugin) Start(ctx context.Context) error {
 	var ai *AccountIncome
 	var aic *AccountIncomeCount
-	if err := db.DB().AutoMigrate(&AccountIncome{}, &AccountIncomeCount{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &AccountIncome{}, &AccountIncomeCount{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 

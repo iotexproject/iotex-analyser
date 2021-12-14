@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -20,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.2"
+const VERSION = "2.3.3"
 
 var FairbankBlockHeight = 5165641
 
@@ -120,6 +121,8 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					delegateName := getDelegateNameFromTopic(delegateNameTopic)
 					m := models.HermesDistribute{
 						BlockHeight:     blkHeight,
+						EpochNumber:     epochNum,
+						ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
 						StartEpoch:      event.StartEpoch.Uint64(),
 						EndEpoch:        event.EndEpoch.Uint64(),
 						DelegateName:    delegateName,

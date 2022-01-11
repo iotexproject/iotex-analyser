@@ -5,13 +5,14 @@ import (
 	"sync"
 
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.1.0"
 
 type accountMetaPlugin struct {
 	cachedAccounts sync.Map
@@ -27,7 +28,7 @@ func (b accountMetaPlugin) Type() plugin.Type {
 
 func (b accountMetaPlugin) Start(ctx context.Context) error {
 	b.cachedAccounts = sync.Map{}
-	if err := db.AutoMigrate(b.Name(), &AccountMeta{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &models.AccountMeta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
@@ -64,7 +65,7 @@ func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			continue
 		}
 		var count int64
-		if err := db.DB().Model(&AccountMeta{}).Where("address=?", account).Count(&count).Error; err != nil {
+		if err := db.DB().Model(&models.AccountMeta{}).Where("address=?", account).Count(&count).Error; err != nil {
 			return err
 		}
 		if count > 0 {
@@ -78,7 +79,7 @@ func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		for _, account := range processAccounts {
 			meta, err := accountMeta(account)
 			if err == nil {
-				am := &AccountMeta{
+				am := &models.AccountMeta{
 					BlockHeight:      blk.Height(),
 					Address:          account,
 					IsContract:       meta.IsContract,

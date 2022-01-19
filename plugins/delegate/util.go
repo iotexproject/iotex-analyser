@@ -27,7 +27,7 @@ type Delegate struct {
 }
 
 func delegate() error {
-	pluginHeight, err := db.GetIndexHeight("staking_action")
+	pluginHeight, err := db.GetIndexHeight("staking_actions")
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func getCandidateStaking(height uint64) ([]*Staking, error) {
 // check candidate register and amount >= 1200000000000000000000000
 func isSelfStake(candidate string) bool {
 	var count int64
-	if err := db.DB().Model(&models.StakingAction{}).Where("candidate=? and act_type='CandidateRegister' and amount>=1200000000000000000000000", candidate).Count(&count).Error; err != nil {
+	if err := db.DB().Model(&models.StakingActions{}).Where("candidate=? and act_type='CandidateRegister' and amount>=1200000000000000000000000", candidate).Count(&count).Error; err != nil {
 		return false
 	}
 	if count > 0 {

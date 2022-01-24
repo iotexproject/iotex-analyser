@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"math/big"
+	"strconv"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
@@ -11,12 +12,18 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/state"
+	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.4"
+const VERSION = "2.0.5"
+
+var (
+	ActiveBlockProducers []string
+)
 
 type blockMetaPlugin struct {
 }
@@ -30,6 +37,7 @@ func (b blockMetaPlugin) Type() plugin.Type {
 }
 
 func (b blockMetaPlugin) Start(ctx context.Context) error {
+
 	if err := db.AutoMigrate(b.Name(), &models.BlockMeta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -38,6 +46,15 @@ func (b blockMetaPlugin) Start(ctx context.Context) error {
 }
 
 func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	blkHeight := blk.Height()
+	epochNum := kernel.GetEpochNum(blkHeight)
+	epochHeight := kernel.GetEpochHeight(epochNum)
+	chainClient := kernel.ChainClient()
+	if blkHeight == epochHeight {
+		if err := b.updateActiveBlockProducers(chainClient, epochNum); err != nil {
+			return err
+		}
+	}
 	var gasConsumed uint64
 	grantRewardActs := make(map[hash.Hash256]bool)
 	// log action index
@@ -69,9 +86,6 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 		}
 	}
-	blkHeight := blk.Height()
-	epochNum := kernel.GetEpochNum(blkHeight)
-	epochHeight := kernel.GetEpochHeight(epochNum)
 	producerName := ""
 	var cand models.Candidate
 	err := db.DB().Model(&cand).Where("block_height <=? and operator_address = ?", blkHeight, blk.ProducerAddress()).Order("id desc").Take(&cand).Error
@@ -79,16 +93,28 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		producerName = cand.Name
 	}
 
+	expectedProducerAddr := ""
+	expectedProducerName := ""
+	if len(ActiveBlockProducers) > 0 {
+		expectedProducerAddr = ActiveBlockProducers[int(blkHeight)%len(ActiveBlockProducers)]
+		err := db.DB().Model(&cand).Where("block_height <=? and operator_address = ?", blkHeight, expectedProducerAddr).Order("id desc").Take(&cand).Error
+		if err == nil {
+			expectedProducerName = cand.Name
+		}
+	}
+
 	bm := &models.BlockMeta{
-		BlockHeight:     blkHeight,
-		GasConsumed:     gasConsumed,
-		ProducerName:    producerName,
-		ProducerAddress: blk.ProducerAddress(),
-		BlockReward:     decimal.NewFromBigInt(blockReward, 0),
-		EpochReward:     decimal.NewFromBigInt(epochReward, 0),
-		FoundationBonus: decimal.NewFromBigInt(foundationBonus, 0),
-		EpochNum:        epochNum,
-		EpochHeight:     epochHeight,
+		BlockHeight:             blkHeight,
+		GasConsumed:             gasConsumed,
+		ProducerName:            producerName,
+		ProducerAddress:         blk.ProducerAddress(),
+		ExpectedProducerName:    expectedProducerName,
+		ExpectedProducerAddress: expectedProducerAddr,
+		BlockReward:             decimal.NewFromBigInt(blockReward, 0),
+		EpochReward:             decimal.NewFromBigInt(epochReward, 0),
+		FoundationBonus:         decimal.NewFromBigInt(foundationBonus, 0),
+		EpochNum:                epochNum,
+		EpochHeight:             epochHeight,
 	}
 
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
@@ -106,6 +132,29 @@ func (b blockMetaPlugin) Stop(ctx context.Context) error {
 
 func (b blockMetaPlugin) Version() string {
 	return VERSION
+}
+
+func (b blockMetaPlugin) updateActiveBlockProducers(chainClient iotexapi.APIServiceClient, epochNumber uint64) error {
+	readStateRequest := &iotexapi.ReadStateRequest{
+		ProtocolID: []byte("poll"),
+		MethodName: []byte("ActiveBlockProducersByEpoch"),
+		Arguments:  [][]byte{[]byte(strconv.FormatUint(epochNumber, 10))},
+	}
+	readStateRes, err := chainClient.ReadState(context.Background(), readStateRequest)
+	if err != nil {
+		return errors.Wrap(err, "failed to get active block producers")
+	}
+
+	var activeBlockProducers state.CandidateList
+	if err := activeBlockProducers.Deserialize(readStateRes.GetData()); err != nil {
+		return errors.Wrap(err, "failed to deserialize active block producers")
+	}
+	ActiveBlockProducers = []string{}
+	for _, activeBlockProducer := range activeBlockProducers {
+		ActiveBlockProducers = append(ActiveBlockProducers, activeBlockProducer.Address)
+	}
+
+	return nil
 }
 
 // exported

@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.3"
+const VERSION = "2.3.4"
 
 var FairbankBlockHeight = 5165641
 

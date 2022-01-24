@@ -69,12 +69,14 @@ type (
 		TotalWeightedVotes *big.Int
 	}
 	Productivity struct {
-		Production uint64
+		Production         uint64
+		ExpectedProduction uint64
 	}
 	ProductivityHistory struct {
-		EpochNumber  uint64
-		ProducerName string
-		Production   uint64
+		EpochNumber        uint64
+		ProducerName       string
+		Production         uint64
+		ExpectedProduction uint64
 	}
 )
 
@@ -231,6 +233,9 @@ func breakdownRewards(
 		if productivity, ok := productivityMap[candidateName]; ok {
 			productionSum.Add(productionSum, big.NewInt(int64(productivity.Production)))
 			earnBlockReward[candidateName] = true
+			if productivity.Production*100/productivity.ExpectedProduction < 85 {
+				productive = false
+			}
 		}
 		NumDelegatesForEpochReward := uint64(100)
 		NumDelegatesForFoundationBonus := uint64(36)
@@ -273,7 +278,7 @@ func getProductivity(epochNumber uint64) (map[string]*Productivity, error) {
 
 	db := db.DB()
 	var rows []ProductivityHistory
-	if err := db.Raw("SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name", epochNumber).Find(&rows).Error; err != nil {
+	if err := db.Raw("SELECT t1.epoch_num, t1.expected_producer_name AS delegate_name,COALESCE(production,0) as production, COALESCE(expected_production,0) as expected_production FROM (SELECT epoch_num, expected_producer_name, COUNT(expected_producer_address) AS expected_production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, expected_producer_name) AS t1 LEFT JOIN (SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name) AS t2 ON t1.epoch_num = t2.epoch_num AND t1.expected_producer_name=t2.producer_name", epochNumber, epochNumber).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -284,7 +289,8 @@ func getProductivity(epochNumber uint64) (map[string]*Productivity, error) {
 	productivityMap := make(map[string]*Productivity)
 	for _, row := range rows {
 		productivityMap[row.ProducerName] = &Productivity{
-			Production: row.Production,
+			Production:         row.Production,
+			ExpectedProduction: row.ExpectedProduction,
 		}
 	}
 	return productivityMap, nil

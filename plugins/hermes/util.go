@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"gorm.io/gorm"
 )
 
 const (
@@ -140,58 +139,55 @@ func rebuildAccountRewardTable(lastEpoch uint64) error {
 			return err
 		}
 	}
-	err = db.Transaction(func(tx *gorm.DB) error {
-		for _, row := range rows {
-			epochNumber := row.EpochNumber
-			rewardAddress := row.RewardAddress
-			candidateNames := rewardAddrToNameMapping[rewardAddress]
-			// Multiple delegates share reward address
-			totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
-			if !ok {
-				return errors.New("failed to convert string to big int")
+	for _, row := range rows {
+		epochNumber := row.EpochNumber
+		rewardAddress := row.RewardAddress
+		candidateNames := rewardAddrToNameMapping[rewardAddress]
+		// Multiple delegates share reward address
+		totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
+		if !ok {
+			return errors.New("failed to convert string to big int")
+		}
+		totalEpochReward, ok := big.NewInt(0).SetString(row.EpochReward, 10)
+		if !ok {
+			return errors.New("failed to convert string to big int")
+		}
+		totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
+		if !ok {
+			return errors.New("failed to convert string to big int")
+		}
+		if len(candidateNames) == 1 {
+			candidateName := candidateNames[0]
+			modelHAR := &models.HermesAccountReward{
+				EpochNumber:     lastEpoch,
+				CandidateName:   candidateName,
+				BlockReward:     decimal.NewFromBigInt(totalBlockReward, 0),
+				EpochReward:     decimal.NewFromBigInt(totalEpochReward, 0),
+				FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
 			}
-			totalEpochReward, ok := big.NewInt(0).SetString(row.EpochReward, 10)
-			if !ok {
-				return errors.New("failed to convert string to big int")
+			if err := db.Create(modelHAR).Error; err != nil {
+				return err
 			}
-			totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
-			if !ok {
-				return errors.New("failed to convert string to big int")
+			continue
+		}
+		candidateRewardsMap, err := breakdownRewards(epochNumber, candidateNames, weightedVotesMapping,
+			totalBlockReward, totalEpochReward, totalFoundationBonus)
+		if err != nil {
+			return errors.Wrap(err, "failed to get candidate rewards map")
+		}
+		for candidateName, rewards := range candidateRewardsMap {
+			modelHAR := &models.HermesAccountReward{
+				EpochNumber:     lastEpoch,
+				CandidateName:   candidateName,
+				BlockReward:     decimal.NewFromBigInt(rewards[0], 0),
+				EpochReward:     decimal.NewFromBigInt(rewards[1], 0),
+				FoundationBonus: decimal.NewFromBigInt(rewards[2], 0),
 			}
-			if len(candidateNames) == 1 {
-				candidateName := candidateNames[0]
-				modelHAR := &models.HermesAccountReward{
-					EpochNumber:     lastEpoch,
-					CandidateName:   candidateName,
-					BlockReward:     decimal.NewFromBigInt(totalBlockReward, 0),
-					EpochReward:     decimal.NewFromBigInt(totalEpochReward, 0),
-					FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
-				}
-				if err := tx.Create(modelHAR).Error; err != nil {
-					return err
-				}
-				continue
-			}
-			candidateRewardsMap, err := breakdownRewards(epochNumber, candidateNames, weightedVotesMapping,
-				totalBlockReward, totalEpochReward, totalFoundationBonus)
-			if err != nil {
-				return errors.Wrap(err, "failed to get candidate rewards map")
-			}
-			for candidateName, rewards := range candidateRewardsMap {
-				modelHAR := &models.HermesAccountReward{
-					EpochNumber:     lastEpoch,
-					CandidateName:   candidateName,
-					BlockReward:     decimal.NewFromBigInt(rewards[0], 0),
-					EpochReward:     decimal.NewFromBigInt(rewards[1], 0),
-					FoundationBonus: decimal.NewFromBigInt(rewards[2], 0),
-				}
-				if err := tx.Create(modelHAR).Error; err != nil {
-					return err
-				}
+			if err := db.Create(modelHAR).Error; err != nil {
+				return err
 			}
 		}
-		return nil
-	})
+	}
 	return err
 }
 

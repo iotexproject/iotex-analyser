@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.5"
+const VERSION = "2.3.6"
 
 var FairbankBlockHeight = 5165641
 
@@ -90,80 +90,80 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
-	for _, receipt := range blk.Receipts {
-		if receipt.Status != successStatus {
-			continue
-		}
-		for _, log := range receipt.Logs() {
-			topics := log.Topics
-			if log.Address == "" || len(topics) < 2 {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		for _, receipt := range blk.Receipts {
+			if receipt.Status != successStatus {
 				continue
 			}
-			switch log.Address {
-			case HermesContractAddress:
-				/**
-				 * Distribute(uint256 startEpoch, uint256 endEpoch, bytes32 indexed delegateName, uint256 numOfRecipients, uint256 totalAmount);
-				 */
-				switch topics[0] {
-				case DISTRIBUTE:
-					event := struct {
-						StartEpoch      *big.Int
-						EndEpoch        *big.Int
-						DelegateName    [32]byte
-						NumOfRecipients *big.Int
-						TotalAmount     *big.Int
-					}{}
-					err := hermesABI.UnpackIntoInterface(&event, "Distribute", log.Data)
-					if err != nil {
-						return err
-					}
-					delegateNameTopic := log.Topics[1]
-					delegateName := getDelegateNameFromTopic(delegateNameTopic)
-					m := models.HermesDistribute{
-						BlockHeight:     blkHeight,
-						EpochNumber:     epochNum,
-						ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
-						StartEpoch:      event.StartEpoch.Uint64(),
-						EndEpoch:        event.EndEpoch.Uint64(),
-						DelegateName:    delegateName,
-						NumOfRecipients: event.NumOfRecipients.Uint64(),
-						TotalAmount:     decimal.NewFromBigInt(event.TotalAmount, 0),
-					}
-					if err = db.DB().Create(&m).Error; err != nil {
-						return err
+			for _, log := range receipt.Logs() {
+				topics := log.Topics
+				if log.Address == "" || len(topics) < 2 {
+					continue
+				}
+				switch log.Address {
+				case HermesContractAddress:
+					/**
+					 * Distribute(uint256 startEpoch, uint256 endEpoch, bytes32 indexed delegateName, uint256 numOfRecipients, uint256 totalAmount);
+					 */
+					switch topics[0] {
+					case DISTRIBUTE:
+						event := struct {
+							StartEpoch      *big.Int
+							EndEpoch        *big.Int
+							DelegateName    [32]byte
+							NumOfRecipients *big.Int
+							TotalAmount     *big.Int
+						}{}
+						err := hermesABI.UnpackIntoInterface(&event, "Distribute", log.Data)
+						if err != nil {
+							return err
+						}
+						delegateNameTopic := log.Topics[1]
+						delegateName := getDelegateNameFromTopic(delegateNameTopic)
+						m := models.HermesDistribute{
+							BlockHeight:     blkHeight,
+							EpochNumber:     epochNum,
+							ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
+							StartEpoch:      event.StartEpoch.Uint64(),
+							EndEpoch:        event.EndEpoch.Uint64(),
+							DelegateName:    delegateName,
+							NumOfRecipients: event.NumOfRecipients.Uint64(),
+							TotalAmount:     decimal.NewFromBigInt(event.TotalAmount, 0),
+						}
+						if err = tx.Create(&m).Error; err != nil {
+							return err
+						}
 					}
 				}
 			}
 		}
-	}
-	if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
-		var count int64
-		if err := rebuildAccountRewardTable(epochNum - 1); err != nil {
-			return errors.Wrap(err, "failed to rebuild account reward table")
-		}
-
-		probationList, err := fetchProbationList(chainClient, epochNum)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
-		}
-		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
-		voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
-		if err != nil {
-			return errors.Wrap(err, "failed to get buckets count")
-		}
-		candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
-		if err != nil {
-			return errors.Wrap(err, "failed to get candidates count")
-		}
-		if probationList != nil {
-			candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
-			if err != nil {
-				return errors.Wrap(err, "failed to filter candidate with probation list")
+		if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
+			var count int64
+			if err := rebuildAccountRewardTable(tx, epochNum-1); err != nil {
+				return errors.Wrap(err, "failed to rebuild account reward table")
 			}
-		}
-		err = db.DB().Transaction(func(tx *gorm.DB) error {
+
+			probationList, err := fetchProbationList(chainClient, epochNum)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
+			}
+			prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
+			voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
+			if err != nil {
+				return errors.Wrap(err, "failed to get buckets count")
+			}
+			candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
+			if err != nil {
+				return errors.Wrap(err, "failed to get candidates count")
+			}
+			if probationList != nil {
+				candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
+				if err != nil {
+					return errors.Wrap(err, "failed to filter candidate with probation list")
+				}
+			}
 			// update voting_result table
-			err := tx.Model(&models.HermesVotingResult{}).Where("epoch_number = ?", epochNum).Count(&count).Error
+			err = tx.Model(&models.HermesVotingResult{}).Where("epoch_number = ?", epochNum).Count(&count).Error
 			if err != nil {
 				return err
 			}
@@ -182,13 +182,10 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					return err
 				}
 			}
-			return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-		})
-		if err != nil {
-			return err
 		}
-	}
-	return db.UpdateIndexHeight(b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+	})
+	return err
 }
 
 func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.CandidateListV2, epochNumber, epochStartheight uint64, chainClient iotexapi.APIServiceClient) (err error) {

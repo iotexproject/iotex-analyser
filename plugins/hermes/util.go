@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
-	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	etypes "github.com/iotexproject/iotex-election/types"
@@ -27,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 const (
@@ -84,11 +84,9 @@ func getDelegateNameFromTopic(logTopic hash.Hash256) string {
 	return string(logTopic[:n])
 }
 
-func getVotingInfo(lastEpoch uint64) (map[string][]string, map[string]*big.Int, error) {
-
-	db := db.DB()
+func getVotingInfo(tx *gorm.DB, lastEpoch uint64) (map[string][]string, map[string]*big.Int, error) {
 	var rows []models.HermesVotingResult
-	if err := db.Model(models.HermesVotingResult{}).Where("epoch_number=?", lastEpoch).Find(&rows).Error; err != nil {
+	if err := tx.Model(models.HermesVotingResult{}).Where("epoch_number=?", lastEpoch).Find(&rows).Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -113,13 +111,12 @@ func getVotingInfo(lastEpoch uint64) (map[string][]string, map[string]*big.Int, 
 	return rewardAddrToNameMapping, weightedVotesMapping, nil
 }
 
-func rebuildAccountRewardTable(lastEpoch uint64) error {
+func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 	if lastEpoch == 0 {
 		return nil
 	}
-	db := db.DB()
 	// Get voting result from last epoch
-	rewardAddrToNameMapping, weightedVotesMapping, err := getVotingInfo(lastEpoch)
+	rewardAddrToNameMapping, weightedVotesMapping, err := getVotingInfo(tx, lastEpoch)
 	if err != nil {
 		if errors.Is(err, ErrEmptyRecords) {
 			return nil
@@ -128,13 +125,13 @@ func rebuildAccountRewardTable(lastEpoch uint64) error {
 	}
 	// Get aggregate reward	records from last epoch
 	var rows []AggregateReward
-	if err := db.Raw("SELECT epoch_number, reward_address, SUM(block_reward) block_reward, SUM(epoch_reward)epoch_reward, SUM(foundation_bonus)foundation_bonus "+
+	if err := tx.Raw("SELECT epoch_number, reward_address, SUM(block_reward) block_reward, SUM(epoch_reward)epoch_reward, SUM(foundation_bonus)foundation_bonus "+
 		"FROM block_rewards WHERE epoch_number = ? GROUP BY epoch_number, reward_address", lastEpoch).Find(&rows).Error; err != nil {
 		return err
 	}
 
 	if len(rows) > 0 {
-		err := db.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error
+		err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error
 		if err != nil {
 			return err
 		}
@@ -165,12 +162,12 @@ func rebuildAccountRewardTable(lastEpoch uint64) error {
 				EpochReward:     decimal.NewFromBigInt(totalEpochReward, 0),
 				FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
 			}
-			if err := db.Create(modelHAR).Error; err != nil {
+			if err := tx.Create(modelHAR).Error; err != nil {
 				return err
 			}
 			continue
 		}
-		candidateRewardsMap, err := breakdownRewards(epochNumber, candidateNames, weightedVotesMapping,
+		candidateRewardsMap, err := breakdownRewards(tx, epochNumber, candidateNames, weightedVotesMapping,
 			totalBlockReward, totalEpochReward, totalFoundationBonus)
 		if err != nil {
 			return errors.Wrap(err, "failed to get candidate rewards map")
@@ -183,7 +180,7 @@ func rebuildAccountRewardTable(lastEpoch uint64) error {
 				EpochReward:     decimal.NewFromBigInt(rewards[1], 0),
 				FoundationBonus: decimal.NewFromBigInt(rewards[2], 0),
 			}
-			if err := db.Create(modelHAR).Error; err != nil {
+			if err := tx.Create(modelHAR).Error; err != nil {
 				return err
 			}
 		}
@@ -192,6 +189,7 @@ func rebuildAccountRewardTable(lastEpoch uint64) error {
 }
 
 func breakdownRewards(
+	tx *gorm.DB,
 	epochNumber uint64,
 	candidateNames []string,
 	weightedVotesMap map[string]*big.Int,
@@ -214,7 +212,7 @@ func breakdownRewards(
 	for i, candidateVote := range candidateVoteList {
 		candidateRank[candidateVote.CandidateName] = uint64(i + 1)
 	}
-	productivityMap, err := getProductivity(epochNumber)
+	productivityMap, err := getProductivity(tx, epochNumber)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get productivity map")
 	}
@@ -270,11 +268,10 @@ func breakdownRewards(
 	return candidateRewardsMap, nil
 }
 
-func getProductivity(epochNumber uint64) (map[string]*Productivity, error) {
+func getProductivity(tx *gorm.DB, epochNumber uint64) (map[string]*Productivity, error) {
 
-	db := db.DB()
 	var rows []ProductivityHistory
-	if err := db.Raw("SELECT t1.epoch_num, t1.expected_producer_name AS delegate_name,COALESCE(production,0) as production, COALESCE(expected_production,0) as expected_production FROM (SELECT epoch_num, expected_producer_name, COUNT(expected_producer_address) AS expected_production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, expected_producer_name) AS t1 LEFT JOIN (SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name) AS t2 ON t1.epoch_num = t2.epoch_num AND t1.expected_producer_name=t2.producer_name", epochNumber, epochNumber).Find(&rows).Error; err != nil {
+	if err := tx.Raw("SELECT t1.epoch_num, t1.expected_producer_name AS delegate_name,COALESCE(production,0) as production, COALESCE(expected_production,0) as expected_production FROM (SELECT epoch_num, expected_producer_name, COUNT(expected_producer_address) AS expected_production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, expected_producer_name) AS t1 LEFT JOIN (SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name) AS t2 ON t1.epoch_num = t2.epoch_num AND t1.expected_producer_name=t2.producer_name", epochNumber, epochNumber).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 

@@ -271,7 +271,7 @@ func breakdownRewards(
 func getProductivity(tx *gorm.DB, epochNumber uint64) (map[string]*Productivity, error) {
 
 	var rows []ProductivityHistory
-	if err := tx.Raw("SELECT t1.epoch_num, t1.expected_producer_name AS delegate_name,COALESCE(production,0) as production, COALESCE(expected_production,0) as expected_production FROM (SELECT epoch_num, expected_producer_name, COUNT(expected_producer_address) AS expected_production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, expected_producer_name) AS t1 LEFT JOIN (SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name) AS t2 ON t1.epoch_num = t2.epoch_num AND t1.expected_producer_name=t2.producer_name", epochNumber, epochNumber).Find(&rows).Error; err != nil {
+	if err := tx.Raw("SELECT t1.epoch_num, t1.expected_producer_name AS producer_name,COALESCE(production,0) as production, COALESCE(expected_production,0) as expected_production FROM (SELECT epoch_num, expected_producer_name, COUNT(expected_producer_address) AS expected_production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, expected_producer_name) AS t1 LEFT JOIN (SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name) AS t2 ON t1.epoch_num = t2.epoch_num AND t1.expected_producer_name=t2.producer_name", epochNumber, epochNumber).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 

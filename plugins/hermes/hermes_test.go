@@ -16,18 +16,27 @@ import (
 
 func TestHermes(t *testing.T) {
 	require := require.New(t)
+	// config.Default.Database = config.Database{
+	// 	Driver:   "postgres",
+	// 	Name:     "mainnet",
+	// 	Host:     "scout.cluster-cpx5likuxolf.us-west-1.rds.amazonaws.com",
+	// 	Port:     "5432",
+	// 	User:     "scout",
+	// 	Password: "ScoutPssw0rd",
+	// 	Debug:    true,
+	// }
 	config.Default.Database = config.Database{
 		Driver:   "postgres",
-		Name:     "mainnet",
-		Host:     "scout.cluster-cpx5likuxolf.us-west-1.rds.amazonaws.com",
+		Name:     "mainlive",
+		Host:     "127.0.0.1",
 		Port:     "5432",
-		User:     "scout",
-		Password: "ScoutPssw0rd",
+		User:     "postgres",
+		Password: "admin",
 		Debug:    true,
 	}
 	_, err := db.Connect()
 	require.NoError(err)
-	err = rebuildAccountRewardTable2(23830)
+	err = rebuildAccountRewardTable2(23288)
 	require.NoError(err)
 }
 
@@ -50,7 +59,7 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 			"FROM block_rewards WHERE epoch_number = ? GROUP BY epoch_number, reward_address", lastEpoch).Find(&rows).Error; err != nil {
 			return err
 		}
-
+		ii := 0
 		for _, row := range rows {
 			epochNumber := row.EpochNumber
 			rewardAddress := row.RewardAddress
@@ -69,6 +78,16 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 				return errors.New("failed to convert string to big int")
 			}
 			if len(candidateNames) == 1 {
+				candidateName := candidateNames[0]
+				modelHAR := &models.HermesAccountReward{
+					EpochNumber:     lastEpoch,
+					CandidateName:   candidateName,
+					BlockReward:     decimal.NewFromBigInt(totalBlockReward, 0),
+					EpochReward:     decimal.NewFromBigInt(totalEpochReward, 0),
+					FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
+				}
+				fmt.Printf("%d %+v\n", ii, modelHAR)
+				ii++
 				continue
 			}
 			candidateRewardsMap, err := breakdownRewards(tx, epochNumber, candidateNames, weightedVotesMapping,
@@ -85,7 +104,8 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 					EpochReward:     decimal.NewFromBigInt(rewards[1], 0),
 					FoundationBonus: decimal.NewFromBigInt(rewards[2], 0),
 				}
-				fmt.Printf("%v\n", modelHAR)
+				fmt.Printf("%d %+v\n", ii, modelHAR)
+				ii++
 			}
 		}
 		return nil

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/shopspring/decimal"
@@ -35,6 +36,7 @@ func delegate() error {
 	if err != nil {
 		return err
 	}
+	delegateActives := getDelegateActive(pluginHeight)
 	candidates, err := models.GetAllCandidates()
 	if err != nil {
 		return err
@@ -48,13 +50,18 @@ func delegate() error {
 			if err != nil {
 				return err
 			}
-
+			active := false
+			//cand.OperatorAddress is block producer address
+			if _, ok := delegateActives[cand.OperatorAddress]; ok {
+				active = true
+			}
 			delegate = &Delegate{
 				Name:            cand.Name,
 				OwnerAddress:    staking.OwnerAddress,
 				Candidate:       staking.Candidate,
 				OperatorAddress: cand.OperatorAddress,
 				RewardAddress:   cand.RewardAddress,
+				Active:          active,
 				StakeAmount:     big.NewInt(0),
 				VoteWeight:      big.NewInt(0),
 				SelfStake:       isSelfStake(staking.Candidate),
@@ -85,6 +92,7 @@ func delegate() error {
 				RewardAddress:   d.RewardAddress,
 				OwnerAddress:    d.OwnerAddress,
 				Candidate:       c,
+				Active:          d.Active,
 				Name:            d.Name,
 				StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
 				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
@@ -172,4 +180,21 @@ func isSelfStake(candidate string) bool {
 		return true
 	}
 	return false
+}
+
+func getDelegateActive(height uint64) map[string]struct{} {
+	epochNumber := kernel.GetEpochNum(height)
+	delegateActive := make(map[string]struct{})
+	startHeight := kernel.GetEpochHeight(epochNumber)
+	db := db.DB()
+	var actives []struct {
+		ProducerAddress string
+	}
+	if err := db.Model(&models.Block{}).Distinct("producer_address").Where("block_height >= ? and block_height <= ?", startHeight, height).Find(&actives).Error; err != nil {
+		return delegateActive
+	}
+	for _, a := range actives {
+		delegateActive[a.ProducerAddress] = struct{}{}
+	}
+	return delegateActive
 }

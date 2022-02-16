@@ -54,7 +54,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		var accountVote AccountVote
 		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
-			actionHash := selp.Hash()
+			actionHash, _ := selp.Hash()
 			actions[actionHash] = selp
 		}
 		for _, receipt := range blk.Receipts {
@@ -74,7 +74,7 @@ func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				if err != nil {
 					return err
 				}
-				actionHash := selp.Hash()
+				actionHash, _ := selp.Hash()
 				bucketID, err := getBucketIDByActHash(hex.EncodeToString(actionHash[:]))
 				if err != nil {
 					return err

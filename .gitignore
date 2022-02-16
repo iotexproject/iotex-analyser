@@ -18,7 +18,7 @@ iotex-analyser
 *.db
 *.log
 config_testlive.yml
-test/
+testdata/
 config_mainnet.yml
 daodb/
 config_mainlive.yml

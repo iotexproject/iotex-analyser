@@ -57,7 +57,7 @@ func (b blockRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		// log action index
 		for _, selp := range blk.Actions {
 			if _, ok := selp.Action().(*action.GrantReward); ok {
-				actHash := selp.Hash()
+				actHash, _ := selp.Hash()
 				grantRewardActs[actHash] = true
 			}
 		}

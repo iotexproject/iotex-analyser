@@ -75,7 +75,7 @@ func (b rewardHistoryPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 		// log action index
 		for _, selp := range blk.Actions {
 			if _, ok := selp.Action().(*action.GrantReward); ok {
-				actHash := selp.Hash()
+				actHash, _ := selp.Hash()
 				grantRewardActs[actHash] = true
 			}
 		}

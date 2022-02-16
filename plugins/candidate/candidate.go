@@ -41,7 +41,7 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
-			actionHash := selp.Hash()
+			actionHash, _ := selp.Hash()
 			actions[actionHash] = selp
 		}
 

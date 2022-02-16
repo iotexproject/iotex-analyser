@@ -18,12 +18,12 @@ func getBlockString(blk *block.Block) string {
 	res.WriteString(fmt.Sprintf("===== header =====\n"))
 	txtRoot := blk.Header.TxRoot()
 	res.WriteString(fmt.Sprintf("txRoot : %s\n", hex.EncodeToString(txtRoot[:])))
-	calTxtRoot := blk.CalculateTxRoot()
+	calTxtRoot, _ := blk.CalculateTxRoot()
 	res.WriteString(fmt.Sprintf("CalculateTxRoot : %s\n", hex.EncodeToString(calTxtRoot[:])))
 
 	for i, selp := range blk.Actions {
 		res.WriteString(fmt.Sprintf("===== action: #%d =====\n", i))
-		actionHash := selp.Hash()
+		actionHash, _ := selp.Hash()
 		res.WriteString(fmt.Sprintf("actionHash : %s\n", hex.EncodeToString(actionHash[:])))
 		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 		res.WriteString(fmt.Sprintf("from : %s\n", sender))

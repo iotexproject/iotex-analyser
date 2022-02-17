@@ -21,5 +21,5 @@ func Test_getDelegateActive(t *testing.T) {
 	}
 	_, err := db.Connect()
 	require.NoError(err)
-	getDelegateActive(4)
+	getDelegateActive(15892200)
 }

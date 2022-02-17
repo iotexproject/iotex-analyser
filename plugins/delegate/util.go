@@ -25,6 +25,7 @@ type Delegate struct {
 	SelfStake       bool
 	Rank            int
 	VoteRate        int
+	Productivity    int
 }
 
 func delegate() error {
@@ -51,9 +52,11 @@ func delegate() error {
 				return err
 			}
 			active := false
+			productionNum := 0
 			//cand.OperatorAddress is block producer address
-			if _, ok := delegateActives[cand.OperatorAddress]; ok {
+			if productivity, ok := delegateActives[cand.OperatorAddress]; ok {
 				active = true
+				productionNum = productivity
 			}
 			delegate = &Delegate{
 				Name:            cand.Name,
@@ -65,6 +68,7 @@ func delegate() error {
 				StakeAmount:     big.NewInt(0),
 				VoteWeight:      big.NewInt(0),
 				SelfStake:       isSelfStake(staking.Candidate),
+				Productivity:    productionNum,
 			}
 		}
 		stakeAmount, _ := big.NewInt(0).SetString(staking.Amount, 0)
@@ -97,6 +101,7 @@ func delegate() error {
 				StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
 				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
 				SelfStake:       d.SelfStake,
+				Productivity:    d.Productivity,
 			}
 			if err := tx.Create(&modelDelegate).Error; err != nil {
 				return err
@@ -182,19 +187,20 @@ func isSelfStake(candidate string) bool {
 	return false
 }
 
-func getDelegateActive(height uint64) map[string]struct{} {
+func getDelegateActive(height uint64) map[string]int {
 	epochNumber := kernel.GetEpochNum(height)
-	delegateActive := make(map[string]struct{})
+	delegateActive := make(map[string]int)
 	startHeight := kernel.GetEpochHeight(epochNumber)
 	db := db.DB()
 	var actives []struct {
 		ProducerAddress string
+		Active          int
 	}
-	if err := db.Model(&models.Block{}).Distinct("producer_address").Where("block_height >= ? and block_height <= ?", startHeight, height).Find(&actives).Error; err != nil {
+	if err := db.Model(&models.Block{}).Select("producer_address, count(*) as active").Where("block_height >= ? and block_height <= ?", startHeight, height).Group("producer_address").Find(&actives).Error; err != nil {
 		return delegateActive
 	}
 	for _, a := range actives {
-		delegateActive[a.ProducerAddress] = struct{}{}
+		delegateActive[a.ProducerAddress] = a.Active
 	}
 	return delegateActive
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"math/big"
 
+	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
 	"github.com/pkg/errors"
@@ -47,4 +49,14 @@ func getRewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, 
 		}
 	}
 	return rewardInfoMap, nil
+}
+
+func getCandidateName(height uint64, address string) string {
+	var cand models.Candidate
+	var name string
+	err := db.DB().Model(&cand).Where("block_height <=? and operator_address = ?", height, address).Order("id desc").Take(&cand).Error
+	if err == nil {
+		name = cand.Name
+	}
+	return name
 }

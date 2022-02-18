@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.5"
+const VERSION = "2.0.6"
 
 var (
 	ActiveBlockProducers []string
@@ -86,39 +86,34 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 		}
 	}
-	producerName := ""
-	var cand models.Candidate
-	err := db.DB().Model(&cand).Where("block_height <=? and operator_address = ?", blkHeight, blk.ProducerAddress()).Order("id desc").Take(&cand).Error
-	if err == nil {
-		producerName = cand.Name
-	}
-
+	producerName := getCandidateName(blkHeight, blk.ProducerAddress())
 	expectedProducerAddr := ""
 	expectedProducerName := ""
 	if len(ActiveBlockProducers) > 0 {
 		expectedProducerAddr = ActiveBlockProducers[int(blkHeight)%len(ActiveBlockProducers)]
-		err := db.DB().Model(&cand).Where("block_height <=? and operator_address = ?", blkHeight, expectedProducerAddr).Order("id desc").Take(&cand).Error
-		if err == nil {
-			expectedProducerName = cand.Name
+		if blk.ProducerAddress() == expectedProducerAddr {
+			expectedProducerName = producerName
+		} else {
+			expectedProducerName = getCandidateName(blkHeight, expectedProducerAddr)
 		}
 	}
 
-	bm := &models.BlockMeta{
-		BlockHeight:             blkHeight,
-		GasConsumed:             gasConsumed,
-		ProducerName:            producerName,
-		ProducerAddress:         blk.ProducerAddress(),
-		ExpectedProducerName:    expectedProducerName,
-		ExpectedProducerAddress: expectedProducerAddr,
-		BlockReward:             decimal.NewFromBigInt(blockReward, 0),
-		EpochReward:             decimal.NewFromBigInt(epochReward, 0),
-		FoundationBonus:         decimal.NewFromBigInt(foundationBonus, 0),
-		EpochNum:                epochNum,
-		EpochHeight:             epochHeight,
-	}
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		bm := models.BlockMeta{
+			BlockHeight:             blkHeight,
+			GasConsumed:             gasConsumed,
+			ProducerName:            producerName,
+			ProducerAddress:         blk.ProducerAddress(),
+			ExpectedProducerName:    expectedProducerName,
+			ExpectedProducerAddress: expectedProducerAddr,
+			BlockReward:             decimal.NewFromBigInt(blockReward, 0),
+			EpochReward:             decimal.NewFromBigInt(epochReward, 0),
+			FoundationBonus:         decimal.NewFromBigInt(foundationBonus, 0),
+			EpochNum:                epochNum,
+			EpochHeight:             epochHeight,
+		}
 
-	err = db.DB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(bm).Error; err != nil {
+		if err := tx.Create(&bm).Error; err != nil {
 			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

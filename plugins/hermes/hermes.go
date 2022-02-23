@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.6"
+const VERSION = "2.3.7"
 
 var FairbankBlockHeight = 5165641
 
@@ -90,7 +90,41 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
+	var candidateList *iotextypes.CandidateListV2
+	var voteBucketList *iotextypes.VoteBucketList
+	var probationList *iotextypes.ProbationCandidateList
+	var err error
+	if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
+		err = db.DB().Transaction(func(tx *gorm.DB) error {
+			if err := rebuildAccountRewardTable(tx, epochNum-1); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to rebuild account reward table")
+		}
+		probationList, err = fetchProbationList(chainClient, epochNum)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
+		}
+		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
+		voteBucketList, err = GetAllStakingBuckets(chainClient, prevEpochHeight)
+		if err != nil {
+			return errors.Wrap(err, "failed to get buckets count")
+		}
+		candidateList1, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
+		if err != nil {
+			return errors.Wrap(err, "failed to get candidates count")
+		}
+		if probationList != nil {
+			candidateList, err = filterStakingCandidates(candidateList1, probationList, blkHeight)
+			if err != nil {
+				return errors.Wrap(err, "failed to filter candidate with probation list")
+			}
+		}
+	}
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, receipt := range blk.Receipts {
 			if receipt.Status != successStatus {
 				continue
@@ -139,29 +173,7 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 		if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
 			var count int64
-			if err := rebuildAccountRewardTable(tx, epochNum-1); err != nil {
-				return errors.Wrap(err, "failed to rebuild account reward table")
-			}
 
-			probationList, err := fetchProbationList(chainClient, epochNum)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
-			}
-			prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
-			voteBucketList, err := GetAllStakingBuckets(chainClient, prevEpochHeight)
-			if err != nil {
-				return errors.Wrap(err, "failed to get buckets count")
-			}
-			candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
-			if err != nil {
-				return errors.Wrap(err, "failed to get candidates count")
-			}
-			if probationList != nil {
-				candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
-				if err != nil {
-					return errors.Wrap(err, "failed to filter candidate with probation list")
-				}
-			}
 			// update voting_result table
 			err = tx.Model(&models.HermesVotingResult{}).Where("epoch_number = ?", epochNum).Count(&count).Error
 			if err != nil {

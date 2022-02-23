@@ -69,7 +69,7 @@ func (r *runner) nextHeight() (uint64, error) {
 }
 
 func (r *runner) Start(ctx context.Context) error {
-	r.logger.Info("staring runner", zap.String("name", r.plugin.Name()))
+	r.logger.Info("starting runner", zap.String("name", r.plugin.Name()))
 	switch r.plugin.Type() {
 	case plugin.TypeWorker:
 		if err := r.plugin.Start(ctx); err != nil {

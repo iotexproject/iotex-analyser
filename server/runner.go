@@ -115,7 +115,7 @@ func (r *runner) Start(ctx context.Context) error {
 		for _, nextHeight := range config.Default.Iotex.CrawlHeight {
 			blk, err := kernel.GetBlockByHeightFromChain(nextHeight)
 			if err != nil {
-				r.logger.Error("failed to read block from chain")
+				r.logger.Error("failed to read block from chain", zap.Error(err))
 				continue
 			}
 			if err := r.plugin.PutBlock(ctx, blk); err != nil {

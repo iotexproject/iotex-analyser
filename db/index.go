@@ -1,6 +1,10 @@
 package db
 
-import "gorm.io/gorm"
+import (
+	"sync"
+
+	"gorm.io/gorm"
+)
 
 type BaseModel struct {
 	IndexName   string `gorm:"-"`
@@ -13,15 +17,23 @@ type IndexHeight struct {
 	Height uint64 `sql:"type:bigint"`
 }
 
+var indexCache sync.Map
+
 func UpdateIndexHeightByTx(tx *gorm.DB, name string, height uint64) error {
+	indexCache.Store(name, height)
 	return tx.Model(&IndexHeight{}).Where("name = ?", name).UpdateColumn("height", height).Error
 }
 
 func UpdateIndexHeight(name string, height uint64) error {
+	indexCache.Store(name, height)
 	return db.Model(&IndexHeight{}).Where("name = ?", name).UpdateColumn("height", height).Error
 }
 
 func GetIndexHeight(name string) (uint64, error) {
+	height, ok := indexCache.Load(name)
+	if ok {
+		return height.(uint64), nil
+	}
 	var m *IndexHeight
 	idx, err := m.ByName(name)
 	if err != nil {

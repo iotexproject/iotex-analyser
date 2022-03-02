@@ -155,14 +155,14 @@ func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 		}
 		if len(candidateNames) == 1 {
 			candidateName := candidateNames[0]
-			modelHAR := &models.HermesAccountReward{
+			modelHAR := models.HermesAccountReward{
 				EpochNumber:     lastEpoch,
 				CandidateName:   candidateName,
 				BlockReward:     decimal.NewFromBigInt(totalBlockReward, 0),
 				EpochReward:     decimal.NewFromBigInt(totalEpochReward, 0),
 				FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
 			}
-			if err := tx.Create(modelHAR).Error; err != nil {
+			if err := tx.Create(&modelHAR).Error; err != nil {
 				return err
 			}
 			continue
@@ -173,14 +173,14 @@ func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 			return errors.Wrap(err, "failed to get candidate rewards map")
 		}
 		for candidateName, rewards := range candidateRewardsMap {
-			modelHAR := &models.HermesAccountReward{
+			modelHAR := models.HermesAccountReward{
 				EpochNumber:     lastEpoch,
 				CandidateName:   candidateName,
 				BlockReward:     decimal.NewFromBigInt(rewards[0], 0),
 				EpochReward:     decimal.NewFromBigInt(rewards[1], 0),
 				FoundationBonus: decimal.NewFromBigInt(rewards[2], 0),
 			}
-			if err := tx.Create(modelHAR).Error; err != nil {
+			if err := tx.Create(&modelHAR).Error; err != nil {
 				return err
 			}
 		}

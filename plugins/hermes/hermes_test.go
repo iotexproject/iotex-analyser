@@ -25,6 +25,15 @@ func TestHermes(t *testing.T) {
 	// 	Password: "ScoutPssw0rd",
 	// 	Debug:    true,
 	// }
+	// config.Default.Database = config.Database{
+	// 	Driver:   "postgres",
+	// 	Name:     "mainnet",
+	// 	Host:     "35.245.68.77",
+	// 	Port:     "5432",
+	// 	User:     "postgres",
+	// 	Password: "MevbHde6PJN9F3zxrh61ViF9q3SeFKzD",
+	// 	Debug:    true,
+	// }
 	config.Default.Database = config.Database{
 		Driver:   "postgres",
 		Name:     "mainlive",
@@ -36,7 +45,7 @@ func TestHermes(t *testing.T) {
 	}
 	_, err := db.Connect()
 	require.NoError(err)
-	err = rebuildAccountRewardTable2(23288)
+	err = rebuildAccountRewardTable2(24738)
 	require.NoError(err)
 }
 
@@ -59,6 +68,12 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 			"FROM block_rewards WHERE epoch_number = ? GROUP BY epoch_number, reward_address", lastEpoch).Find(&rows).Error; err != nil {
 			return err
 		}
+		if len(rows) > 0 {
+			err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error
+			if err != nil {
+				return err
+			}
+		}
 		ii := 0
 		for _, row := range rows {
 			epochNumber := row.EpochNumber
@@ -79,7 +94,7 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 			}
 			if len(candidateNames) == 1 {
 				candidateName := candidateNames[0]
-				modelHAR := &models.HermesAccountReward{
+				modelHAR := models.HermesAccountReward{
 					EpochNumber:     lastEpoch,
 					CandidateName:   candidateName,
 					BlockReward:     decimal.NewFromBigInt(totalBlockReward, 0),
@@ -87,6 +102,9 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 					FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
 				}
 				fmt.Printf("%d %+v\n", ii, modelHAR)
+				if err := tx.Create(&modelHAR).Error; err != nil {
+					return err
+				}
 				ii++
 				continue
 			}
@@ -97,7 +115,7 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 			}
 			fmt.Printf("candidateRewardsMap = %d\n", len(candidateRewardsMap))
 			for candidateName, rewards := range candidateRewardsMap {
-				modelHAR := &models.HermesAccountReward{
+				modelHAR := models.HermesAccountReward{
 					EpochNumber:     lastEpoch,
 					CandidateName:   candidateName,
 					BlockReward:     decimal.NewFromBigInt(rewards[0], 0),
@@ -106,6 +124,9 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 				}
 				fmt.Printf("%d %+v\n", ii, modelHAR)
 				ii++
+				if err := tx.Create(&modelHAR).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return nil

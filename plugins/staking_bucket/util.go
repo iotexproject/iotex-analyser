@@ -72,7 +72,7 @@ type BucketInfo struct {
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&models.StakingBucket{}).Select("owner_address,candidate,auto_stake,duration,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
+	if err := tx.Model(&models.StakingBucket{}).Select("owner_address,candidate,auto_stake,duration,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Last(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil

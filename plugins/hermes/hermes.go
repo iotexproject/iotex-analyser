@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.7"
+const VERSION = "2.3.8"
 
 var FairbankBlockHeight = 5165641
 
@@ -66,8 +66,8 @@ func (b hermesPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b hermesPlugin) DependentPlugin() string {
-	return "block_meta"
+func (b hermesPlugin) DependentPlugins() []string {
+	return []string{"block_meta", "probation", "vote_bucketlist", "candidatelist"}
 }
 
 func (b hermesPlugin) Start(ctx context.Context) error {

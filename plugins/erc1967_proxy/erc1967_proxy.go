@@ -17,7 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 var (
 	UPGRADED        hash.Hash256
@@ -36,8 +36,8 @@ func (b erc1967Proxy) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b erc1967Proxy) DependentPlugin() string {
-	return "account_meta"
+func (b erc1967Proxy) DependentPlugins() []string {
+	return []string{"account_meta"}
 }
 
 func (b erc1967Proxy) Start(ctx context.Context) error {

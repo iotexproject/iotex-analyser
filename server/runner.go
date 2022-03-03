@@ -206,10 +206,22 @@ func (r *runner) Start(ctx context.Context) error {
 
 //checking dependent plugin
 func (r *runner) getTipHeight() (uint64, error) {
-	if dep, ok := r.plugin.(plugin.DependentAdapter); ok {
-		return db.GetIndexHeight(dep.DependentPlugin())
+	depHeight, err := r.dao.Height()
+	if err != nil {
+		return depHeight, err
 	}
-	return r.dao.Height()
+	if dep, ok := r.plugin.(plugin.DependentAdapter); ok {
+		for _, pluginName := range dep.DependentPlugins() {
+			pluginHeight, err := db.GetIndexHeight(pluginName)
+			if err != nil {
+				return pluginHeight, err
+			}
+			if depHeight > pluginHeight {
+				depHeight = pluginHeight
+			}
+		}
+	}
+	return depHeight, nil
 }
 
 func (r *runner) Stop(ctx context.Context) error {

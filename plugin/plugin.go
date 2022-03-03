@@ -23,5 +23,5 @@ type Adapter interface {
 }
 
 type DependentAdapter interface {
-	DependentPlugin() string
+	DependentPlugins() []string
 }

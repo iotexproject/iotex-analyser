@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"time"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -16,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.3"
+const VERSION = "2.1.0"
 
 type blockActionPlugin struct {
 }
@@ -31,16 +33,23 @@ func (b blockActionPlugin) Type() plugin.Type {
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.BlockAction{}); err != nil {
-		return errors.Wrap(err, "failed to start block plugin")
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
-
 	return nil
 }
 
 func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		receipts := make(map[hash.Hash256]*action.Receipt, len(blk.Receipts))
+		for _, receipt := range blk.Receipts {
+			receipts[receipt.ActionHash] = receipt
+		}
 		for _, selp := range blk.Actions {
 			actionHash, _ := selp.Hash()
+			receipt, ok := receipts[actionHash]
+			if !ok {
+				continue
+			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 
 			dst, _ := selp.Destination()
@@ -52,9 +61,11 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			actionType := getActionTypeString(act)
 			amount := big.NewInt(0)
 
+			var payload []byte
 			switch a := act.(type) {
 			case *action.Transfer:
 				amount = a.Amount()
+				payload = a.Payload()
 			case *action.Execution:
 				amount = a.Amount()
 			case *action.DepositToRewardingFund:
@@ -63,23 +74,32 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				amount = a.Amount()
 			case *action.CreateStake:
 				amount = a.Amount()
+				payload = a.Payload()
 			case *action.DepositToStake:
 				amount = a.Amount()
+				payload = a.Payload()
 			case *action.CandidateRegister:
 				amount = a.Amount()
+				payload = a.Payload()
 			}
 
 			amountDec := decimal.NewFromBigInt(amount, 0)
 			m := &models.BlockAction{
-				ActionHash:  hex.EncodeToString(actionHash[:]),
-				ActionType:  actionType,
-				BlockHeight: blk.Height(),
-				From:        sender.String(),
-				To:          dst,
-				GasPrice:    gasPrice,
-				GasLimit:    gasLimit,
-				Nonce:       nonce,
-				Amount:      amountDec,
+				ActionHash:         hex.EncodeToString(actionHash[:]),
+				ActionType:         actionType,
+				BlockHeight:        blk.Height(),
+				Sender:             sender.String(),
+				Recipient:          dst,
+				GasPrice:           gasPrice,
+				GasLimit:           gasLimit,
+				Nonce:              nonce,
+				Amount:             amountDec,
+				GasConsumed:        receipt.GasConsumed,
+				ContractAddress:    receipt.ContractAddress,
+				Status:             receipt.Status,
+				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
+				ExecutionRevertMsg: receipt.ExecutionRevertMsg(),
+				Payload:            payload,
 			}
 			if err := tx.Create(m).Error; err != nil {
 				return err
@@ -87,7 +107,6 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
-
 	return err
 }
 

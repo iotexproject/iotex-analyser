@@ -37,8 +37,8 @@ func (b stakingBucketPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b stakingBucketPlugin) DependentPlugin() string {
-	return "candidate"
+func (b stakingBucketPlugin) DependentPlugins() []string {
+	return []string{"candidate"}
 }
 
 func (b stakingBucketPlugin) Start(ctx context.Context) error {

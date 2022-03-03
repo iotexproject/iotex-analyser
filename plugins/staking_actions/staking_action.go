@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.1.2"
 
 const (
 	// h := hash.Hash160b([]byte("staking"))
@@ -41,8 +41,8 @@ func (b stakingActionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b stakingActionPlugin) DependentPlugin() string {
-	return "candidate"
+func (b stakingActionPlugin) DependentPlugins() []string {
+	return []string{"candidate"}
 }
 
 func (b stakingActionPlugin) Start(ctx context.Context) error {

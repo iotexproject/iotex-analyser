@@ -29,7 +29,7 @@ type runner struct {
 	status    pluginStatus
 	logger    *zap.Logger
 	isRunning *kernel.AtomicBool
-	wg        sync.WaitGroup
+	wg        *sync.WaitGroup
 }
 
 func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*runner, error) {
@@ -39,6 +39,7 @@ func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*r
 		plugin:    p,
 		logger:    log.Logger("runner"),
 		isRunning: new(kernel.AtomicBool),
+		wg:        &sync.WaitGroup{},
 	}
 	r.vec = prometheus.NewGauge(
 		prometheus.GaugeOpts{

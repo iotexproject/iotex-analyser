@@ -123,9 +123,9 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 }
 
 func (s *Service) registerPlugin(plug iap.Adapter) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
 	_, found := s.pluginMap[plug.Name()]
+	s.mu.RUnlock()
 	if found {
 		return errors.Errorf("the plugin `%s(%s)` has been registered", plug.Name(), plug.Version())
 	}
@@ -134,7 +134,9 @@ func (s *Service) registerPlugin(plug iap.Adapter) error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
 	s.pluginMap[plug.Name()] = runner
+	s.mu.Unlock()
 	return nil
 }
 

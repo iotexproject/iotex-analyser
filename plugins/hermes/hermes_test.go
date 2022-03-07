@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -132,4 +134,26 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 		return nil
 	})
 	return err
+}
+
+func TestProbationList(t *testing.T) {
+	require := require.New(t)
+	_, err := initTestConfig()
+	require.NoError(err)
+	epochNum := uint64(24693)
+	chainClient := kernel.ChainClient()
+	probationList1, err := models.GetProbationListByEpoch(epochNum)
+	require.NoError(err)
+	probationList2, err := fetchProbationList(chainClient, epochNum)
+	require.NoError(err)
+	require.EqualValues(probationList1.ProbationList, probationList2.ProbationList)
+	require.Equal(probationList1.IntensityRate, probationList2.IntensityRate)
+}
+
+func initTestConfig() (*gorm.DB, error) {
+	_, err := config.New(os.Getenv("ConfigPath"))
+	if err != nil {
+		return nil, err
+	}
+	return db.Connect()
 }

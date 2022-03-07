@@ -104,16 +104,16 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to rebuild account reward table")
 		}
-		probationList, err = fetchProbationList(chainClient, epochNum)
+		probationList, err = models.GetProbationListByEpoch(epochNum)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
 		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
-		voteBucketList, err = GetAllStakingBuckets(chainClient, prevEpochHeight)
+		voteBucketList, err = models.GetVoteBucketList(prevEpochHeight)
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}
-		candidateList1, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
+		candidateList1, err := models.GetCandidateList(prevEpochHeight)
 		if err != nil {
 			return errors.Wrap(err, "failed to get candidates count")
 		}

@@ -44,7 +44,7 @@ type Service struct {
 	dao       blockdao.BlockDAO
 	logger    *zap.Logger
 	pluginMap map[string]*runner
-	mu        sync.RWMutex
+	mu        *sync.RWMutex
 }
 
 func NewService(dao blockdao.BlockDAO) *Service {
@@ -54,14 +54,15 @@ func NewService(dao blockdao.BlockDAO) *Service {
 		dao:       dao,
 		logger:    log.Logger("service"),
 		pluginMap: make(map[string]*runner),
+		mu:        new(sync.RWMutex),
 	}
 	return s
 }
 
 func (s *Service) Start(ctx context.Context) error {
-
+	s.logger.Info("starting plugin service")
 	go func() {
-		refreshTicker := time.NewTicker(time.Second * 5)
+		refreshTicker := time.NewTicker(time.Minute * 1)
 		defer refreshTicker.Stop()
 		for {
 			select {

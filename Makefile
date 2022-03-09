@@ -36,6 +36,13 @@ clean:
 build:
 	$(GOBUILD) -v .
 
+dev:
+	for plugin in $(PLUGIN_DIRECTORIES) ; do \
+		so=`echo $${plugin}.so | sed 's/plugins\///g'` ; \
+		go build -race -o $$so -buildmode=plugin $$plugin/*.go ; \
+	done
+	go build -race -v .
+
 run: build
 
 docker:

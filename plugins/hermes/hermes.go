@@ -108,12 +108,11 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
-		prevEpochHeight := kernel.GetEpochHeight(epochNum - 1)
-		voteBucketList, err = models.GetVoteBucketList(prevEpochHeight)
+		voteBucketList, err = models.GetVoteBucketList(epochNum)
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}
-		candidateList1, err := models.GetCandidateList(prevEpochHeight)
+		candidateList1, err := models.GetCandidateList(epochNum)
 		if err != nil {
 			return errors.Wrap(err, "failed to get candidates count")
 		}

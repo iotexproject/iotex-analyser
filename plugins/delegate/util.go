@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"math"
 	"math/big"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-proto/golang/iotexapi"
+	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -31,16 +35,32 @@ type Delegate struct {
 func delegate() error {
 	pluginHeight, err := db.GetIndexHeight("staking_actions")
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
+	epochNumber := kernel.GetEpochNum(pluginHeight)
+	request := &iotexapi.GetEpochMetaRequest{EpochNumber: epochNumber}
+	chainClient := kernel.ChainClient()
+	epochMeta, err := chainClient.GetEpochMeta(context.Background(), request)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	raw, _ := json.Marshal(epochMeta.GetBlockProducersInfo())
+	store := &db.Store{
+		Key:   "current_block_producer_info",
+		Value: string(raw),
+	}
+	if err := store.Save(); err != nil {
+		return errors.WithStack(err)
+	}
+
 	stakings, err := getCandidateStaking(pluginHeight)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	delegateActives := getDelegateActive(pluginHeight)
 	candidates, err := models.GetAllCandidates()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)

@@ -29,10 +29,8 @@ jobs:
       id: meta
       uses: docker/metadata-action@v3
       with:
-        with:
-          context: .
-          push: true
-          tags: iotexdev/iotex-analyser:latest
+        images: |
+          iotexdev/iotex-analyser
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v1

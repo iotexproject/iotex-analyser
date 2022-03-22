@@ -107,9 +107,14 @@ func delegate() error {
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate
 	}
+	probationList := getProbationList(pluginHeight)
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		tx.Where("1 = 1").Delete(&models.Delegate{})
 		for c, d := range delegateMap {
+			probated := false
+			if _, ok := probationList[d.OperatorAddress]; ok {
+				probated = true
+			}
 			modelDelegate := models.Delegate{
 				BlockHeight:     pluginHeight,
 				OperatorAddress: d.OperatorAddress,
@@ -122,6 +127,7 @@ func delegate() error {
 				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
 				SelfStake:       d.SelfStake,
 				Productivity:    d.Productivity,
+				Probated:        probated,
 			}
 			if err := tx.Create(&modelDelegate).Error; err != nil {
 				return err
@@ -223,4 +229,20 @@ func getDelegateActive(height uint64) map[string]int {
 		delegateActive[a.ProducerAddress] = a.Active
 	}
 	return delegateActive
+}
+
+func getProbationList(height uint64) map[string]struct{} {
+	epochNumber := kernel.GetEpochNum(height)
+	probationList := make(map[string]struct{})
+	var addresses []struct {
+		Address string
+	}
+	db := db.DB()
+	if err := db.Model(&models.Probation{}).Select("address").Where("epoch_number= ?", epochNumber).Scan(&addresses).Error; err != nil {
+		return probationList
+	}
+	for _, a := range addresses {
+		probationList[a.Address] = struct{}{}
+	}
+	return probationList
 }

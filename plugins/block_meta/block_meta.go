@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.6"
+const VERSION = "2.0.7"
 
 var (
 	ActiveBlockProducers []string
@@ -50,7 +50,7 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
-	if blkHeight == epochHeight {
+	if blkHeight == epochHeight || ActiveBlockProducers == nil {
 		if err := b.updateActiveBlockProducers(chainClient, epochNum); err != nil {
 			return err
 		}

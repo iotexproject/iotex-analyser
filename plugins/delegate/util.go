@@ -87,8 +87,8 @@ func delegate() error {
 				Active:          active,
 				StakeAmount:     big.NewInt(0),
 				VoteWeight:      big.NewInt(0),
-				SelfStake:       isSelfStake(staking.Candidate),
-				Productivity:    productionNum,
+				//SelfStake:       isSelfStake(staking.Candidate),
+				Productivity: productionNum,
 			}
 		}
 		stakeAmount, _ := big.NewInt(0).SetString(staking.Amount, 0)
@@ -108,6 +108,7 @@ func delegate() error {
 		delegateMap[staking.Candidate] = delegate
 	}
 	probationList := getProbationList(pluginHeight)
+	fixStakeAmount, _ := big.NewInt(0).SetString("1200000000000000000000000", 0)
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		tx.Where("1 = 1").Delete(&models.Delegate{})
 		for c, d := range delegateMap {
@@ -125,7 +126,7 @@ func delegate() error {
 				Name:            d.Name,
 				StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
 				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
-				SelfStake:       d.SelfStake,
+				SelfStake:       d.StakeAmount.Cmp(fixStakeAmount) >= 0,
 				Productivity:    d.Productivity,
 				Probated:        probated,
 			}

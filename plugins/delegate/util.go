@@ -87,8 +87,8 @@ func delegate() error {
 				Active:          active,
 				StakeAmount:     big.NewInt(0),
 				VoteWeight:      big.NewInt(0),
-				//SelfStake:       isSelfStake(staking.Candidate),
-				Productivity: productionNum,
+				SelfStake:       isSelfStake(staking.Candidate, epochNumber),
+				Productivity:    productionNum,
 			}
 		}
 		stakeAmount, _ := big.NewInt(0).SetString(staking.Amount, 0)
@@ -108,7 +108,6 @@ func delegate() error {
 		delegateMap[staking.Candidate] = delegate
 	}
 	probationList := getProbationList(pluginHeight)
-	fixStakeAmount, _ := big.NewInt(0).SetString("1200000000000000000000000", 0)
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		tx.Where("1 = 1").Delete(&models.Delegate{})
 		for c, d := range delegateMap {
@@ -126,7 +125,7 @@ func delegate() error {
 				Name:            d.Name,
 				StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
 				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
-				SelfStake:       d.StakeAmount.Cmp(fixStakeAmount) >= 0,
+				SelfStake:       d.SelfStake,
 				Productivity:    d.Productivity,
 				Probated:        probated,
 			}
@@ -203,9 +202,10 @@ func getCandidateStaking(height uint64) ([]*Staking, error) {
 }
 
 // check candidate register and amount >= 1200000000000000000000000
-func isSelfStake(candidate string) bool {
+// only need check hermes_voting_results , epoch_number=1 staking_address=?
+func isSelfStake(candidate string, epochNumber uint64) bool {
 	var count int64
-	if err := db.DB().Model(&models.StakingActions{}).Where("candidate=? and act_type='CandidateRegister' and amount>=1200000000000000000000000", candidate).Count(&count).Error; err != nil {
+	if err := db.DB().Model(&models.HermesVotingResult{}).Where("epoch_number=? and staking_address=? and self_staking>=1200000000000000000000000", epochNumber, candidate).Count(&count).Error; err != nil {
 		return false
 	}
 	if count > 0 {

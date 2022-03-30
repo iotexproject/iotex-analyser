@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.8"
+const VERSION = "2.4.0"
 
 var FairbankBlockHeight = 5165641
 
@@ -108,16 +108,16 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
-		voteBucketList, err = models.GetVoteBucketList(epochNum)
+		voteBucketList, err = models.GetVoteBucketList(epochNum - 1)
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}
-		candidateList1, err := models.GetCandidateList(epochNum)
+		candidateList, err = models.GetCandidateList(epochNum - 1)
 		if err != nil {
 			return errors.Wrap(err, "failed to get candidates count")
 		}
 		if probationList != nil {
-			candidateList, err = filterStakingCandidates(candidateList1, probationList, blkHeight)
+			candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
 			if err != nil {
 				return errors.Wrap(err, "failed to filter candidate with probation list")
 			}

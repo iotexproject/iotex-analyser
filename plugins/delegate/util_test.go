@@ -1,25 +1,99 @@
 package main
 
 import (
+	"fmt"
+	"math/big"
 	"testing"
 
-	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_getDelegateActive(t *testing.T) {
 	require := require.New(t)
-	config.Default.Database = config.Database{
-		Driver:   "postgres",
-		Name:     "mainlive",
-		Host:     "127.0.0.1",
-		Port:     "5432",
-		User:     "postgres",
-		Password: "admin",
-		Debug:    true,
-	}
-	_, err := db.Connect()
+	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
 	getDelegateActive(15892200)
+}
+
+func TestVotes(t *testing.T) {
+	require := require.New(t)
+	_, err := db.LoadDBFromEnv()
+	require.NoError(err)
+
+	epochNumber := uint64(24738)
+	pluginHeight := kernel.GetEpochLastBlockHeight(epochNumber)
+	stakings, err := getCandidateStaking(pluginHeight)
+	require.NoError(err)
+	delegateActives := getDelegateActive(pluginHeight)
+	candidates, err := models.GetAllCandidates()
+	require.NoError(err)
+	delegateMap := make(map[string]*Delegate)
+	totalVotes := big.NewInt(0)
+	for _, staking := range stakings {
+		delegate, ok := delegateMap[staking.Candidate]
+		if !ok {
+			cand, err := candidates.ByOwnerAddress(staking.Candidate)
+			require.NoError(err)
+			active := false
+			productionNum := 0
+			//cand.OperatorAddress is block producer address
+			if productivity, ok := delegateActives[cand.OperatorAddress]; ok {
+				active = true
+				productionNum = productivity
+			}
+			delegate = &Delegate{
+				Name:            cand.Name,
+				OwnerAddress:    staking.OwnerAddress,
+				Candidate:       staking.Candidate,
+				OperatorAddress: cand.OperatorAddress,
+				RewardAddress:   cand.RewardAddress,
+				Active:          active,
+				StakeAmount:     big.NewInt(0),
+				VoteWeight:      big.NewInt(0),
+				SelfStake:       isSelfStake(staking.Candidate, epochNumber),
+				Productivity:    productionNum,
+			}
+		}
+		stakeAmount, _ := big.NewInt(0).SetString(staking.Amount, 0)
+		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
+		voteBucket := &VoteBucket{
+			StakedAmount:   stakeAmount,
+			AutoStake:      staking.AutoStake,
+			StakedDuration: staking.Duration,
+		}
+		selfAutoStake := false
+		if staking.OwnerAddress == staking.Candidate {
+			selfAutoStake = true
+		}
+		voteWeight := calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfAutoStake)
+		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
+		totalVotes = totalVotes.Add(totalVotes, voteWeight)
+		delegateMap[staking.Candidate] = delegate
+	}
+	probationList := getProbationList(pluginHeight)
+	for c, d := range delegateMap {
+		probated := false
+		if _, ok := probationList[d.OperatorAddress]; ok {
+			probated = true
+		}
+		modelDelegate := models.Delegate{
+			BlockHeight:     pluginHeight,
+			OperatorAddress: d.OperatorAddress,
+			RewardAddress:   d.RewardAddress,
+			OwnerAddress:    d.OwnerAddress,
+			Candidate:       c,
+			Active:          d.Active,
+			Name:            d.Name,
+			StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
+			VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
+			SelfStake:       d.SelfStake,
+			Productivity:    d.Productivity,
+			Probated:        probated,
+		}
+		fmt.Printf("%+v\n", modelDelegate)
+	}
 }

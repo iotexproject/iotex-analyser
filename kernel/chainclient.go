@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var chainClient iotexapi.APIServiceClient
@@ -36,6 +37,20 @@ func ChainClient() iotexapi.APIServiceClient {
 		chainClient = iotexapi.NewAPIServiceClient(conn)
 	})
 	return chainClient
+}
+
+func ChainClientWithEndPoint(endpoint string, withInsecure bool) (iotexapi.APIServiceClient, error) {
+	var opt grpc.DialOption
+	if withInsecure {
+		opt = grpc.WithTransportCredentials(insecure.NewCredentials())
+	} else {
+		opt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
+	}
+	conn, err := grpc.Dial(endpoint, opt)
+	if err != nil {
+		return nil, err
+	}
+	return iotexapi.NewAPIServiceClient(conn), nil
 }
 
 var DefaultHTTPClient = &http.Client{

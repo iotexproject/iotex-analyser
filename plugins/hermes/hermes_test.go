@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 	"math/big"
-	"os"
 	"testing"
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -138,7 +138,7 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 
 func TestProbationList(t *testing.T) {
 	require := require.New(t)
-	_, err := initTestConfig()
+	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
 	epochNum := uint64(24693)
 	chainClient := kernel.ChainClient()
@@ -150,10 +150,103 @@ func TestProbationList(t *testing.T) {
 	require.Equal(probationList1.IntensityRate, probationList2.IntensityRate)
 }
 
-func initTestConfig() (*gorm.DB, error) {
-	_, err := config.New(os.Getenv("ConfigPath"))
-	if err != nil {
-		return nil, err
+func TestHermesVotingResults(t *testing.T) {
+	var candidateList *iotextypes.CandidateListV2
+	// var voteBucketList *iotextypes.VoteBucketList
+	var probationList *iotextypes.ProbationCandidateList
+	var err error
+	require := require.New(t)
+	_, err = db.LoadDBFromEnv()
+	require.NoError(err)
+	epochNumber := uint64(24738)
+	blkHeight := kernel.GetEpochHeight(epochNumber)
+	epochStartheight := blkHeight
+	chainClient, err := kernel.ChainClientWithEndPoint("52.82.39.178:14014", true)
+	require.NoError(err)
+	probationList, err = models.GetProbationListByEpoch(epochNumber)
+	require.NoError(err)
+	// voteBucketList, err = models.GetVoteBucketList(epochNumber)
+	// require.NoError(err)
+	candidateList, err = models.GetCandidateList(epochNumber - 1)
+	require.NoError(err)
+	if probationList != nil {
+		candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
+		require.NoError(err)
 	}
-	return db.Connect()
+	blockRewardPortionMap, epochRewardPortionMap, foundationBonusPortionMap, err := getAllStakingDelegateRewardPortions(epochStartheight, epochNumber, chainClient)
+	require.NoError(err)
+
+	for _, candidate := range candidateList.Candidates {
+
+		blockRewardPortion := blockRewardPortionMap[candidate.OwnerAddress]
+		epochRewardPortion := epochRewardPortionMap[candidate.OwnerAddress]
+		foundationBonusPortion := foundationBonusPortionMap[candidate.OwnerAddress]
+		encodedName := candidate.Name
+		require.NoError(err)
+
+		totalWeightedVotes, _ := decimal.NewFromString(candidate.TotalWeightedVotes)
+		selfStakingTokens, _ := decimal.NewFromString(candidate.SelfStakingTokens)
+
+		m := models.HermesVotingResult{
+			EpochNumber:               epochNumber,
+			DelegateName:              encodedName,
+			OperatorAddress:           candidate.OperatorAddress,
+			RewardAddress:             candidate.RewardAddress,
+			StakingAddress:            candidate.OwnerAddress,
+			TotalWeightedVotes:        totalWeightedVotes,
+			SelfStaking:               selfStakingTokens,
+			BlockRewardPercentage:     decimal.NewFromFloat(blockRewardPortion),
+			EpochRewardPercentage:     decimal.NewFromFloat(epochRewardPortion),
+			FoundationBonusPercentage: decimal.NewFromFloat(foundationBonusPortion),
+		}
+		fmt.Printf("%+v\n", m)
+	}
+}
+
+func TestVotingResultV1(t *testing.T) {
+	require := require.New(t)
+	_, err := db.LoadDBFromEnv()
+	require.NoError(err)
+	epochNumber := uint64(24738)
+	blkHeight := kernel.GetEpochHeight(epochNumber)
+	prevEpochHeight := kernel.GetEpochHeight(epochNumber - 1)
+	epochStartheight := blkHeight
+	chainClient, err := kernel.ChainClientWithEndPoint("api.iotex.one:80", true)
+	require.NoError(err)
+	probationList, err := fetchProbationList(chainClient, epochNumber)
+	require.NoError(err)
+	candidateList, err := GetAllStakingCandidates(chainClient, prevEpochHeight)
+	require.NoError(err)
+	if probationList != nil {
+		candidateList, err = filterStakingCandidates(candidateList, probationList, epochStartheight)
+		require.NoError(err)
+	}
+	blockRewardPortionMap, epochRewardPortionMap, foundationBonusPortionMap, err := getAllStakingDelegateRewardPortions(epochStartheight, epochNumber, chainClient)
+	require.NoError(err)
+	fmt.Printf("blockRewardPortionMap = %v\n", blockRewardPortionMap)
+	for _, candidate := range candidateList.Candidates {
+
+		blockRewardPortion := blockRewardPortionMap[candidate.OwnerAddress]
+		epochRewardPortion := epochRewardPortionMap[candidate.OwnerAddress]
+		foundationBonusPortion := foundationBonusPortionMap[candidate.OwnerAddress]
+		encodedName := candidate.Name
+		require.NoError(err)
+
+		totalWeightedVotes, _ := decimal.NewFromString(candidate.TotalWeightedVotes)
+		selfStakingTokens, _ := decimal.NewFromString(candidate.SelfStakingTokens)
+
+		m := models.HermesVotingResult{
+			EpochNumber:               epochNumber,
+			DelegateName:              encodedName,
+			OperatorAddress:           candidate.OperatorAddress,
+			RewardAddress:             candidate.RewardAddress,
+			StakingAddress:            candidate.OwnerAddress,
+			TotalWeightedVotes:        totalWeightedVotes,
+			SelfStaking:               selfStakingTokens,
+			BlockRewardPercentage:     decimal.NewFromFloat(blockRewardPortion),
+			EpochRewardPercentage:     decimal.NewFromFloat(epochRewardPortion),
+			FoundationBonusPercentage: decimal.NewFromFloat(foundationBonusPortion),
+		}
+		fmt.Printf("%+v\n", m)
+	}
 }

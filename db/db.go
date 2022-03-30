@@ -89,3 +89,11 @@ func AutoMigrate(index string, dst ...interface{}) error {
 	}
 	return nil
 }
+
+func LoadDBFromEnv() (*gorm.DB, error) {
+	_, err := config.New(os.Getenv("ConfigPath"))
+	if err != nil {
+		return nil, err
+	}
+	return Connect()
+}

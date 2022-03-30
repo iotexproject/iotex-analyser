@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -12,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.1.1"
 
 type accountMetaPlugin struct {
 	cachedAccounts sync.Map
@@ -47,8 +48,16 @@ func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			if transation.Sender != "" {
 				accounts = appendIfMissing(accounts, transation.Sender)
 			}
-			if transation.Recipient != "" {
-				accounts = appendIfMissing(accounts, transation.Recipient)
+			recipient := transation.Recipient
+			if len(recipient) > kernel.AddressLength {
+				if addr, err := kernel.AddressFromString(recipient); err != nil {
+					recipient = ""
+				} else {
+					recipient = addr.String()
+				}
+			}
+			if recipient != "" {
+				accounts = appendIfMissing(accounts, recipient)
 			}
 		}
 		for _, log := range receipt.Logs() {

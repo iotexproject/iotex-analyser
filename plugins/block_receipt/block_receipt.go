@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.3"
+const VERSION = "2.0.4"
 
 const (
 	transfer                   = "transfer"
@@ -106,13 +106,21 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 			for _, transation := range receipt.TransactionLogs() {
 				transation := transation
 				amountDec := decimal.NewFromBigInt(transation.Amount, 0)
+				recipient := transation.Recipient
+				if len(recipient) > kernel.AddressLength {
+					if addr, err := kernel.AddressFromString(recipient); err != nil {
+						recipient = ""
+					} else {
+						recipient = addr.String()
+					}
+				}
 				brt := &BlockReceiptTransaction{
 					BlockHeight: blk.Height(),
 					ActionHash:  actionHash,
 					Type:        getActionType(transation.Type),
 					Amount:      amountDec,
 					Sender:      transation.Sender,
-					Recipient:   transation.Recipient,
+					Recipient:   recipient,
 				}
 				if err := tx.Create(brt).Error; err != nil {
 					return err

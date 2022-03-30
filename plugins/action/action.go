@@ -9,6 +9,7 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -18,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.1.1"
 
 type actionPlugin struct {
 }
@@ -54,6 +55,13 @@ func (b actionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 
 			dst, _ := selp.Destination()
+			if len(dst) > kernel.AddressLength {
+				if addr, err := kernel.AddressFromString(dst); err != nil {
+					dst = ""
+				} else {
+					dst = addr.String()
+				}
+			}
 			gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
 			gasLimit := selp.GasLimit()
 			nonce := selp.Nonce()

@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.2"
 
 type income struct {
 	inFlow        *big.Int
@@ -100,8 +100,16 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				}
 				incomes[transation.Sender] = inTran
 			}
-			if transation.Recipient != "" {
-				inTran, ok := incomes[transation.Recipient]
+			recipient := transation.Recipient
+			if len(recipient) > kernel.AddressLength {
+				if addr, err := kernel.AddressFromString(recipient); err != nil {
+					recipient = ""
+				} else {
+					recipient = addr.String()
+				}
+			}
+			if recipient != "" {
+				inTran, ok := incomes[recipient]
 				if !ok {
 					inTran = income{
 						inFlow:        big.NewInt(0).Set(transation.Amount),
@@ -113,7 +121,7 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					inTran.inFlow = inTran.inFlow.Add(inTran.inFlow, transation.Amount)
 					inTran.inNumActions += 1
 				}
-				incomes[transation.Recipient] = inTran
+				incomes[recipient] = inTran
 			}
 
 		}

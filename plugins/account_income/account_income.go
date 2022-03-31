@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
@@ -101,9 +102,9 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				incomes[transation.Sender] = inTran
 			}
 			recipient := transation.Recipient
-			if len(recipient) > kernel.AddressLength {
-				if addr, err := kernel.AddressFromString(recipient); err != nil {
-					recipient = ""
+			if len(recipient) > 0 {
+				if addr, err := address.FromString(recipient); err != nil {
+					return errors.Wrapf(err, "failed to parse recipient %s", recipient)
 				} else {
 					recipient = addr.String()
 				}

@@ -9,7 +9,6 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -54,9 +53,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 
 			dst, _ := selp.Destination()
-			if len(dst) > kernel.AddressLength {
-				if addr, err := kernel.AddressFromString(dst); err != nil {
-					dst = ""
+			if len(dst) > 0 {
+				if addr, err := address.FromString(dst); err != nil {
+					return errors.Wrapf(err, "failed to parse recipient %s", dst)
 				} else {
 					dst = addr.String()
 				}

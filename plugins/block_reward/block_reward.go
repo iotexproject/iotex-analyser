@@ -17,7 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.2"
+const VERSION = "2.1.3"
 
 type blockRewardPlugin struct {
 }
@@ -34,6 +34,10 @@ func (b blockRewardPlugin) Name() string {
 
 func (b blockRewardPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
+}
+
+func (b blockRewardPlugin) DependentPlugins() []string {
+	return []string{"candidate"}
 }
 
 func (b blockRewardPlugin) Start(ctx context.Context) error {
@@ -60,6 +64,7 @@ func (b blockRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 
 		// log receipt index
 		for _, receipt := range blk.Receipts {
+			receipt := receipt
 			if _, ok := grantRewardActs[receipt.ActionHash]; !ok {
 				continue
 			}

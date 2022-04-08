@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.4.1"
+const VERSION = "2.4.2"
 
 var FairbankBlockHeight = 5165641
 
@@ -108,11 +108,11 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
-		voteBucketList, err = models.GetVoteBucketList(epochNum - 1)
+		voteBucketList, err = models.GetVoteBucketList(epochNum)
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}
-		candidateList, err = models.GetCandidateList(epochNum - 1)
+		candidateList, err = models.GetCandidateList(epochNum)
 		if err != nil {
 			return errors.Wrap(err, "failed to get candidates count")
 		}
@@ -128,6 +128,7 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			if receipt.Status != successStatus {
 				continue
 			}
+			batches := make([]models.HermesDistribute, 0)
 			for _, log := range receipt.Logs() {
 				topics := log.Topics
 				if log.Address == "" || len(topics) < 2 {
@@ -163,10 +164,13 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							NumOfRecipients: event.NumOfRecipients.Uint64(),
 							TotalAmount:     decimal.NewFromBigInt(event.TotalAmount, 0),
 						}
-						if err = tx.Create(&m).Error; err != nil {
-							return err
-						}
+						batches = append(batches, m)
 					}
+				}
+			}
+			if len(batches) > 0 {
+				if err := tx.CreateInBatches(batches, 100).Error; err != nil {
+					return err
 				}
 			}
 		}
@@ -282,6 +286,7 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 	}
 
 	uniqueMap := make(map[string]bool)
+	batches := make([]models.HermesAggregateVoting, 0)
 	for key, val := range sumOfWeightedVotes {
 		k := fmt.Sprintf("%d%s%s%t", key.epochNumber, key.candidateName, key.voterAddress, key.isNative)
 
@@ -306,13 +311,10 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 			NativeFlag:     key.isNative,
 			AggregateVotes: aggregateVotes,
 		}
-		if err = tx.Create(&m).Error; err != nil {
-			return err
-		}
+		batches = append(batches, m)
 		uniqueMap[k] = true
 	}
-
-	return
+	return tx.CreateInBatches(batches, 100).Error
 }
 func (b hermesPlugin) Stop(ctx context.Context) error {
 	return nil

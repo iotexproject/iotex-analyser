@@ -158,16 +158,16 @@ func TestHermesVotingResults(t *testing.T) {
 	require := require.New(t)
 	_, err = db.LoadDBFromEnv()
 	require.NoError(err)
-	epochNumber := uint64(24738)
+	epochNumber := uint64(25049)
 	blkHeight := kernel.GetEpochHeight(epochNumber)
 	epochStartheight := blkHeight
-	chainClient, err := kernel.ChainClientWithEndPoint("52.82.39.178:14014", true)
+	chainClient, err := kernel.ChainClientWithEndPoint("api.iotex.one:80", true)
 	require.NoError(err)
 	probationList, err = models.GetProbationListByEpoch(epochNumber)
 	require.NoError(err)
 	// voteBucketList, err = models.GetVoteBucketList(epochNumber)
 	// require.NoError(err)
-	candidateList, err = models.GetCandidateList(epochNumber - 1)
+	candidateList, err = models.GetCandidateList(epochNumber)
 	require.NoError(err)
 	if probationList != nil {
 		candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
@@ -207,7 +207,7 @@ func TestVotingResultV1(t *testing.T) {
 	require := require.New(t)
 	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
-	epochNumber := uint64(24738)
+	epochNumber := uint64(25049)
 	blkHeight := kernel.GetEpochHeight(epochNumber)
 	prevEpochHeight := kernel.GetEpochHeight(epochNumber - 1)
 	epochStartheight := blkHeight

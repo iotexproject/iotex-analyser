@@ -45,7 +45,7 @@ func (b candidateListPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 		if err != nil {
 			return errors.Wrapf(err, "failed to get staking bucketlist list from chain service in epoch %d", epochNum)
 		}
-		candidateListData, err = proto.Marshal(candidateList) //nolint:errcheck
+		candidateListData, err = proto.Marshal(candidateList)
 		if err != nil {
 			return errors.Wrapf(err, "failed to marshal vote bucket list in epoch %d", epochNum)
 		}

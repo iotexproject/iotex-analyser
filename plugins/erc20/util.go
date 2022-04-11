@@ -31,6 +31,9 @@ const (
 	//Withdrawal(address,uint256)
 	withdrawalSha3 = "7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65"
 
+	//Approval(address,address,uint256)
+	approvalSha3 = "8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925"
+
 	topicsPlusDataLen = 256
 	sha3Len           = 64
 	contractParamsLen = 64
@@ -57,7 +60,7 @@ func checkTopics(topics, data string) bool {
 	if topics == "" || len(topics) > 64*3 || len(data) > 64*3 {
 		return false
 	}
-	if !strings.Contains(topics, transferSha3) && !strings.Contains(topics, depositSha3) && !strings.Contains(topics, withdrawalSha3) {
+	if !strings.Contains(topics, transferSha3) && !strings.Contains(topics, depositSha3) && !strings.Contains(topics, withdrawalSha3) && !strings.Contains(topics, approvalSha3) {
 		return false
 	}
 	return true

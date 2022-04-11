@@ -29,7 +29,7 @@ import (
 erc20 start block height: 864017
 WIOTX start block height: 12014723
 */
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 const (
 	WIOTXContractAddress = "io15qr5fzpxsnp7garl4m7k355rafzqn8grrm0grz"

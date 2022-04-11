@@ -16,7 +16,7 @@ func TestVoteBucketList(t *testing.T) {
 	require := require.New(t)
 	_, err := initTestConfig()
 	require.NoError(err)
-	epochNum := uint64(25049)
+	epochNum := uint64(25047)
 	chainClient := kernel.ChainClient()
 	list1, err := models.GetVoteBucketList(epochNum)
 	require.NoError(err)

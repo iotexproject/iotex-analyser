@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.0.1"
 
 type voteBucketListPlugin struct {
 }
@@ -38,10 +38,12 @@ func (b voteBucketListPlugin) PutBlock(ctx context.Context, blk *block.Block) er
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
+	preEpochNum := epochNum - 1
+	preEpochHeight := kernel.GetEpochHeight(preEpochNum)
 	var voteBucketListData []byte
 	var err error
-	if blkHeight == epochHeight {
-		voteBucketList, err := GetAllStakingBuckets(chainClient, epochHeight)
+	if blkHeight >= kernel.FairbankEffectiveHeight() && blkHeight == epochHeight {
+		voteBucketList, err := GetAllStakingBuckets(chainClient, preEpochHeight)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get staking bucketlist list from chain service in epoch %d", epochNum)
 		}
@@ -54,7 +56,7 @@ func (b voteBucketListPlugin) PutBlock(ctx context.Context, blk *block.Block) er
 	}
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		m := models.VoteBucketList{
-			EpochNumber: epochNum,
+			EpochNumber: preEpochNum,
 			BucketList:  voteBucketListData,
 		}
 		if err := tx.Create(&m).Error; err != nil {

@@ -146,7 +146,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 					Address:            log.Address,
 					Topics:             bytes.Join(topics, []byte("\n")),
 					Data:               logData,
-					Index:              log.Index,
+					Index:              uint(log.Index),
 					NotFixTopicCopyBug: log.NotFixTopicCopyBug,
 				}
 				if err := tx.Create(brl).Error; err != nil {

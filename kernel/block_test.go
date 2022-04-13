@@ -24,7 +24,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	testPath, err := testutil.PathOfTempFile("test-block")
 	require.NoError(err)
 	defer func() {
-		testutil.CleanupPath(t, testPath)
+		testutil.CleanupPath(testPath)
 	}()
 
 	corecfg.SetEVMNetworkID(4689)

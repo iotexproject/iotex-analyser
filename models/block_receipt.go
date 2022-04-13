@@ -42,7 +42,6 @@ type BlockReceiptLog struct {
 	Data               []byte `gorm:"not null;"`
 	Index              uint   `gorm:"type:int2;unsigned;not null;default:0"`
 	TxIndex            uint   `gorm:"type:int2;unsigned;not null;default:0"`
-	LogIndex           uint   `gorm:"type:int2;unsigned;not null;default:0"`
 	NotFixTopicCopyBug bool   `gorm:"type:bool;not null;default:false"`
 }
 

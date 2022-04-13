@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.2.0"
 
 type blockActionPlugin struct {
 }
@@ -32,7 +32,9 @@ func (b blockActionPlugin) Type() plugin.Type {
 }
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
-	if err := db.AutoMigrate(b.Name(), &models.BlockAction{}); err != nil {
+	if err := db.AutoMigrate(b.Name(),
+		&models.BlockAction{},
+		&models.AccountActionCount{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
@@ -41,16 +43,21 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		receipts := make(map[hash.Hash256]*action.Receipt, len(blk.Receipts))
+		totalMap := make(map[string]int, 0)
 		for _, receipt := range blk.Receipts {
 			receipts[receipt.ActionHash] = receipt
 		}
 		for _, selp := range blk.Actions {
+			accounts := []string{}
 			actionHash, _ := selp.Hash()
 			receipt, ok := receipts[actionHash]
 			if !ok {
 				continue
 			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+			if sender.String() != "" {
+				accounts = appendIfMissing(accounts, sender.String())
+			}
 
 			dst, _ := selp.Destination()
 			if len(dst) > 0 {
@@ -59,7 +66,13 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				} else {
 					dst = addr.String()
 				}
+				accounts = append(accounts, dst)
 			}
+
+			if receipt.ContractAddress != "" {
+				accounts = appendIfMissing(accounts, receipt.ContractAddress)
+			}
+
 			gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
 			gasLimit := selp.GasLimit()
 			nonce := selp.Nonce()
@@ -109,6 +122,20 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				Payload:            payload,
 			}
 			if err := tx.Create(m).Error; err != nil {
+				return err
+			}
+			if len(accounts) > 0 {
+				for _, account := range accounts {
+					totalMap[account]++
+				}
+			}
+		}
+		for account, count := range totalMap {
+			m := &models.AccountActionCount{
+				Address:     account,
+				ActionCount: uint64(count),
+			}
+			if err := m.AddCount(tx, uint64(count), models.AccountActionCountAction); err != nil {
 				return err
 			}
 		}

@@ -29,7 +29,7 @@ import (
 erc20 start block height: 864017
 WIOTX start block height: 12014723
 */
-const VERSION = "2.1.0"
+const VERSION = "2.2.0"
 
 const (
 	WIOTXContractAddress = "io15qr5fzpxsnp7garl4m7k355rafzqn8grrm0grz"
@@ -90,6 +90,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
+		&models.AccountActionCount{},
 		&models.Erc20Transfer{},
 		&models.Erc20Holder{},
 		&models.Erc20Approval{}); err != nil {
@@ -100,7 +101,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 
 func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-
+		totalMap := make(map[string]int, 0)
 		for _, receipt := range blk.Receipts {
 			if receipt.Status != successStatus {
 				continue
@@ -150,6 +151,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						return errors.Wrap(err, "failed to insert table data")
 					}
 					holders = []string{fromAddr.String(), toAddr.String()}
+					totalMap[fromAddr.String()]++
+					totalMap[toAddr.String()]++
 
 				//Approval(address indexed owner, address indexed spender, uint256 value);
 				case Approval:
@@ -250,6 +253,18 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						if err := tx.Create(&model).Error; err != nil {
 							return err
 						}
+					}
+				}
+				for addr, count := range totalMap {
+					if addr == "" {
+						continue
+					}
+					m := &models.AccountActionCount{
+						Address:    addr,
+						Erc20Count: uint64(count),
+					}
+					if err := m.AddCount(tx, uint64(count), models.AccountActionCountErc20); err != nil {
+						return err
 					}
 				}
 			}

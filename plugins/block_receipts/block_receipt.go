@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.2"
+const VERSION = "2.2.0"
 
 const (
 	transfer                   = "transfer"
@@ -83,7 +83,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 	receipts := blk.Receipts
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 
-		for i, receipt := range receipts {
+		for _, receipt := range receipts {
 			receipt := receipt
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])
 			br := &models.BlockReceipt{
@@ -122,7 +122,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				}
 			}
 			//logs
-			for j, log := range receipt.Logs() {
+			for _, log := range receipt.Logs() {
 				log := log
 				topic0, topic1, topic2, topic3 := parseTopics(log.Topics)
 				logData := log.Data
@@ -138,9 +138,8 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 					Topic2:             topic2,
 					Topic3:             topic3,
 					Data:               logData,
-					Index:              log.Index,
-					TxIndex:            uint(i),
-					LogIndex:           uint(j),
+					Index:              uint(log.Index),
+					TxIndex:            uint(log.TxIndex),
 					NotFixTopicCopyBug: log.NotFixTopicCopyBug,
 				}
 				if err := tx.Create(brl).Error; err != nil {

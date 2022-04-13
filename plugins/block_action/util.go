@@ -8,6 +8,15 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 )
 
+func appendIfMissing(slice []string, s string) []string {
+	for _, element := range slice {
+		if element == s {
+			return slice
+		}
+	}
+	return append(slice, s)
+}
+
 func firstLowerCase(s string) string {
 	if len(s) == 0 {
 		return s

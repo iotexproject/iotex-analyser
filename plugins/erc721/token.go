@@ -1,0 +1,241 @@
+package main
+
+import (
+	"context"
+	"encoding/hex"
+	"math/big"
+	"strings"
+	"time"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-core/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
+
+const VERSION = "2.2.0"
+
+var (
+	erc721ABI      abi.ABI
+	Transfer       hash.Hash256
+	Approval       hash.Hash256
+	ApprovalForAll hash.Hash256
+)
+
+func initAddress() error {
+	var err error
+	//Transfer(address,address,uint256)
+	Transfer, err = hash.HexStringToHash256(TransferString)
+	if err != nil {
+		return err
+	}
+	//Approval(address,address,uint256)
+	Approval, err = hash.HexStringToHash256(ApproveString)
+	if err != nil {
+		return err
+	}
+	//ApprovalForAll(address,address,bool)
+	ApprovalForAll, err = hash.HexStringToHash256(ApprovalForAllString)
+	if err != nil {
+		return err
+	}
+	erc721ABI, err = abi.JSON(strings.NewReader(ERC721ABI))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type tokenPlugin struct {
+}
+
+func (b tokenPlugin) Name() string {
+	return "erc721"
+}
+
+func (b tokenPlugin) Type() plugin.Type {
+	return plugin.TypeStandard
+}
+
+func (b tokenPlugin) Start(ctx context.Context) error {
+	if err := initAddress(); err != nil {
+		return errors.Wrap(err, "cannot init address")
+	}
+	if err := db.AutoMigrate(b.Name(),
+		&models.Erc721Transfer{},
+		&models.Erc721Holder{},
+		&models.Erc721Approval{},
+		&models.Erc721ApprovalForAll{},
+	); err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	return nil
+}
+
+func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		totalMap := make(map[string]int, 0)
+		for _, receipt := range blk.Receipts {
+			if receipt.Status != successStatus {
+				continue
+			}
+			actionHash := hex.EncodeToString(receipt.ActionHash[:])
+			for _, log := range receipt.Logs() {
+				data := hex.EncodeToString(log.Data)
+				var topics string
+				for _, t := range log.Topics {
+					topics += hex.EncodeToString(t[:])
+				}
+				if !isErc721(log.Address, topics, data) {
+					continue
+				}
+				var holders []string
+				switch log.Topics[0] {
+				/**
+				 * Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+				 */
+				case Transfer:
+					event := struct {
+						From    common.Address
+						To      common.Address
+						TokenId *big.Int
+					}{}
+					err := kernel.UnpackLog(erc721ABI, &event, "Transfer", log)
+					if err != nil {
+						return err
+					}
+					tokenID := decimal.NewFromBigInt(event.TokenId, 0)
+					fromAddr, _ := address.FromBytes(event.From.Bytes())
+					toAddr, _ := address.FromBytes(event.To.Bytes())
+					model := models.Erc721Transfer{
+						BlockHeight:     blk.Height(),
+						ActionHash:      actionHash,
+						ContractAddress: log.Address,
+						TokenId:         tokenID,
+						Sender:          fromAddr.String(),
+						Recipient:       toAddr.String(),
+						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+					}
+					if err := tx.Create(&model).Error; err != nil {
+						return errors.Wrap(err, "failed to insert table data")
+					}
+					holders = []string{fromAddr.String(), toAddr.String()}
+					totalMap[fromAddr.String()]++
+					totalMap[toAddr.String()]++
+
+				//Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+				case Approval:
+					event := struct {
+						Owner    common.Address
+						Approved common.Address
+						TokenId  *big.Int
+					}{}
+					err := kernel.UnpackLog(erc721ABI, &event, "Approval", log)
+					if err != nil {
+						return err
+					}
+					tokenID := decimal.NewFromBigInt(event.TokenId, 0)
+					owner, _ := address.FromBytes(event.Owner.Bytes())
+					approved, _ := address.FromBytes(event.Approved.Bytes())
+					model := models.Erc721Approval{
+						BlockHeight:     blk.Height(),
+						ActionHash:      actionHash,
+						ContractAddress: log.Address,
+						TokenId:         tokenID,
+						Owner:           owner.String(),
+						Approved:        approved.String(),
+						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+					}
+					if err := tx.Create(&model).Error; err != nil {
+						return errors.Wrap(err, "failed to insert table data")
+					}
+				//ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+				case ApprovalForAll:
+					event := struct {
+						Owner    common.Address
+						Operator common.Address
+						Approved bool
+					}{}
+					err := kernel.UnpackLog(erc721ABI, &event, "ApprovalForAll", log)
+					if err != nil {
+						return errors.WithMessagef(err, "ApprovalForAll event: %v", &event)
+					}
+					owner, _ := address.FromBytes(event.Owner.Bytes())
+					operator, _ := address.FromBytes(event.Operator.Bytes())
+					model := models.Erc721ApprovalForAll{
+						BlockHeight:     blk.Height(),
+						ActionHash:      actionHash,
+						ContractAddress: log.Address,
+						Owner:           owner.String(),
+						Operator:        operator.String(),
+						Approved:        event.Approved,
+						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+					}
+					if err := tx.Create(&model).Error; err != nil {
+						return errors.Wrap(err, "failed to insert table data")
+					}
+				default:
+					var topics string
+					for _, t := range log.Topics {
+						topics = topics + hex.EncodeToString(t[:]) + "\t"
+					}
+					slog.L().Warn("unknown event", zap.String("contract", log.Address), zap.Uint64("blockHeight", log.BlockHeight), zap.String("topics", topics))
+
+				}
+				for _, addr := range holders {
+					if addr == "" {
+						continue
+					}
+					model := models.Erc721Holder{
+						ContractAddress: log.Address,
+						Holder:          addr,
+					}
+					if err := tx.Where("contract_address = ? and holder= ?", log.Address, addr).First(&model).Error; err != nil {
+						if err != gorm.ErrRecordNotFound {
+							return err
+						}
+						if err := tx.Create(&model).Error; err != nil {
+							return err
+						}
+					}
+				}
+				for addr, count := range totalMap {
+					if addr == "" {
+						continue
+					}
+					m := &models.AccountActionCount{
+						Address:     addr,
+						Erc721Count: uint64(count),
+					}
+					if err := m.AddCount(tx, uint64(count), models.AccountActionCountErc721); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+	})
+
+	return err
+}
+func (b tokenPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b tokenPlugin) Version() string {
+	return VERSION
+}
+
+// exported
+var Plugin = tokenPlugin{}

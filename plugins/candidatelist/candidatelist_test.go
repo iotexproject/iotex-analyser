@@ -17,7 +17,7 @@ func TestCandidateList(t *testing.T) {
 	require := require.New(t)
 	_, err := initTestConfig()
 	require.NoError(err)
-	epochNum := uint64(20220)
+	epochNum := uint64(20221)
 	chainClient := kernel.ChainClient()
 	list1, err := models.GetCandidateList(epochNum)
 	require.NoError(err)

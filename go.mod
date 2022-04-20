@@ -3,7 +3,7 @@ module github.com/iotexproject/iotex-analyser
 go 1.16
 
 require (
-	github.com/ethereum/go-ethereum v1.10.16
+	github.com/ethereum/go-ethereum v1.10.17
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.12-0.20220209063039-b876814568a0
 	github.com/iotexproject/iotex-address v0.2.6

@@ -13,18 +13,6 @@ import (
 )
 
 func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk *block.Block, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch x := r.(type) {
-			case string:
-				err = errors.New(x)
-			case error:
-				err = x
-			default:
-				err = errors.New("Unknown panic")
-			}
-		}
-	}()
 	blk, err = dao.GetBlockByHeight(blkHeight)
 	if err != nil {
 		return nil, err
@@ -59,6 +47,7 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 			}
 			for k, j := range blk.Receipts {
 				k := k
+				j := j
 				if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
 					if len(j.TransactionLogs()) == 0 {
 						blk.Receipts[k] = j.AddTransactionLogs(logs...)

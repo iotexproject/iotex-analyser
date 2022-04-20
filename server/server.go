@@ -26,8 +26,19 @@ import (
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+)
+
+var (
+	serverMetrics = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "iotex_analyser_status",
+			Help: "iotex analyser plugin status",
+		},
+		[]string{"type", "name"},
+	)
 )
 
 type Server struct {
@@ -48,6 +59,8 @@ func New() *Server {
 
 // Start start the server
 func (srv *Server) Start(ctx context.Context) error {
+	prometheus.MustRegister(serverMetrics)
+
 	_, err := db.Connect()
 	if err != nil {
 		return errors.Wrap(err, "failed to connect DB")
@@ -133,6 +146,8 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get tip height from block dao")
 	}
+	serverMetrics.WithLabelValues("rpc", "tipHeight").Set(float64(tipHeight))
+	serverMetrics.WithLabelValues("db", "daoHeight").Set(float64(daoHeight))
 	if config.Default.Iotex.CatchUpMode && daoHeight <= 0 {
 		if config.Default.Iotex.CatchUpStartHeight > 0 {
 			daoHeight = config.Default.Iotex.CatchUpStartHeight - 1

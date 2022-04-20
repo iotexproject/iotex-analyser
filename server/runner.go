@@ -13,7 +13,6 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -25,7 +24,6 @@ const (
 type runner struct {
 	dao       blockdao.BlockDAO
 	plugin    plugin.Adapter
-	vec       prometheus.Gauge
 	status    pluginStatus
 	logger    *zap.Logger
 	isRunning *kernel.AtomicBool
@@ -41,14 +39,6 @@ func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*r
 		isRunning: new(kernel.AtomicBool),
 		wg:        &sync.WaitGroup{},
 	}
-	r.vec = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "iotex_analyser_metrics_" + p.Name(),
-
-			Help: "analyser plugin metrics.",
-		},
-	)
-	prometheus.MustRegister(r.vec)
 	return r, nil
 }
 
@@ -196,7 +186,7 @@ func (r *runner) Start(ctx context.Context) error {
 						zap.String("pluginName", r.plugin.Name()),
 						zap.Uint64("height", blk.Height()),
 					)
-					r.vec.Set(float64(blk.Height()))
+					serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
 					nextHeight++
 				}
 			}

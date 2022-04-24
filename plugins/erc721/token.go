@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.0"
+const VERSION = "2.2.1"
 
 var (
 	erc721ABI      abi.ABI
@@ -72,6 +72,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
+		&models.AccountActionCount{},
 		&models.Erc721Transfer{},
 		&models.Erc721Holder{},
 		&models.Erc721Approval{},
@@ -112,7 +113,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					}{}
 					err := kernel.UnpackLog(erc721ABI, &event, "Transfer", log)
 					if err != nil {
-						return err
+						return errors.WithMessagef(err, "failed to unpack Transfer on action: %s", actionHash)
 					}
 					tokenID := decimal.NewFromBigInt(event.TokenId, 0)
 					fromAddr, _ := address.FromBytes(event.From.Bytes())
@@ -142,7 +143,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					}{}
 					err := kernel.UnpackLog(erc721ABI, &event, "Approval", log)
 					if err != nil {
-						return err
+						return errors.WithMessagef(err, "failed to unpack Approval on action: %s", actionHash)
 					}
 					tokenID := decimal.NewFromBigInt(event.TokenId, 0)
 					owner, _ := address.FromBytes(event.Owner.Bytes())

@@ -13,16 +13,19 @@ import (
 )
 
 const (
+	//313ce567 -> decimal()
+	decimalString = "313ce567"
 	//18160ddd -> totalSupply()
 	totalSupplyString = "18160ddd"
 	//70a08231 -> balanceOf(address)
 	balanceOfString = "70a08231000000000000000000000000fea7d8ac16886585f1c232f13fefc3cfa26eb4cc"
-	//dd62ed3e -> allowance(address,address)
-	allowanceString = "dd62ed3e000000000000000000000000fea7d8ac16886585f1c232f13fefc3cfa26eb4cc000000000000000000000000fea7d8ac16886585f1c232f13fefc3cfa26eb4cc"
 	//095ea7b3 -> approve(address,uint256)
 	approveString = "095ea7b3000000000000000000000000fea7d8ac16886585f1c232f13fefc3cfa26eb4cc0000000000000000000000000000000000000000000000000000000000000001"
 	//6352211e -> ownerOf(uint256)
 	ownerOfString = "6352211e000000000000000000000000fea7d8ac16886585f1c232f13fefc3cfa26eb4cc"
+
+	//a22cb465 -> setApprovalForAll(address,bool)
+	approvalForAllString = "a22cb465000000000000000000000000fea7d8ac16886585f1c232f13fefc3cfa26eb4cc0000000000000000000000000000000000000000000000000000000000000000"
 	// TransferString is sha3 of xrc20's transfer event,keccak('Transfer(address,address,uint256)')
 	TransferString = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
@@ -41,6 +44,7 @@ const (
 )
 
 var (
+	decimals, _       = hex.DecodeString(decimalString)
 	totalSupply, _    = hex.DecodeString(totalSupplyString)
 	balanceOf, _      = hex.DecodeString(balanceOfString)
 	approve, _        = hex.DecodeString(approveString)
@@ -96,6 +100,11 @@ func isErc721(addr, topics, data string) bool {
 	}
 	ret = readContract(addr, ownerOf)
 	if !ret {
+		nonErc721Contract[addr] = true
+		return false
+	}
+	ret = readContract(addr, decimals)
+	if ret {
 		nonErc721Contract[addr] = true
 		return false
 	}

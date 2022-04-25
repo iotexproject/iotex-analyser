@@ -224,6 +224,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			if err := srv.dao.PutBlock(ctx, blk); err != nil {
 				return errors.Wrap(err, "failed to build index for the block")
 			}
+			serverMetrics.WithLabelValues("db", "daoHeight").Set(float64(blk.Height()))
 			srv.logger.Debug("putblock to dao", zap.Uint64("blkHeight", blk.Height()))
 		}
 		startHeight += count

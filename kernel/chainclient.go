@@ -23,11 +23,11 @@ func ChainClient() iotexapi.APIServiceClient {
 	chainClientOnce.Do(func() {
 		var opt grpc.DialOption
 		if !config.Default.Iotex.ChainInsecure {
-			opt = grpc.WithInsecure()
+			opt = grpc.WithTransportCredentials(insecure.NewCredentials())
 		} else {
 			opt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
 		}
-		conn, err := grpc.Dial(config.Default.Iotex.ChainEndPoint, opt)
+		conn, err := grpc.Dial(config.Default.Iotex.ChainEndPoint, opt, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(32*10e6)))
 		if err != nil {
 			log.L().Error("failed to connect to chain endpoint.",
 				zap.Error(err),

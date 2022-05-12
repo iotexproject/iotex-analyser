@@ -6,10 +6,10 @@ require (
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.12-0.20220209063039-b876814568a0
-	github.com/iotexproject/iotex-address v0.2.6
-	github.com/iotexproject/iotex-core v1.7.1
+	github.com/iotexproject/iotex-address v0.2.8
+	github.com/iotexproject/iotex-core v1.8.0-rc2
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
-	github.com/iotexproject/iotex-proto v0.5.9
+	github.com/iotexproject/iotex-proto v0.5.10-0.20220415042310-0d4bcef3febf
 	github.com/millken/gocache v1.0.5
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible

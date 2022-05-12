@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/shopspring/decimal"
@@ -96,7 +97,7 @@ func getVoteWeight(duration uint32, stakeAmount *big.Int, autoStake, selfStake b
 		AutoStake:      autoStake,
 		StakedDuration: duration,
 	}
-	return calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfStake)
+	return calculateVoteWeight(config.Default.Genesis.Staking.VoteWeightCalConsts, voteBucket, selfStake)
 }
 
 func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {

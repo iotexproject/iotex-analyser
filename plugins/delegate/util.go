@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -102,7 +103,7 @@ func delegate() error {
 		if staking.OwnerAddress == staking.Candidate {
 			selfAutoStake = true
 		}
-		voteWeight := calculateVoteWeight(Default.Genesis.VoteWeightCalConsts, voteBucket, selfAutoStake)
+		voteWeight := calculateVoteWeight(config.Default.Genesis.Staking.VoteWeightCalConsts, voteBucket, selfAutoStake)
 		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate

@@ -7,7 +7,6 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -17,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.5"
+const VERSION = "2.3.0"
 
 const (
 	GovernaceForwardAddress = "io1xfdn0z046hzm03jrtm8hf4scw2w07t7a0mqtmz"
@@ -39,12 +38,6 @@ func (b accountVotePlugin) Type() plugin.Type {
 func (b accountVotePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &AccountVote{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
-	}
-	var err error
-	config, _ := kernel.GetConfigCtx(ctx)
-	_, err = newConfig(config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
 	}
 	return nil
 }

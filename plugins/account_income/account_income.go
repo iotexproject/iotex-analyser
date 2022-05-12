@@ -5,8 +5,8 @@ import (
 	"math/big"
 
 	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "2.1.0"
 
 type income struct {
 	inFlow        *big.Int
@@ -39,14 +39,7 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &AccountIncome{}, &AccountIncomeCount{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
-
 	var err error
-	config, _ := kernel.GetConfigCtx(ctx)
-	_, err = newConfig(config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
-	}
-
 	var count int64
 	if err := db.DB().Model(ai).Where("block_height=0").Count(&count).Error; err != nil {
 		return err
@@ -55,7 +48,7 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 		return nil
 	}
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
-		for addr, amount := range Default.Genesis.Account.InitBalanceMap {
+		for addr, amount := range config.Default.Genesis.Account.InitBalanceMap {
 
 			insertData := map[string]interface{}{
 				"block_height": uint64(0),

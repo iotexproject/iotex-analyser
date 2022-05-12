@@ -8,7 +8,6 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -20,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.2.0"
 
 const (
 	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
@@ -42,12 +41,6 @@ func (b stakingBucketPlugin) DependentPlugins() []string {
 }
 
 func (b stakingBucketPlugin) Start(ctx context.Context) error {
-	var err error
-	config, _ := kernel.GetConfigCtx(ctx)
-	_, err = newConfig(config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
-	}
 	if err := db.AutoMigrate(b.Name(), &models.StakingBucket{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}

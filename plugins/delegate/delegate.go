@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -15,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.2.3"
+const VERSION = "2.3.0"
 
 type delegatePlugin struct {
 	stop chan bool
@@ -33,12 +32,6 @@ func (b delegatePlugin) Type() plugin.Type {
 func (b delegatePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.Delegate{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
-	}
-	var err error
-	config, _ := kernel.GetConfigCtx(ctx)
-	_, err = newConfig(config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
 	}
 	if err := delegate(); err != nil {
 		log.L().Warn("failed to delegates", zap.Error(err))

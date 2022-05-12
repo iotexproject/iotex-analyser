@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/imdario/mergo"
+	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	coredb "github.com/iotexproject/iotex-core/db"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	homedir "github.com/mitchellh/go-homedir"
@@ -38,6 +39,7 @@ var (
 			HistoryStateRetention: 2000,
 		},
 		SubLogs: make(map[string]log.GlobalConfig),
+		Genesis: genesis.Default,
 	}
 )
 
@@ -68,6 +70,7 @@ type (
 		BatchSize          uint64   `yaml:"batchSize"` //default 64, ~ 10 blocks
 	}
 	Config struct {
+		Genesis  genesis.Genesis             `yaml:"genesis"`
 		Server   Server                      `yaml:"server"`
 		Database Database                    `yaml:"database"`
 		Iotex    Iotex                       `yaml:"iotex"`

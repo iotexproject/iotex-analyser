@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 
 	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.0"
+const VERSION = "2.3.0"
 
 const (
 	transfer                   = "transfer"
@@ -42,12 +42,6 @@ func (b blockReceiptPlugin) Type() plugin.Type {
 }
 
 func (b blockReceiptPlugin) Start(ctx context.Context) error {
-	var err error
-	config, _ := kernel.GetConfigCtx(ctx)
-	_, err = newConfig(config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read %s plugin config", b.Name())
-	}
 	if err := db.AutoMigrate(b.Name(), &models.BlockReceipt{}, &models.BlockReceiptLog{}, &models.BlockReceiptTransaction{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -60,8 +54,8 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 		return nil
 	}
 	hashStr := hex.EncodeToString(specialActionHash[:])
-	err = db.DB().Transaction(func(tx *gorm.DB) error {
-		for addr, amount := range Default.Genesis.Account.InitBalanceMap {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		for addr, amount := range config.Default.Genesis.Account.InitBalanceMap {
 			insertData := map[string]interface{}{
 				"block_height": uint64(0),
 				"action_hash":  hashStr,

@@ -17,7 +17,6 @@ server:
     - erc1967_proxy.so
     - erc20.so
     - erc721.so
-    - hermes.so
     - illegal_action.so
     - iotexprice_worker.so
     - probation.so
@@ -73,6 +72,7 @@ genesis:
     kamchatkaHeight: 10928881
     lordHoweHeight: 11052721
     midwayHeight: 13020481
+    newfoundlandHeight: 14268961
     numCandidateDelegates: 36
     numDelegates: 24
     numSubEpochs: 15

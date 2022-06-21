@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"log"
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
@@ -13,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type illegalActionPlugin struct {
 }
@@ -39,10 +40,9 @@ func (b illegalActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])
 			//transaction
 			for _, transation := range receipt.TransactionLogs() {
-				dst := transation.Recipient
-				if len(dst) > 0 {
-					if addr, err := address.FromString(dst); err != nil {
-						return errors.Wrapf(err, "failed to parse recipient %s", dst)
+				if len(transation.Recipient) > 0 {
+					if addr, err := address.FromString(transation.Recipient); err != nil {
+						log.Printf("illegal action: %s", err)
 					} else if addr.String() != "io1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqd39ym7" {
 						continue
 					}
@@ -54,7 +54,7 @@ func (b illegalActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					ActionHash:  actionHash,
 					BlockHeight: blk.Height(),
 					Sender:      transation.Sender,
-					Recipient:   dst,
+					Recipient:   transation.Recipient,
 				}
 				if err := tx.Create(&m).Error; err != nil {
 					return err

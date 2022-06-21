@@ -30,12 +30,13 @@ import (
 )
 
 const (
-	topicProfileUpdated               = "217aa5ef0b78f028d51fd573433bdbe2daf6f8505e6a71f3af1393c8440b341b"
-	blockRewardPortion                = "blockRewardPortion"
-	epochRewardPortion                = "epochRewardPortion"
-	foundationRewardPortion           = "foundationRewardPortion"
-	RewardPortionContract             = "io1lfl4ppn2c3wcft04f0rk0jy9lyn4pcjcm7638u"
-	RewardportionContractDeployHeight = 5095225
+	topicProfileUpdated                      = "217aa5ef0b78f028d51fd573433bdbe2daf6f8505e6a71f3af1393c8440b341b"
+	blockRewardPortion                       = "blockRewardPortion"
+	epochRewardPortion                       = "epochRewardPortion"
+	foundationRewardPortion                  = "foundationRewardPortion"
+	RewardPortionContract                    = "io1lfl4ppn2c3wcft04f0rk0jy9lyn4pcjcm7638u"
+	RewardportionContractDeployHeight        = 5095225
+	maxBlockRange                     uint64 = 1000000
 )
 const (
 	// PollProtocolID is ID of poll protocol
@@ -520,43 +521,56 @@ func getLog(contractAddress string, from, count uint64, chainClient iotexapi.API
 	}
 	topics := [][]byte{tp}
 
-	response, err := chainClient.GetLogs(context.Background(), &iotexapi.GetLogsRequest{
-		Filter: &iotexapi.LogsFilter{
-			Address: []string{contractAddress},
-			Topics:  []*iotexapi.Topics{{Topic: topics}},
-		},
-		Lookup: &iotexapi.GetLogsRequest_ByRange{
-			ByRange: &iotexapi.GetLogsByRange{
-				FromBlock: from,
-				ToBlock:   from + count,
-			},
-		},
-	})
-	if err != nil {
-		return
+	shard := count / maxBlockRange
+	if count%maxBlockRange != 0 {
+		shard++
 	}
-	for _, l := range response.Logs {
-		for _, topic := range l.Topics {
-			switch hex.EncodeToString(topic) {
-			case topicProfileUpdated:
-				event := &DelegateProfileProfileUpdated{}
-				err := delegateProfileABI.UnpackIntoInterface(event, "ProfileUpdated", l.Data)
-				if err != nil {
-					continue
-				}
-				addr, _ := address.FromHex(event.Delegate.String())
 
-				switch event.Name {
-				case blockRewardPortion:
-					blockReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
-				case epochRewardPortion:
-					epochReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
-				case foundationRewardPortion:
-					foundationReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+	for i := uint64(0); i < shard; i++ {
+		shardCount := maxBlockRange
+		if i == shard-1 && count%maxBlockRange != 0 {
+			shardCount = count % maxBlockRange
+		}
+		response, err := chainClient.GetLogs(context.Background(), &iotexapi.GetLogsRequest{
+			Filter: &iotexapi.LogsFilter{
+				Address: []string{contractAddress},
+				Topics:  []*iotexapi.Topics{{Topic: topics}},
+			},
+			Lookup: &iotexapi.GetLogsRequest_ByRange{
+				ByRange: &iotexapi.GetLogsByRange{
+					FromBlock: from + i*maxBlockRange,
+					ToBlock:   shardCount,
+				},
+			},
+		})
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		for _, l := range response.Logs {
+			for _, topic := range l.Topics {
+				switch hex.EncodeToString(topic) {
+				case topicProfileUpdated:
+					event := &DelegateProfileProfileUpdated{}
+					err := delegateProfileABI.UnpackIntoInterface(event, "ProfileUpdated", l.Data)
+					if err != nil {
+						continue
+					}
+					addr, _ := address.FromHex(event.Delegate.String())
+
+					switch event.Name {
+					case blockRewardPortion:
+						blockReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+					case epochRewardPortion:
+						epochReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+					case foundationRewardPortion:
+						foundationReward[addr.String()] = float64(big.NewInt(0).SetBytes(event.Value).Uint64()) / 100
+					}
 				}
 			}
 		}
 	}
+
 	return
 }
 

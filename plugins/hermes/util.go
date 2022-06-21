@@ -539,7 +539,7 @@ func getLog(contractAddress string, from, count uint64, chainClient iotexapi.API
 			Lookup: &iotexapi.GetLogsRequest_ByRange{
 				ByRange: &iotexapi.GetLogsByRange{
 					FromBlock: from + i*maxBlockRange,
-					ToBlock:   shardCount,
+					ToBlock:   from + i*maxBlockRange + shardCount,
 				},
 			},
 		})

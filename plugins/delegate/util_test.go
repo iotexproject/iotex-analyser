@@ -17,16 +17,16 @@ func Test_getDelegateActive(t *testing.T) {
 	require := require.New(t)
 	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
-	getDelegateActive(15892200)
+	getDelegateActive(17667001)
 }
 
 func TestVotes(t *testing.T) {
 	require := require.New(t)
 	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
-
-	epochNumber := uint64(24738)
+	epochNumber := uint64(27061)
 	pluginHeight := kernel.GetEpochLastBlockHeight(epochNumber)
+	//fmt.Printf("pluginHeight : %d", pluginHeight)
 	stakings, err := getCandidateStaking(pluginHeight)
 	require.NoError(err)
 	delegateActives := getDelegateActive(pluginHeight)
@@ -46,6 +46,9 @@ func TestVotes(t *testing.T) {
 				active = true
 				productionNum = productivity
 			}
+			if staking.Candidate != "io1d8j43c704njp2l039p96ht4q2ycjznjd9lypa8" {
+				continue
+			}
 			delegate = &Delegate{
 				Name:            cand.Name,
 				OwnerAddress:    staking.OwnerAddress,
@@ -59,6 +62,7 @@ func TestVotes(t *testing.T) {
 				Productivity:    productionNum,
 			}
 		}
+		fmt.Printf("%v\n", staking)
 		stakeAmount, _ := big.NewInt(0).SetString(staking.Amount, 0)
 		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
 		voteBucket := &VoteBucket{
@@ -75,6 +79,7 @@ func TestVotes(t *testing.T) {
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate
 	}
+	return
 	probationList := getProbationList(pluginHeight)
 	for c, d := range delegateMap {
 		probated := false

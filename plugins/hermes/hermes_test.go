@@ -250,3 +250,20 @@ func TestVotingResultV1(t *testing.T) {
 		fmt.Printf("%+v\n", m)
 	}
 }
+
+func TestStakingDelegateRewardPortions(t *testing.T) {
+	require := require.New(t)
+	_, err := db.LoadDBFromEnv()
+	require.NoError(err)
+	epochNumber := uint64(25049)
+	blkHeight := kernel.GetEpochHeight(epochNumber)
+	epochStartheight := blkHeight
+	chainClient, err := kernel.ChainClientWithEndPoint("api.iotex.one:80", true)
+	// count := epochStartheight - RewardportionContractDeployHeight
+	// require.Equal(count, int(100000))
+	blockRewardPortionMap, epochRewardPortionMap, foundationBonusPortionMap, err := getAllStakingDelegateRewardPortions(epochStartheight, epochNumber, chainClient)
+	require.NoError(err)
+	fmt.Printf("blockRewardPortionMap = %v\n", blockRewardPortionMap)
+	fmt.Printf("epochRewardPortionMap = %v\n", epochRewardPortionMap)
+	fmt.Printf("foundationBonusPortionMap = %v\n", foundationBonusPortionMap)
+}

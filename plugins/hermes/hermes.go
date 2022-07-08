@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.4.3"
+const VERSION = "2.4.4"
 
 var FairbankBlockHeight = 5165641
 
@@ -79,6 +79,7 @@ func (b hermesPlugin) Start(ctx context.Context) error {
 		&models.HermesAggregateVoting{},
 		&models.HermesVotingResult{},
 		&models.HermesAccountReward{},
+		&models.HermesVotingMeta{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -284,6 +285,25 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 			sumOfWeightedVotes[key] = weightedAmount
 		}
 		totalVoted.Add(totalVoted, stakeAmount)
+	}
+	//update voting meta table
+	totalWeighted := big.NewInt(0)
+	for _, cand := range delegates.Candidates {
+		totalWeightedVotes, ok := big.NewInt(0).SetString(cand.TotalWeightedVotes, 10)
+		if !ok {
+			err = errors.New("total weighted votes convert error")
+			return
+		}
+		totalWeighted.Add(totalWeighted, totalWeightedVotes)
+	}
+	m := models.HermesVotingMeta{
+		EpochNumber:        epochNumber,
+		VotedToken:         decimal.NewFromBigInt(totalVoted, 0),
+		TotalWeightedVotes: decimal.NewFromBigInt(totalWeighted, 0),
+		DelegateCount:      len(delegates.Candidates),
+	}
+	if err := tx.Create(&m).Error; err != nil {
+		return errors.Wrap(err, "failed to create voting meta")
 	}
 
 	uniqueMap := make(map[string]bool)

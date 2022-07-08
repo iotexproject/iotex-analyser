@@ -277,7 +277,7 @@ func getProductivity(tx *gorm.DB, epochNumber uint64) (map[string]*Productivity,
 	}
 
 	if len(rows) == 0 {
-		return nil, errors.New("empty records")
+		return nil, errors.Wrapf(errors.New("empty records"), "epoch = %d", epochNumber)
 	}
 
 	productivityMap := make(map[string]*Productivity)

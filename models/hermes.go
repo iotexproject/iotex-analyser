@@ -63,3 +63,14 @@ type HermesAccountReward struct {
 func (HermesAccountReward) TableName() string {
 	return "hermes_account_rewards"
 }
+
+type HermesVotingMeta struct {
+	EpochNumber        uint64          `gorm:"unsigned;uniqueIndex" sql:"type:bigint"`
+	VotedToken         decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	DelegateCount      int             `gorm:"type:int;not null;default:0;"`
+	TotalWeightedVotes decimal.Decimal `gorm:"type:decimal(60,0);not null"`
+}
+
+func (HermesVotingMeta) TableName() string {
+	return "hermes_voting_meta"
+}

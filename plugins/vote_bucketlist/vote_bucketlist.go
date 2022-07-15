@@ -54,6 +54,13 @@ func (b voteBucketListPlugin) PutBlock(ctx context.Context, blk *block.Block) er
 	} else {
 		return db.UpdateIndexHeight(b.Name(), blkHeight)
 	}
+	var count int64
+	if err := db.DB().Model(&models.VoteBucketList{}).Where("epoch_number=?", preEpochNum).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return db.UpdateIndexHeight(b.Name(), blkHeight)
+	}
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		m := models.VoteBucketList{
 			EpochNumber: preEpochNum,

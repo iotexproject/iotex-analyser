@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.1.0"
 
 type candidateListPlugin struct {
 }
@@ -52,6 +52,13 @@ func (b candidateListPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			return errors.Wrapf(err, "failed to marshal vote bucket list in epoch %d", epochNum)
 		}
 	} else {
+		return db.UpdateIndexHeight(b.Name(), blkHeight)
+	}
+	var count int64
+	if err := db.DB().Model(&models.CandidateList{}).Where("epoch_number=?", preEpochNum).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
 		return db.UpdateIndexHeight(b.Name(), blkHeight)
 	}
 	err = db.DB().Transaction(func(tx *gorm.DB) error {

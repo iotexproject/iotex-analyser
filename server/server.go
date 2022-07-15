@@ -277,7 +277,7 @@ func (srv *Server) startDaoService() error {
 			if !srv.isRunning.Get() {
 				break
 			}
-			if !config.Default.Iotex.DisableRebuildDB {
+			if config.Default.Iotex.CatchUpMode || !config.Default.Iotex.DisableRebuildDB {
 				if err := srv.startRebuildBlockDaoWorker(ctxDao); err != nil {
 					srv.logger.Error("failed to start http service", zap.Error(err))
 				}

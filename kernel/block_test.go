@@ -94,7 +94,7 @@ func TestGetBlockByHeight(t *testing.T) {
 	var indexers []blockdao.BlockIndexer
 	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
-	cfg.DbPath = "/media/millken/SAMSUNG/iotex-var/mainnet-data-11293622/chain.db"
+	cfg.DbPath = "/tmp/chain.db"
 	dao = blockdao.NewBlockDAO(indexers, cfg)
 	require.NoError(dao.Start(ctx))
 	defer func() {

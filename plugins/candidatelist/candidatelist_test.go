@@ -45,8 +45,8 @@ func TestRange(t *testing.T) {
 	require := require.New(t)
 	_, err := initTestConfig()
 	require.NoError(err)
-	startEpoch := uint64(17801)
-	endEpoch := uint64(17990)
+	startEpoch := uint64(20417)
+	endEpoch := uint64(21424)
 	for i := startEpoch; i <= endEpoch; i++ {
 		epochNum := i
 		chainClient := kernel.ChainClient()

@@ -30,3 +30,4 @@ config_mainonline.yml
 Readme_ZH.md
 test/
 *.txt
+config_testonline.yml

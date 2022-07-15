@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -18,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.0"
+const VERSION = "2.2.1"
 
 type blockActionPlugin struct {
 }
@@ -118,7 +119,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				ContractAddress:    receipt.ContractAddress,
 				Status:             receipt.Status,
 				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
-				ExecutionRevertMsg: receipt.ExecutionRevertMsg(),
+				ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
 				Payload:            payload,
 			}
 			if err := tx.Create(m).Error; err != nil {

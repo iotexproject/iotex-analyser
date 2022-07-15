@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"strings"
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
@@ -15,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.0"
+const VERSION = "2.3.1"
 
 const (
 	transfer                   = "transfer"
@@ -85,7 +86,7 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				ActionHash:         actionHash,
 				GasConsumed:        receipt.GasConsumed,
 				ContractAddress:    receipt.ContractAddress,
-				ExecutionRevertMsg: receipt.ExecutionRevertMsg(),
+				ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
 				Status:             receipt.Status,
 			}
 			if err := tx.Create(br).Error; err != nil {

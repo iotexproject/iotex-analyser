@@ -1,4 +1,3 @@
-[![Build Status](https://github.com/iotexproject/iotex-analyser.svg?branch=main)](https://travis-ci.org/iotexproject/iotex-analyser)
 
 # Overview
 

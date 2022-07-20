@@ -36,40 +36,40 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 	tlogs, err := dao.TransactionLogs(blkHeight)
 	if err != nil {
 		return nil, err
-	} else {
-		for _, l := range tlogs.Logs {
-			if len(l.Transactions) == 0 {
-				continue
+	}
+	for _, l := range tlogs.Logs {
+		if len(l.Transactions) == 0 {
+			continue
+		}
+		l := l
+		logs := make([]*action.TransactionLog, len(l.Transactions))
+		for i, txn := range l.Transactions {
+			i := i
+			txn := txn
+			amount, ok := new(big.Int).SetString(txn.Amount, 10)
+			if !ok {
+				return nil, errors.New("failed to parse transaction amount")
 			}
-			l := l
-			logs := make([]*action.TransactionLog, len(l.Transactions))
-			for i, txn := range l.Transactions {
-				i := i
-				txn := txn
-				amount, ok := new(big.Int).SetString(txn.Amount, 10)
-				if !ok {
-					return nil, errors.New("failed to parse transaction amount")
-				}
-				logs[i] = &action.TransactionLog{
-					Type:      txn.Type,
-					Amount:    amount,
-					Sender:    txn.Sender,
-					Recipient: txn.Recipient,
-				}
+			logs[i] = &action.TransactionLog{
+				Type:      txn.Type,
+				Amount:    amount,
+				Sender:    txn.Sender,
+				Recipient: txn.Recipient,
 			}
-			for k, j := range blk.Receipts {
-				k := k
-				if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
-					if len(j.TransactionLogs()) == 0 {
-						blk.Receipts[k] = j.AddTransactionLogs(logs...)
-					}
-					if len(blk.Receipts[k].TransactionLogs()) != len(l.GetTransactions()) {
-						return nil, errors.New("transaction log length does not match")
-					}
+		}
+		for k, j := range blk.Receipts {
+			k := k
+			if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
+				if len(j.TransactionLogs()) == 0 {
+					blk.Receipts[k] = j.AddTransactionLogs(logs...)
+				}
+				if len(blk.Receipts[k].TransactionLogs()) != len(l.GetTransactions()) {
+					return nil, errors.New("transaction log length does not match")
 				}
 			}
 		}
 	}
+
 	return
 }
 

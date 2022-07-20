@@ -40,8 +40,8 @@ func TestRange(t *testing.T) {
 	require := require.New(t)
 	_, err := initTestConfig()
 	require.NoError(err)
-	startEpoch := uint64(17952)
-	endEpoch := uint64(17990)
+	startEpoch := uint64(22352)
+	endEpoch := uint64(22354)
 	for i := startEpoch; i <= endEpoch; i++ {
 		epochNum := i
 		list1, err := models.GetVoteBucketList(epochNum)

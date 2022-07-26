@@ -52,7 +52,8 @@ var GenesisVoteWeightCalConsts = genesis.VoteWeightCalConsts{
 	SelfStake:  1.06,
 }
 var (
-	ErrEmptyRecords = errors.New("empty records")
+	ErrEmptyRecords        = errors.New("empty records")
+	ErrConvertBigIntString = errors.New("failed to convert string to big int")
 )
 
 type AggregateReward struct {
@@ -144,15 +145,15 @@ func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 		// Multiple delegates share reward address
 		totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
 		if !ok {
-			return errors.New("failed to convert string to big int")
+			return ErrConvertBigIntString
 		}
 		totalEpochReward, ok := big.NewInt(0).SetString(row.EpochReward, 10)
 		if !ok {
-			return errors.New("failed to convert string to big int")
+			return ErrConvertBigIntString
 		}
 		totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
 		if !ok {
-			return errors.New("failed to convert string to big int")
+			return ErrConvertBigIntString
 		}
 		if len(candidateNames) == 1 {
 			candidateName := candidateNames[0]
@@ -657,7 +658,6 @@ func selfStakeIndexMap(candidates *iotextypes.CandidateListV2) map[uint64]struct
 
 // CalculateVoteWeight calculates the weighted votes
 func CalculateVoteWeight(cfg genesis.VoteWeightCalConsts, v *iotextypes.VoteBucket, selfStake bool) (*big.Int, error) {
-	// TODO: calculation of remaining time is wrong
 	remainingTime := float64(v.StakedDuration * 86400)
 	weight := float64(1)
 	var m float64
@@ -674,7 +674,7 @@ func CalculateVoteWeight(cfg genesis.VoteWeightCalConsts, v *iotextypes.VoteBuck
 
 	amountInt, ok := big.NewInt(0).SetString(v.StakedAmount, 10)
 	if !ok {
-		return nil, errors.New("failed to convert string to big int")
+		return nil, ErrConvertBigIntString
 	}
 	amount := new(big.Float).SetInt(amountInt)
 	weightedAmount, _ := amount.Mul(amount, big.NewFloat(weight)).Int(nil)

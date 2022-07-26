@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_getDelegateActive(t *testing.T) {
+func TestGetDelegateActive(t *testing.T) {
 	require := require.New(t)
 	_, err := db.LoadDBFromEnv()
 	require.NoError(err)

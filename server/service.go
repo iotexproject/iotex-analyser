@@ -28,6 +28,10 @@ const (
 	PluginStatusRunning
 )
 
+var (
+	errFailedLoadPlugin = "failed to load plugin"
+)
+
 type Args struct {
 	Path        string
 	BlockHeight uint64
@@ -112,7 +116,7 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 		case PluginStatusLoaded:
 			ctx = kernel.WithBlockDAOCtx(ctx, s.dao)
 			if err := plugin.Start(ctx); err != nil {
-				s.logger.Error("failed to load plugin", zap.String("name", name), zap.Error(err))
+				s.logger.Error(errFailedLoadPlugin, zap.String("name", name), zap.Error(err))
 			} else {
 				plugin.UpdateStatus(PluginStatusRunning)
 			}
@@ -156,7 +160,7 @@ func (s *Service) deregisterPlugin(plug iap.Adapter) error {
 func (s *Service) Load(args *Args, reply *Reply) error {
 	plugin, err := loadPluginFile(args.Path)
 	if err != nil {
-		return errors.Wrap(err, "failed to load plugin")
+		return errors.Wrap(err, errFailedLoadPlugin)
 	}
 	if err := s.registerPlugin(plugin); err != nil {
 		return errors.Wrap(err, "failed to register plugin")
@@ -167,7 +171,7 @@ func (s *Service) Load(args *Args, reply *Reply) error {
 func (s *Service) UnLoad(args *Args, reply *Reply) error {
 	plugin, err := loadPluginFile(args.Path)
 	if err != nil {
-		return errors.Wrap(err, "failed to load plugin")
+		return errors.Wrap(err, errFailedLoadPlugin)
 	}
 	if err := s.deregisterPlugin(plugin); err != nil {
 		return errors.Wrap(err, "failed to deregister plugin")

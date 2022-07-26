@@ -27,7 +27,9 @@ const (
 	// if err != nil {
 	// 	return err
 	// }
-	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
+	StakingProtocolAddress         = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
+	errBucketSumAmount             = "getBucketSumAmountByBucketID error, bucketID: %d"
+	errBucketInfoAddressByBucketID = "getBucketInfoAddressByBucketID error"
 )
 
 type stakingActionPlugin struct {
@@ -117,11 +119,11 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				bucketID := a.BucketIndex()
 				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+					return errors.Wrapf(err, errBucketSumAmount, bucketID)
 				}
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+					return errors.Wrap(err, errBucketInfoAddressByBucketID)
 				}
 				stakingAction = models.StakingActions{
 					BlockHeight:  blk.Height(),
@@ -157,14 +159,14 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				bucketID := a.BucketIndex()
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+					return errors.Wrap(err, errBucketInfoAddressByBucketID)
 				}
 				// fix greenland (height=6544441) restake
 				fixAmount := decimal.NewFromInt(0)
 				if blk.Height() < genesis.Default.GreenlandBlockHeight {
 					fixAmount, err = getFixBucketSumAmountByBucketID(tx, bucketID)
 					if err != nil {
-						return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+						return errors.Wrapf(err, errBucketSumAmount, bucketID)
 					}
 				}
 				stakingAction = models.StakingActions{
@@ -186,11 +188,11 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				bucketID := a.BucketIndex()
 				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
+					return errors.Wrapf(err, errBucketSumAmount, bucketID)
 				}
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+					return errors.Wrap(err, errBucketInfoAddressByBucketID)
 				}
 				stakingAction = models.StakingActions{
 					BlockHeight:  blk.Height(),
@@ -230,7 +232,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				bucketID := a.BucketIndex()
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+					return errors.Wrap(err, errBucketInfoAddressByBucketID)
 				}
 				stakingAction = models.StakingActions{
 					BlockHeight:  blk.Height(),
@@ -255,7 +257,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				}
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
+					return errors.Wrap(err, errBucketInfoAddressByBucketID)
 				}
 				stakingAction = models.StakingActions{
 					BlockHeight:  blk.Height(),

@@ -84,15 +84,15 @@ func rebuildAccountRewardTable2(lastEpoch uint64) error {
 			// Multiple delegates share reward address
 			totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
 			if !ok {
-				return errors.New("failed to convert string to big int")
+				return ErrConvertBigIntString
 			}
 			totalEpochReward, ok := big.NewInt(0).SetString(row.EpochReward, 10)
 			if !ok {
-				return errors.New("failed to convert string to big int")
+				return ErrConvertBigIntString
 			}
 			totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
 			if !ok {
-				return errors.New("failed to convert string to big int")
+				return ErrConvertBigIntString
 			}
 			if len(candidateNames) == 1 {
 				candidateName := candidateNames[0]

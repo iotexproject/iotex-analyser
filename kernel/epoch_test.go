@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProtocol_NumSubEpochs(t *testing.T) {
+func TestProtocolNumSubEpochs(t *testing.T) {
 
 	require := require.New(t)
 

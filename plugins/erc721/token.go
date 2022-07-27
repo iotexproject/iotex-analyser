@@ -31,6 +31,9 @@ var (
 	Approval       hash.Hash256
 	ApprovalForAll hash.Hash256
 )
+var (
+	errFailedInsertTable = "failed to insert table data"
+)
 
 func initAddress() error {
 	var err error
@@ -128,7 +131,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 					holders = []string{fromAddr.String(), toAddr.String()}
 					totalMap[fromAddr.String()]++
@@ -158,7 +161,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 				//ApprovalForAll(address indexed owner, address indexed operator, bool approved);
 				case ApprovalForAll:
@@ -183,7 +186,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 				default:
 					var topics string

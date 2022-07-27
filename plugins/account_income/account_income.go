@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.1.1"
 
 type income struct {
 	inFlow        *big.Int
@@ -71,7 +71,7 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 	return err
 }
 
-func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func getIncomes(blk *block.Block) (map[string]income, error) {
 	incomes := make(map[string]income)
 	receipts := blk.Receipts
 	for _, receipt := range receipts {
@@ -90,14 +90,14 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					}
 				} else {
 					inTran.outFlow = inTran.outFlow.Add(inTran.outFlow, transation.Amount)
-					inTran.outNumActions += 1
+					inTran.outNumActions++
 				}
 				incomes[transation.Sender] = inTran
 			}
 			recipient := transation.Recipient
 			if len(recipient) > 0 {
 				if addr, err := address.FromString(recipient); err != nil {
-					return errors.Wrapf(err, "failed to parse recipient %s", recipient)
+					return nil, err
 				} else {
 					recipient = addr.String()
 				}
@@ -113,15 +113,22 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					}
 				} else {
 					inTran.inFlow = inTran.inFlow.Add(inTran.inFlow, transation.Amount)
-					inTran.inNumActions += 1
+					inTran.inNumActions++
 				}
 				incomes[recipient] = inTran
 			}
 
 		}
 	}
+	return incomes, nil
+}
+func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	incomes, err := getIncomes(blk)
+	if err != nil {
+		return err
+	}
 	blkHeight := blk.Height()
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		for accountAddress, accountIncome := range incomes {
 			inFlow := decimal.NewFromBigInt(accountIncome.inFlow, 0)
 			outFlow := decimal.NewFromBigInt(accountIncome.outFlow, 0)

@@ -33,6 +33,7 @@ const VERSION = "2.2.0"
 
 const (
 	WIOTXContractAddress = "io15qr5fzpxsnp7garl4m7k355rafzqn8grrm0grz"
+	errFailedInsertTable = "failed to insert table data"
 )
 
 var (
@@ -148,7 +149,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 					holders = []string{fromAddr.String(), toAddr.String()}
 					totalMap[fromAddr.String()]++
@@ -178,7 +179,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 				//Deposit(address indexed dst, uint wad);
 				case Deposit:
@@ -202,7 +203,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 					holders = []string{to.String()}
 				//Withdrawal(address indexed src, uint wad);
@@ -227,7 +228,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, "failed to insert table data")
+						return errors.Wrap(err, errFailedInsertTable)
 					}
 					holders = []string{from.String()}
 				default:

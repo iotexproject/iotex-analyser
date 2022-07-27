@@ -36,7 +36,7 @@ func (b accountMetaPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func getAccounts(blk *block.Block) ([]string, error) {
 	accounts := []string{}
 	receipts := blk.Receipts
 	for _, receipt := range receipts {
@@ -51,7 +51,7 @@ func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			recipient := transation.Recipient
 			if len(recipient) > 0 {
 				if addr, err := address.FromString(recipient); err != nil {
-					return errors.Wrapf(err, "failed to parse recipient %s", recipient)
+					return nil, errors.Wrapf(err, "failed to parse recipient %s", recipient)
 				} else {
 					recipient = addr.String()
 				}
@@ -65,6 +65,14 @@ func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				accounts = appendIfMissing(accounts, log.Address)
 			}
 		}
+	}
+	return accounts, nil
+}
+
+func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	accounts, err := getAccounts(blk)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get accounts from block %d", blk.Height())
 	}
 
 	processAccounts := []string{}
@@ -84,7 +92,7 @@ func (b accountMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		processAccounts = appendIfMissing(processAccounts, account)
 	}
 
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, account := range processAccounts {
 			meta, err := accountMeta(account)
 			if err == nil {

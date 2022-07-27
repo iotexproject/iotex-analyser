@@ -82,6 +82,15 @@ func (srv *Server) Start(ctx context.Context) error {
 		}()
 	}
 
+	srv.startDebugService(ctx)
+	srv.logger.Info("start RPC service")
+	if err := srv.startRPCService(ctx); err != nil {
+		return errors.Wrap(err, "failed to start RPC service")
+	}
+	return nil
+}
+
+func (srv *Server) startDebugService(ctx context.Context) {
 	var adminserv http.Server
 	if config.Default.Server.HTTPAdminPort > 0 {
 		mux := http.NewServeMux()
@@ -112,11 +121,6 @@ func (srv *Server) Start(ctx context.Context) error {
 			}
 		}()
 	}
-	srv.logger.Info("start RPC service")
-	if err := srv.startRPCService(ctx); err != nil {
-		return errors.Wrap(err, "failed to start RPC service")
-	}
-	return nil
 }
 
 func (srv *Server) Stop(ctx context.Context) error {

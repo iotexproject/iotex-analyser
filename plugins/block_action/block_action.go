@@ -41,13 +41,82 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func getReceiptsFromBlock(blk *block.Block) map[hash.Hash256]*action.Receipt {
+	receipts := make(map[hash.Hash256]*action.Receipt, len(blk.Receipts))
+	for _, receipt := range blk.Receipts {
+		receipts[receipt.ActionHash] = receipt
+	}
+	return receipts
+}
+
+func getPayloadAmount(act action.Action) (*big.Int, []byte) {
+	amount := big.NewInt(0)
+
+	var payload []byte
+	switch a := act.(type) {
+	case *action.Transfer:
+		amount = a.Amount()
+		payload = a.Payload()
+	case *action.Execution:
+		amount = a.Amount()
+	case *action.DepositToRewardingFund:
+		amount = a.Amount()
+	case *action.ClaimFromRewardingFund:
+		amount = a.Amount()
+	case *action.CreateStake:
+		amount = a.Amount()
+		payload = a.Payload()
+	case *action.DepositToStake:
+		amount = a.Amount()
+		payload = a.Payload()
+	case *action.CandidateRegister:
+		amount = a.Amount()
+		payload = a.Payload()
+	}
+	return amount, payload
+}
+
+func processMap(totalMap map[string]int, tx *gorm.DB) error {
+	for account, count := range totalMap {
+		m := &models.AccountActionCount{
+			Address:     account,
+			ActionCount: uint64(count),
+		}
+		if err := m.AddCount(tx, uint64(count), models.AccountActionCountAction); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getAccounts(selp action.SealedEnvelope, receipt *action.Receipt) (address.Address, string, []string, error) {
+	accounts := []string{}
+	sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+	if sender.String() != "" {
+		accounts = appendIfMissing(accounts, sender.String())
+	}
+
+	dst, _ := selp.Destination()
+	if len(dst) > 0 {
+		if addr, err := address.FromString(dst); err != nil {
+			return sender, dst, accounts, errors.Wrapf(err, "failed to parse recipient %s", dst)
+		} else {
+			dst = addr.String()
+		}
+		accounts = append(accounts, dst)
+	}
+
+	if receipt.ContractAddress != "" {
+		accounts = appendIfMissing(accounts, receipt.ContractAddress)
+	}
+	return sender, dst, accounts, nil
+}
+
 func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		receipts := make(map[hash.Hash256]*action.Receipt, len(blk.Receipts))
+		receipts := getReceiptsFromBlock(blk)
 		totalMap := make(map[string]int, 0)
-		for _, receipt := range blk.Receipts {
-			receipts[receipt.ActionHash] = receipt
-		}
+
 		for _, selp := range blk.Actions {
 			accounts := []string{}
 			actionHash, _ := selp.Hash()
@@ -55,23 +124,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			if !ok {
 				continue
 			}
-			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			if sender.String() != "" {
-				accounts = appendIfMissing(accounts, sender.String())
-			}
-
-			dst, _ := selp.Destination()
-			if len(dst) > 0 {
-				if addr, err := address.FromString(dst); err != nil {
-					return errors.Wrapf(err, "failed to parse recipient %s", dst)
-				} else {
-					dst = addr.String()
-				}
-				accounts = append(accounts, dst)
-			}
-
-			if receipt.ContractAddress != "" {
-				accounts = appendIfMissing(accounts, receipt.ContractAddress)
+			sender, dst, accounts, err := getAccounts(selp, receipt)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
 			}
 
 			gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
@@ -80,29 +135,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 
 			act := selp.Action()
 			actionType := getActionTypeString(act)
-			amount := big.NewInt(0)
-
-			var payload []byte
-			switch a := act.(type) {
-			case *action.Transfer:
-				amount = a.Amount()
-				payload = a.Payload()
-			case *action.Execution:
-				amount = a.Amount()
-			case *action.DepositToRewardingFund:
-				amount = a.Amount()
-			case *action.ClaimFromRewardingFund:
-				amount = a.Amount()
-			case *action.CreateStake:
-				amount = a.Amount()
-				payload = a.Payload()
-			case *action.DepositToStake:
-				amount = a.Amount()
-				payload = a.Payload()
-			case *action.CandidateRegister:
-				amount = a.Amount()
-				payload = a.Payload()
-			}
+			amount, payload := getPayloadAmount(act)
 
 			amountDec := decimal.NewFromBigInt(amount, 0)
 			m := &models.BlockAction{
@@ -131,14 +164,8 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			}
 		}
-		for account, count := range totalMap {
-			m := &models.AccountActionCount{
-				Address:     account,
-				ActionCount: uint64(count),
-			}
-			if err := m.AddCount(tx, uint64(count), models.AccountActionCountAction); err != nil {
-				return err
-			}
+		if err := processMap(totalMap, tx); err != nil {
+			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})

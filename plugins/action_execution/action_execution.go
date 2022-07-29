@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.2"
 
 type actionExecutionPlugin struct {
 }
@@ -33,6 +33,19 @@ func (b actionExecutionPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func getDataFromAction(act action.Action) (string, []byte, error) {
+	switch act := act.(type) {
+	case *action.Execution:
+		data := act.Data()
+		if data == nil {
+			data = []byte("")
+		}
+		return act.Contract(), data, nil
+	default:
+		return "", nil, errors.New("action is not execution")
+	}
+}
+
 func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	actions := blk.Actions
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
@@ -41,15 +54,9 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 			act := selp.Action()
 			var contract string
 			var data []byte
-			switch a := act.(type) {
-			case *action.Execution:
-				contract = a.Contract()
-				data = a.Data()
-			default:
+			var err error
+			if contract, data, err = getDataFromAction(act); err != nil {
 				continue
-			}
-			if data == nil {
-				data = []byte("")
 			}
 			ae := &ActionExecution{
 				BlockHeight: blk.Height(),

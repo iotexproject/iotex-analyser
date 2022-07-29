@@ -9,6 +9,7 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 )
 
@@ -37,6 +38,10 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 	if err != nil {
 		return nil, err
 	}
+	return processTransactionLog(blk, tlogs)
+}
+
+func processTransactionLog(blk *block.Block, tlogs *iotextypes.TransactionLogs) (*block.Block, error) {
 	for _, l := range tlogs.Logs {
 		if len(l.Transactions) == 0 {
 			continue
@@ -69,8 +74,7 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 			}
 		}
 	}
-
-	return
+	return blk, nil
 }
 
 func GetBlockByHeightFromChain(height uint64) (*block.Block, error) {

@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.0"
+const VERSION = "2.3.1"
 
 const (
 	GovernaceForwardAddress = "io1xfdn0z046hzm03jrtm8hf4scw2w07t7a0mqtmz"

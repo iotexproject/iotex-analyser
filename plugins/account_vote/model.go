@@ -34,7 +34,7 @@ func (AccountVote) TableName() string {
 
 func getCandidateAddressByName(name string) (string, error) {
 	var addr string
-	if err := db.DB().Table("node_delegates").Select("producer_address").Where("producer_name=?", name).Scan(&addr).Error; err != nil {
+	if err := db.DB().Model(&models.Delegate{}).Select("operator_address").Where("name=?", name).Scan(&addr).Error; err != nil {
 		return "", err
 	}
 	return addr, nil

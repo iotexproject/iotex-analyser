@@ -3,10 +3,12 @@ package main
 import (
 	"math/big"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
+	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
@@ -59,4 +61,31 @@ func getCandidateName(height uint64, address string) string {
 		name = cand.Name
 	}
 	return name
+}
+
+func getReward(blk *block.Block, grantRewardActs map[hash.Hash256]bool) (*big.Int, *big.Int, *big.Int, uint64, error) {
+	blockReward := big.NewInt(0)
+	epochReward := big.NewInt(0)
+	foundationBonus := big.NewInt(0)
+	var gasConsumed uint64
+	// log receipt index
+	for _, receipt := range blk.Receipts {
+		gasConsumed += receipt.GasConsumed
+		if _, ok := grantRewardActs[receipt.ActionHash]; ok {
+			// Parse receipt of grant reward
+			rewardInfoMap, err := getRewardInfoFromReceipt(receipt)
+			if err != nil {
+				return blockReward, epochReward, foundationBonus, gasConsumed, errors.Wrap(err, "failed to get reward info from receipt")
+			}
+			if len(rewardInfoMap) == 0 {
+				continue
+			}
+			for _, rewards := range rewardInfoMap {
+				blockReward.Add(blockReward, rewards.BlockReward)
+				epochReward.Add(epochReward, rewards.EpochReward)
+				foundationBonus.Add(foundationBonus, rewards.FoundationBonus)
+			}
+		}
+	}
+	return blockReward, epochReward, foundationBonus, gasConsumed, nil
 }

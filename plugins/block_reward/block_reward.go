@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"math/big"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -13,7 +12,6 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
-	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -73,29 +71,10 @@ func (b blockRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			if err != nil {
 				return errors.Wrap(err, "failed to get reward info from receipt")
 			}
-			if len(rewardInfoMap) == 0 {
-				continue
+			if err = handleRewardInfoMap(tx, blkHeight, epochNum, receipt, rewardInfoMap); err != nil {
+				return errors.Wrap(err, "failed to handle reward info map")
 			}
 
-			for addr, reward := range rewardInfoMap {
-				candName, err := getCandidateNameByAddress(tx, addr)
-				if err != nil {
-					return err
-				}
-				m := models.BlockReward{
-					BlockHeight:     blkHeight,
-					EpochNumber:     epochNum,
-					RewardAddress:   addr,
-					ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
-					CandidateName:   candName,
-					BlockReward:     decimal.NewFromBigInt(reward.BlockReward, 0),
-					EpochReward:     decimal.NewFromBigInt(reward.EpochReward, 0),
-					FoundationBonus: decimal.NewFromBigInt(reward.FoundationBonus, 0),
-				}
-				if err := tx.Create(&m).Error; err != nil {
-					return err
-				}
-			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blkHeight)
 	})

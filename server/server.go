@@ -276,20 +276,22 @@ func (srv *Server) startDaoService() error {
 	}
 	srv.logger.Info("successfully to loaded BlockDAO", zap.Uint64("daoHeight", daoHeight))
 	srv.dao = dao
-	go func() {
-		for {
-			if !srv.isRunning.Get() {
-				break
-			}
-			if config.Default.Iotex.CatchUpMode || !config.Default.Iotex.DisableRebuildDB {
-				if err := srv.startRebuildBlockDaoWorker(ctxDao); err != nil {
-					srv.logger.Error("failed to start http service", zap.Error(err))
-				}
-			}
-			time.Sleep(time.Second * 4)
-		}
-	}()
+	go srv.startDaoWorker(ctxDao)
 	return nil
+}
+
+func (srv *Server) startDaoWorker(ctx context.Context) {
+	for {
+		if !srv.isRunning.Get() {
+			break
+		}
+		if config.Default.Iotex.CatchUpMode || !config.Default.Iotex.DisableRebuildDB {
+			if err := srv.startRebuildBlockDaoWorker(ctx); err != nil {
+				srv.logger.Error("failed to start http service", zap.Error(err))
+			}
+		}
+		time.Sleep(time.Second * 4)
+	}
 }
 
 func (srv *Server) startRPCService(ctx context.Context) error {

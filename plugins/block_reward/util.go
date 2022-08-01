@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"math/big"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
 	"github.com/millken/gocache"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
@@ -23,6 +25,7 @@ func getCandidateNameByAddress(tx *gorm.DB, addr string) (string, error) {
 	}, time.Minute*10)
 	return name.(string), err
 }
+
 func getRewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, error) {
 	rewardInfoMap := make(map[string]*RewardInfo)
 	for _, l := range receipt.Logs() {
@@ -55,4 +58,31 @@ func getRewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, 
 		}
 	}
 	return rewardInfoMap, nil
+}
+
+func handleRewardInfoMap(tx *gorm.DB, blkHeight uint64, epochNum uint64, receipt *action.Receipt, rewardInfoMap map[string]*RewardInfo) error {
+	if len(rewardInfoMap) == 0 {
+		return nil
+	}
+
+	for addr, reward := range rewardInfoMap {
+		candName, err := getCandidateNameByAddress(tx, addr)
+		if err != nil {
+			return err
+		}
+		m := models.BlockReward{
+			BlockHeight:     blkHeight,
+			EpochNumber:     epochNum,
+			RewardAddress:   addr,
+			ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
+			CandidateName:   candName,
+			BlockReward:     decimal.NewFromBigInt(reward.BlockReward, 0),
+			EpochReward:     decimal.NewFromBigInt(reward.EpochReward, 0),
+			FoundationBonus: decimal.NewFromBigInt(reward.FoundationBonus, 0),
+		}
+		if err := tx.Create(&m).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.6"
+const VERSION = "2.0.7"
 
 type candidatePlugin struct {
 }
@@ -37,6 +37,43 @@ func (b candidatePlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func handleAction(act action.Action, blkHeight uint64, sender address.Address, tx *gorm.DB) error {
+	switch a := act.(type) {
+	case *action.CandidateRegister:
+		createData := models.Candidate{
+			BlockHeight:     blkHeight,
+			Name:            a.Name(),
+			OperatorAddress: a.OperatorAddress().String(),
+			OwnerAddress:    a.OwnerAddress().String(),
+			RewardAddress:   a.RewardAddress().String(),
+			Amount:          decimal.NewFromBigInt(a.Amount(), 0),
+			ActType:         "CandidateRegister",
+			AutoStake:       a.AutoStake(),
+			Duration:        a.Duration(),
+			Payload:         a.Payload(),
+		}
+		if err := tx.Create(&createData).Error; err != nil {
+			return err
+		}
+	case *action.CandidateUpdate:
+		rewardAddress := ""
+		if a.RewardAddress() != nil {
+			rewardAddress = a.RewardAddress().String()
+		}
+		createData := models.Candidate{
+			BlockHeight:     blkHeight,
+			Name:            a.Name(),
+			OperatorAddress: a.OperatorAddress().String(),
+			OwnerAddress:    sender.String(),
+			RewardAddress:   rewardAddress,
+			ActType:         "CandidateUpdate",
+		}
+		if err := tx.Create(&createData).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
@@ -54,42 +91,8 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				continue
 			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			act := selp.Action()
-			switch a := act.(type) {
-			case *action.CandidateRegister:
-				createData := models.Candidate{
-					BlockHeight:     blk.Height(),
-					Name:            a.Name(),
-					OperatorAddress: a.OperatorAddress().String(),
-					OwnerAddress:    a.OwnerAddress().String(),
-					RewardAddress:   a.RewardAddress().String(),
-					Amount:          decimal.NewFromBigInt(a.Amount(), 0),
-					ActType:         "CandidateRegister",
-					AutoStake:       a.AutoStake(),
-					Duration:        a.Duration(),
-					Payload:         a.Payload(),
-				}
-				if err := tx.Create(&createData).Error; err != nil {
-					return err
-				}
-			case *action.CandidateUpdate:
-				rewardAddress := ""
-				if a.RewardAddress() != nil {
-					rewardAddress = a.RewardAddress().String()
-				}
-				createData := models.Candidate{
-					BlockHeight:     blk.Height(),
-					Name:            a.Name(),
-					OperatorAddress: a.OperatorAddress().String(),
-					OwnerAddress:    sender.String(),
-					RewardAddress:   rewardAddress,
-					ActType:         "CandidateUpdate",
-				}
-				if err := tx.Create(&createData).Error; err != nil {
-					return err
-				}
-			default:
-				continue
+			if err := handleAction(selp.Action(), blk.Height(), sender, tx); err != nil {
+				return err
 			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

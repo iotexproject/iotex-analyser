@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"log"
 
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
@@ -14,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.2.0"
 
 type illegalActionPlugin struct {
 }
@@ -34,19 +33,23 @@ func (b illegalActionPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func checkRecipient(recipient string) bool {
+	if len(recipient) == 0 {
+		return true
+	}
+	if _, err := address.FromString(recipient); err != nil {
+		return false
+	}
+	return true
+}
+
 func (b illegalActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		for _, receipt := range blk.Receipts {
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])
 			//transaction
 			for _, transation := range receipt.TransactionLogs() {
-				if len(transation.Recipient) > 0 {
-					if addr, err := address.FromString(transation.Recipient); err != nil {
-						log.Printf("illegal action: %s", err)
-					} else if addr.String() != "io1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqd39ym7" {
-						continue
-					}
-				} else {
+				if checkRecipient(transation.Recipient) {
 					continue
 				}
 

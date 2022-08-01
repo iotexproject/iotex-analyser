@@ -63,6 +63,42 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	delegateMap, err := getDelegateMap(epochNumber, stakings, candidates, delegateActives)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	probationList := getProbationList(pluginHeight)
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
+		tx.Where("1 = 1").Delete(&models.Delegate{})
+		for c, d := range delegateMap {
+			probated := false
+			if _, ok := probationList[d.OperatorAddress]; ok {
+				probated = true
+			}
+			modelDelegate := models.Delegate{
+				BlockHeight:     pluginHeight,
+				OperatorAddress: d.OperatorAddress,
+				RewardAddress:   d.RewardAddress,
+				OwnerAddress:    d.OwnerAddress,
+				Candidate:       c,
+				Active:          d.Active,
+				Name:            d.Name,
+				StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
+				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
+				SelfStake:       d.SelfStake,
+				Productivity:    d.Productivity,
+				Probated:        probated,
+			}
+			if err := tx.Create(&modelDelegate).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.Candidates, delegateActives map[string]int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
 	for _, staking := range stakings {
@@ -70,7 +106,7 @@ func delegate() error {
 		if !ok {
 			cand, err := candidates.ByOwnerAddress(staking.Candidate)
 			if err != nil {
-				return err
+				return delegateMap, err
 			}
 			active := false
 			productionNum := 0
@@ -108,35 +144,7 @@ func delegate() error {
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate
 	}
-	probationList := getProbationList(pluginHeight)
-	err = db.DB().Transaction(func(tx *gorm.DB) error {
-		tx.Where("1 = 1").Delete(&models.Delegate{})
-		for c, d := range delegateMap {
-			probated := false
-			if _, ok := probationList[d.OperatorAddress]; ok {
-				probated = true
-			}
-			modelDelegate := models.Delegate{
-				BlockHeight:     pluginHeight,
-				OperatorAddress: d.OperatorAddress,
-				RewardAddress:   d.RewardAddress,
-				OwnerAddress:    d.OwnerAddress,
-				Candidate:       c,
-				Active:          d.Active,
-				Name:            d.Name,
-				StakeAmount:     decimal.NewFromBigInt(d.StakeAmount, 0),
-				VoteWeight:      decimal.NewFromBigInt(d.VoteWeight, 0),
-				SelfStake:       d.SelfStake,
-				Productivity:    d.Productivity,
-				Probated:        probated,
-			}
-			if err := tx.Create(&modelDelegate).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	return err
+	return delegateMap, nil
 }
 
 type Staking struct {

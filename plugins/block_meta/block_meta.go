@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"math/big"
 	"strconv"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -55,7 +54,6 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			return err
 		}
 	}
-	var gasConsumed uint64
 	grantRewardActs := make(map[hash.Hash256]bool)
 	// log action index
 	for _, selp := range blk.Actions {
@@ -64,27 +62,10 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			grantRewardActs[actionHash] = true
 		}
 	}
-	blockReward := big.NewInt(0)
-	epochReward := big.NewInt(0)
-	foundationBonus := big.NewInt(0)
 	// log receipt index
-	for _, receipt := range blk.Receipts {
-		gasConsumed += receipt.GasConsumed
-		if _, ok := grantRewardActs[receipt.ActionHash]; ok {
-			// Parse receipt of grant reward
-			rewardInfoMap, err := getRewardInfoFromReceipt(receipt)
-			if err != nil {
-				return errors.Wrap(err, "failed to get reward info from receipt")
-			}
-			if len(rewardInfoMap) == 0 {
-				continue
-			}
-			for _, rewards := range rewardInfoMap {
-				blockReward.Add(blockReward, rewards.BlockReward)
-				epochReward.Add(epochReward, rewards.EpochReward)
-				foundationBonus.Add(foundationBonus, rewards.FoundationBonus)
-			}
-		}
+	blockReward, epochReward, foundationBonus, gasConsumed, err := getReward(blk, grantRewardActs)
+	if err != nil {
+		return err
 	}
 	producerName := getCandidateName(blkHeight, blk.ProducerAddress())
 	expectedProducerAddr := ""
@@ -98,7 +79,7 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 	}
 
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
+	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		bm := models.BlockMeta{
 			BlockHeight:             blkHeight,
 			GasConsumed:             gasConsumed,

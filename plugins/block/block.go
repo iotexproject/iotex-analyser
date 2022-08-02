@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"strconv"
+	"time"
 
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -55,7 +56,7 @@ func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			BlockHash:       hex.EncodeToString(blkHash[:]),
 			ProducerAddress: blk.ProducerAddress(),
 			NumActions:      len(blk.Actions),
-			Timestamp:       blk.Timestamp().Unix(),
+			Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 			Year:            year,
 			Month:           month,
 			Day:             day,

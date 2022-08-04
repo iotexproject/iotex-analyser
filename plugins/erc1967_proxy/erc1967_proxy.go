@@ -5,11 +5,8 @@ import (
 	"encoding/hex"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
-	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -17,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.1"
+const VERSION = "2.0.2"
 
 var (
 	UPGRADED        hash.Hash256
@@ -58,31 +55,8 @@ func (b erc1967Proxy) PutBlock(ctx context.Context, blk *block.Block) error {
 			if receipt.Status != successStatus {
 				continue
 			}
-			for _, log := range receipt.Logs() {
-				topics := log.Topics
-				if log.Address == "" || len(topics) < 2 || !isProxyAddress(log.Address) {
-					continue
-				}
-				switch topics[0] {
-				case UPGRADED:
-					event := struct {
-						Implementation common.Address
-					}{}
-					err := kernel.UnpackLog(erc1967ProxyABI, &event, "Upgraded", log)
-					if err != nil {
-						return err
-					}
-					originAddress, _ := address.FromHex(event.Implementation.Hex())
-					m := models.Erc1967Proxy{
-						BlockHeight:   blkHeight,
-						ActionHash:    hex.EncodeToString(receipt.ActionHash[:]),
-						ProxyAddress:  log.Address,
-						OriginAddress: originAddress.String(),
-					}
-					if err = tx.Create(&m).Error; err != nil {
-						return err
-					}
-				}
+			if err := handleLogs(receipt.Logs(), hex.EncodeToString(receipt.ActionHash[:]), blkHeight, tx); err != nil {
+				return err
 			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

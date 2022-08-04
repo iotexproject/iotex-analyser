@@ -5,8 +5,13 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-core/action"
+	"gorm.io/gorm"
 )
 
 //https://github.com/OpenZeppelin/openzeppelin-upgrades/blob/master/packages/plugin-hardhat/src/utils/factories.ts#L6
@@ -42,4 +47,34 @@ func isProxyAddress(addr string) bool {
 		return false
 	}
 	return m.IsContract && Sha256ProxyDeployBytecode == hash.BytesToHash256(m.ContractByteCode)
+}
+
+func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gorm.DB) error {
+	for _, log := range logs {
+		topics := log.Topics
+		if log.Address == "" || len(topics) < 2 || !isProxyAddress(log.Address) {
+			continue
+		}
+		switch topics[0] {
+		case UPGRADED:
+			event := struct {
+				Implementation common.Address
+			}{}
+			err := kernel.UnpackLog(erc1967ProxyABI, &event, "Upgraded", log)
+			if err != nil {
+				return err
+			}
+			originAddress, _ := address.FromHex(event.Implementation.Hex())
+			m := models.Erc1967Proxy{
+				BlockHeight:   blkHeight,
+				ActionHash:    actionHash,
+				ProxyAddress:  log.Address,
+				OriginAddress: originAddress.String(),
+			}
+			if err = tx.Create(&m).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

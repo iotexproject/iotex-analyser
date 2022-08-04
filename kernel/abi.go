@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// UnpackLog parses the log data and returns the corresponding event name and arguments
 func UnpackLog(a abi.ABI, out interface{}, event string, log *action.Log) error {
 	if len(log.Data) > 0 {
 		if err := a.UnpackIntoInterface(out, event, log.Data); err != nil {

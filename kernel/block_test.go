@@ -45,7 +45,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 		require.NoError(dao.Stop(ctx))
 	}()
 
-	config.Default.Iotex.ChainEndPoint = "api.mainnet.iotex.one:80"
+	config.Default.Iotex.ChainEndPoint = "api.iotex.one:80"
 	blkCache, err := GetBlockByHeightFromChain(11529321)
 	require.NoError(err)
 

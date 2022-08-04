@@ -5,18 +5,16 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
-	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.1"
+const VERSION = "2.3.3"
 
 const (
 	transfer                   = "transfer"
@@ -93,53 +91,12 @@ func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) erro
 				return err
 			}
 			//transaction
-			for _, transation := range receipt.TransactionLogs() {
-				transation := transation
-				amountDec := decimal.NewFromBigInt(transation.Amount, 0)
-				recipient := transation.Recipient
-				if len(recipient) > 0 {
-					if addr, err := address.FromString(recipient); err != nil {
-						return errors.Wrapf(err, "failed to parse recipient %s", recipient)
-					} else {
-						recipient = addr.String()
-					}
-				}
-				brt := &models.BlockReceiptTransaction{
-					BlockHeight: blk.Height(),
-					ActionHash:  actionHash,
-					Type:        getActionType(transation.Type),
-					Amount:      amountDec,
-					Sender:      transation.Sender,
-					Recipient:   recipient,
-				}
-				if err := tx.Create(brt).Error; err != nil {
-					return err
-				}
+			if err := handleTransactionLogs(receipt.TransactionLogs(), actionHash, blk.Height(), tx); err != nil {
+				return err
 			}
 			//logs
-			for _, log := range receipt.Logs() {
-				log := log
-				topic0, topic1, topic2, topic3 := parseTopics(log.Topics)
-				logData := log.Data
-				if logData == nil {
-					logData = []byte("")
-				}
-				brl := &models.BlockReceiptLog{
-					BlockHeight:        blk.Height(),
-					ActionHash:         actionHash,
-					Address:            log.Address,
-					Topic0:             topic0,
-					Topic1:             topic1,
-					Topic2:             topic2,
-					Topic3:             topic3,
-					Data:               logData,
-					Index:              uint(log.Index),
-					TxIndex:            uint(log.TxIndex),
-					NotFixTopicCopyBug: log.NotFixTopicCopyBug,
-				}
-				if err := tx.Create(brl).Error; err != nil {
-					return err
-				}
+			if err := handleLogs(receipt.Logs(), actionHash, blk.Height(), tx); err != nil {
+				return err
 			}
 		}
 

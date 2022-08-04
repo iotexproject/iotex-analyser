@@ -11,15 +11,13 @@ import (
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.1.2"
 
 var (
 	RewardAddrToName map[string][]string
@@ -85,35 +83,9 @@ func (b rewardHistoryPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				continue
 			}
 			// Parse receipt of grant reward
-			rewardInfoMap := make(map[string]*RewardInfo)
-			for _, l := range receipt.Logs() {
-				rewardLog := &rewardingpb.RewardLog{}
-				if err := proto.Unmarshal(l.Data, rewardLog); err != nil {
-					return errors.Wrap(err, "failed to unmarshal receipt data into reward log")
-				}
-				rewards, ok := rewardInfoMap[rewardLog.Addr]
-				if !ok {
-					rewardInfoMap[rewardLog.Addr] = &RewardInfo{
-						RewardHistory:   big.NewInt(0),
-						EpochReward:     big.NewInt(0),
-						FoundationBonus: big.NewInt(0),
-					}
-					rewards = rewardInfoMap[rewardLog.Addr]
-				}
-				amount, ok := big.NewInt(0).SetString(rewardLog.Amount, 10)
-				if !ok {
-					return errors.New("failed to convert reward amount from string to big int")
-				}
-				switch rewardLog.Type {
-				case rewardingpb.RewardLog_BLOCK_REWARD:
-					rewards.RewardHistory.Add(rewards.RewardHistory, amount)
-				case rewardingpb.RewardLog_EPOCH_REWARD:
-					rewards.EpochReward.Add(rewards.EpochReward, amount)
-				case rewardingpb.RewardLog_FOUNDATION_BONUS:
-					rewards.FoundationBonus.Add(rewards.FoundationBonus, amount)
-				default:
-					return errors.New("Unknown type of reward")
-				}
+			rewardInfoMap, err := handleLogs(receipt.Logs())
+			if err != nil {
+				return err
 			}
 
 			if len(rewardInfoMap) == 0 {

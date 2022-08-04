@@ -4,7 +4,13 @@ import (
 	"encoding/hex"
 
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
+	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 var specialActionHash = hash.ZeroHash256
@@ -49,4 +55,59 @@ func getActionType(t iotextypes.TransactionLogType) string {
 		return transfer
 	}
 	return ""
+}
+
+func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64, tx *gorm.DB) error {
+	for _, transation := range transactionLogs {
+		transation := transation
+		amountDec := decimal.NewFromBigInt(transation.Amount, 0)
+		recipient := transation.Recipient
+		if len(recipient) > 0 {
+			if addr, err := address.FromString(recipient); err != nil {
+				return errors.Wrapf(err, "failed to parse recipient %s", recipient)
+			} else {
+				recipient = addr.String()
+			}
+		}
+		brt := &models.BlockReceiptTransaction{
+			BlockHeight: blkHeight,
+			ActionHash:  actionHash,
+			Type:        getActionType(transation.Type),
+			Amount:      amountDec,
+			Sender:      transation.Sender,
+			Recipient:   recipient,
+		}
+		if err := tx.Create(brt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gorm.DB) error {
+	for _, log := range logs {
+		log := log
+		topic0, topic1, topic2, topic3 := parseTopics(log.Topics)
+		logData := log.Data
+		if logData == nil {
+			logData = []byte("")
+		}
+		brl := &models.BlockReceiptLog{
+			BlockHeight:        blkHeight,
+			ActionHash:         actionHash,
+			Address:            log.Address,
+			Topic0:             topic0,
+			Topic1:             topic1,
+			Topic2:             topic2,
+			Topic3:             topic3,
+			Data:               logData,
+			Index:              uint(log.Index),
+			TxIndex:            uint(log.TxIndex),
+			NotFixTopicCopyBug: log.NotFixTopicCopyBug,
+		}
+		if err := tx.Create(brl).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

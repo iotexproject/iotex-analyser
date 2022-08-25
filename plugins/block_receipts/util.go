@@ -58,6 +58,8 @@ func getActionType(t iotextypes.TransactionLogType) string {
 }
 
 func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64, tx *gorm.DB) error {
+	totalMap := make(map[string]int, 0)
+
 	for _, transation := range transactionLogs {
 		transation := transation
 		amountDec := decimal.NewFromBigInt(transation.Amount, 0)
@@ -69,6 +71,8 @@ func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash 
 				recipient = addr.String()
 			}
 		}
+		totalMap[transation.Sender]++
+		totalMap[recipient]++
 		brt := &models.BlockReceiptTransaction{
 			BlockHeight: blkHeight,
 			ActionHash:  actionHash,
@@ -78,6 +82,18 @@ func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash 
 			Recipient:   recipient,
 		}
 		if err := tx.Create(brt).Error; err != nil {
+			return err
+		}
+	}
+	for addr, count := range totalMap {
+		if addr == "" {
+			continue
+		}
+		m := &models.AccountActionCount{
+			Address:    addr,
+			InnerCount: uint64(count),
+		}
+		if err := m.AddCount(tx, uint64(count), models.AccountActionCountInner); err != nil {
 			return err
 		}
 	}

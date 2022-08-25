@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.3"
+const VERSION = "2.4.0"
 
 const (
 	transfer                   = "transfer"
@@ -75,7 +75,6 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	receipts := blk.Receipts
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-
 		for _, receipt := range receipts {
 			receipt := receipt
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])

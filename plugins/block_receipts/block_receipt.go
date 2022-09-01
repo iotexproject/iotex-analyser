@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.4.0"
+const VERSION = "2.4.1"
 
 const (
 	transfer                   = "transfer"

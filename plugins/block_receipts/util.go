@@ -8,7 +8,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
-	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -66,7 +65,8 @@ func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash 
 		recipient := transation.Recipient
 		if len(recipient) > 0 {
 			if addr, err := address.FromString(recipient); err != nil {
-				return errors.Wrapf(err, "failed to parse recipient %s", recipient)
+				//skip invalid address
+				continue
 			} else {
 				recipient = addr.String()
 			}

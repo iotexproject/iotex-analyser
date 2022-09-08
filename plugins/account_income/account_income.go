@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.1.2"
 
 type income struct {
 	inFlow        *big.Int
@@ -48,7 +48,12 @@ func (b accountIncomePlugin) Start(ctx context.Context) error {
 		return nil
 	}
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
+		initBalances := make(map[string]string)
 		for addr, amount := range config.Default.Genesis.Account.InitBalanceMap {
+			initBalances[addr] = amount
+		}
+		initBalances["io0000000000000000000000rewardingprotocol"] = config.Default.Genesis.Rewarding.InitBalanceStr
+		for addr, amount := range initBalances {
 
 			insertData := map[string]interface{}{
 				"block_height": uint64(0),

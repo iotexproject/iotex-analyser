@@ -23,6 +23,7 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
@@ -188,9 +189,10 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			zap.Int("blocks", len(getRawBlocksRes.GetBlocks())),
 		)
 		for _, blkInfo := range getRawBlocksRes.GetBlocks() {
-			blk := &block.Block{}
-			if err := blk.ConvertFromBlockPb(blkInfo.GetBlock()); err != nil {
-				return errors.Wrap(err, "failed to convert block protobuf to raw block")
+			deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+			blk, err := deser.FromBlockProto(blkInfo.GetBlock())
+			if err != nil {
+				return err
 			}
 			receipts := map[hash.Hash256]*action.Receipt{}
 			for _, receiptPb := range blkInfo.GetReceipts() {
@@ -265,7 +267,8 @@ func (srv *Server) startDaoService() error {
 		srv.logger.Warn("currently in catch-up mode, it will be rebuild dao service in momery")
 		dao = kernel.NewVirtualDao()
 	} else {
-		dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB)
+		deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+		dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB, deser)
 	}
 	if err := dao.Start(ctxDao); err != nil {
 		return err

@@ -7,9 +7,11 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-core/action/protocol"
+	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	corecfg "github.com/iotexproject/iotex-core/config"
+	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +29,8 @@ func TestTraceBlock(t *testing.T) {
 		},
 	)
 	var indexers []blockdao.BlockIndexer
-	dao := blockdao.NewBlockDAO(indexers, config.Default.BlockDB)
+	deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+	dao := blockdao.NewBlockDAO(indexers, config.Default.BlockDB, deser)
 
 	err = dao.Start(ctxDao)
 	require.NoError(t, err)

@@ -39,7 +39,8 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = testPath
-	dao = blockdao.NewBlockDAO(indexers, cfg)
+	deser := block.NewDeserializer(corecfg.EVMNetworkID())
+	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
 	require.NoError(dao.Start(ctx))
 	defer func() {
 		require.NoError(dao.Stop(ctx))
@@ -95,7 +96,8 @@ func TestGetBlockByHeight(t *testing.T) {
 	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = "/tmp/chain.db"
-	dao = blockdao.NewBlockDAO(indexers, cfg)
+	deser := block.NewDeserializer(corecfg.EVMNetworkID())
+	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
 	require.NoError(dao.Start(ctx))
 	defer func() {
 		require.NoError(dao.Stop(ctx))

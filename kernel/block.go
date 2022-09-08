@@ -4,6 +4,8 @@ import (
 	"context"
 	"math/big"
 
+	coreconfig "github.com/iotexproject/iotex-core/config"
+
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
@@ -92,8 +94,9 @@ func GetBlockByHeightFromChain(height uint64) (*block.Block, error) {
 	}
 
 	for _, blkInfo := range getRawBlocksRes.GetBlocks() {
-		blk := &block.Block{}
-		if err := blk.ConvertFromBlockPb(blkInfo.GetBlock()); err != nil {
+		deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+		blk, err := deser.FromBlockProto(blkInfo.GetBlock())
+		if err != nil {
 			return nil, err
 		}
 		receipts := map[hash.Hash256]*action.Receipt{}

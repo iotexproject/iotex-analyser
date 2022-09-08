@@ -5,9 +5,9 @@ go 1.17
 require (
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/imdario/mergo v0.3.12
-	github.com/iotexproject/go-pkgs v0.1.12-0.20220209063039-b876814568a0
+	github.com/iotexproject/go-pkgs v0.1.12
 	github.com/iotexproject/iotex-address v0.2.8
-	github.com/iotexproject/iotex-core v1.8.1-rc0
+	github.com/iotexproject/iotex-core v1.8.2
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.10-0.20220415042310-0d4bcef3febf
 	github.com/millken/gocache v1.0.5
@@ -62,7 +62,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/holiman/uint256 v1.2.0 // indirect
 	github.com/huin/goupnp v1.0.3-0.20220313090229-ca81a64b4204 // indirect
-	github.com/iotexproject/go-p2p v0.3.3 // indirect
+	github.com/iotexproject/go-p2p v0.3.5 // indirect
 	github.com/iotexproject/iotex-antenna-go/v2 v2.5.1 // indirect
 	github.com/ipfs/go-cid v0.0.7 // indirect
 	github.com/ipfs/go-datastore v0.4.5 // indirect

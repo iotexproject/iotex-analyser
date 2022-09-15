@@ -14,6 +14,7 @@ type BlockMeta struct {
 	FoundationBonus         decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	EpochNum                uint64          `gorm:"unsigned;index"`
 	EpochHeight             uint64          `gorm:"unsigned;index"`
+	BlockSize               uint64          `gorm:"unsigned;not null;default:0;"`
 }
 
 func (BlockMeta) TableName() string {

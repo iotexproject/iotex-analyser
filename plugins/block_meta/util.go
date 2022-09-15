@@ -89,3 +89,25 @@ func getReward(blk *block.Block, grantRewardActs map[hash.Hash256]bool) (*big.In
 	}
 	return blockReward, epochReward, foundationBonus, gasConsumed, nil
 }
+
+func getBlockSize(blk *block.Block) (uint64, error) {
+	size := uint64(0)
+	//block data
+	blkInfo := &block.Store{
+		Block:    blk,
+		Receipts: blk.Receipts,
+	}
+	ser, err := blkInfo.Serialize()
+	if err != nil {
+		return 0, err
+	}
+	size += uint64(len(ser))
+
+	//receipt and transaction log
+	sysLog := blk.TransactionLog()
+	if sysLog == nil {
+		sysLog = &block.BlkTransactionLog{}
+	}
+	size += uint64(len(sysLog.Serialize()))
+	return size, nil
+}

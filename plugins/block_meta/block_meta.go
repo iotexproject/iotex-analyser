@@ -79,6 +79,11 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 	}
 
+	blockSize, err := getBlockSize(blk)
+	if err != nil {
+		return err
+	}
+
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
 		bm := models.BlockMeta{
 			BlockHeight:             blkHeight,
@@ -92,6 +97,7 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			FoundationBonus:         decimal.NewFromBigInt(foundationBonus, 0),
 			EpochNum:                epochNum,
 			EpochHeight:             epochHeight,
+			BlockSize:               blockSize,
 		}
 
 		if err := tx.Create(&bm).Error; err != nil {

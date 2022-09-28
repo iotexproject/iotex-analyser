@@ -45,6 +45,7 @@ func GetIndexHeight(name string) (uint64, error) {
 		}
 		return 0, db.Create(m).Error
 	}
+	indexCache.Store(name, idx.Height)
 	return idx.Height, nil
 }
 

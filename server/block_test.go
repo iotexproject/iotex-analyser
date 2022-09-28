@@ -10,13 +10,11 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
-	corecfg "github.com/iotexproject/iotex-core/config"
-	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTraceBlock(t *testing.T) {
-	corecfg.SetEVMNetworkID(4689)
+	config.SetEVMNetworkID(4689)
 	//os.Setenv("TraceBlockConfig", "/Users/millken/work/iotex/iotex-analyser/config_mainnet.yml")
 	_, err := config.New(os.Getenv("TraceBlockConfig"))
 	require.NoError(t, err)
@@ -29,7 +27,7 @@ func TestTraceBlock(t *testing.T) {
 		},
 	)
 	var indexers []blockdao.BlockIndexer
-	deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+	deser := block.NewDeserializer(config.EVMNetworkID())
 	dao := blockdao.NewBlockDAO(indexers, config.Default.BlockDB, deser)
 
 	err = dao.Start(ctxDao)

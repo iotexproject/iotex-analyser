@@ -23,7 +23,6 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
-	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
@@ -189,7 +188,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			zap.Int("blocks", len(getRawBlocksRes.GetBlocks())),
 		)
 		for _, blkInfo := range getRawBlocksRes.GetBlocks() {
-			deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+			deser := block.NewDeserializer(config.EVMNetworkID())
 			blk, err := deser.FromBlockProto(blkInfo.GetBlock())
 			if err != nil {
 				return err
@@ -267,7 +266,7 @@ func (srv *Server) startDaoService() error {
 		srv.logger.Warn("currently in catch-up mode, it will be rebuild dao service in momery")
 		dao = kernel.NewVirtualDao()
 	} else {
-		deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+		deser := block.NewDeserializer(config.EVMNetworkID())
 		dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB, deser)
 	}
 	if err := dao.Start(ctxDao); err != nil {

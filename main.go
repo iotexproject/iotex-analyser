@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	coreconfig "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -47,13 +46,13 @@ func main() {
 			os.Exit(1)
 		}
 		if strings.Contains(cfg.Iotex.ChainEndPoint, "testnet") {
-			coreconfig.SetEVMNetworkID(4690)
+			config.SetEVMNetworkID(4690)
 		} else {
-			coreconfig.SetEVMNetworkID(4689)
+			config.SetEVMNetworkID(4689)
 		}
 		log.L().Debug("loaded iotex-core configure",
 			zap.String("version", version),
-			zap.Uint32("EVMNetworkID", coreconfig.EVMNetworkID()),
+			zap.Uint32("EVMNetworkID", config.EVMNetworkID()),
 		)
 		return nil
 	}

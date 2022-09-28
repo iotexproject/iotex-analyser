@@ -175,7 +175,7 @@ func (r *runner) Start(ctx context.Context) error {
 						break
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
-						r.logger.Error("failed to put data to plugin, it will be retry in next time",
+						r.logger.Error("failed to put data to plugin, retrying...",
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("height", blk.Height()),
 							zap.Error(err),

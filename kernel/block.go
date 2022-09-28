@@ -4,9 +4,8 @@ import (
 	"context"
 	"math/big"
 
-	coreconfig "github.com/iotexproject/iotex-core/config"
-
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
@@ -16,18 +15,18 @@ import (
 )
 
 func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk *block.Block, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch x := r.(type) {
-			case string:
-				err = errors.New(x)
-			case error:
-				err = x
-			default:
-				err = errors.New("Unknown panic")
-			}
-		}
-	}()
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		switch x := r.(type) {
+	// 		case string:
+	// 			err = errors.New(x)
+	// 		case error:
+	// 			err = x
+	// 		default:
+	// 			err = errors.New("Unknown panic")
+	// 		}
+	// 	}
+	// }()
 	blk, err = dao.GetBlockByHeight(blkHeight)
 	if err != nil {
 		return nil, err
@@ -45,10 +44,10 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 
 func processTransactionLog(blk *block.Block, tlogs *iotextypes.TransactionLogs) (*block.Block, error) {
 	for _, l := range tlogs.Logs {
+		l := l
 		if len(l.Transactions) == 0 {
 			continue
 		}
-		l := l
 		logs := make([]*action.TransactionLog, len(l.Transactions))
 		for i, txn := range l.Transactions {
 			i := i
@@ -66,6 +65,7 @@ func processTransactionLog(blk *block.Block, tlogs *iotextypes.TransactionLogs) 
 		}
 		for k, j := range blk.Receipts {
 			k := k
+			j := j
 			if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
 				if len(j.TransactionLogs()) == 0 {
 					blk.Receipts[k] = j.AddTransactionLogs(logs...)
@@ -94,7 +94,7 @@ func GetBlockByHeightFromChain(height uint64) (*block.Block, error) {
 	}
 
 	for _, blkInfo := range getRawBlocksRes.GetBlocks() {
-		deser := block.NewDeserializer(coreconfig.EVMNetworkID())
+		deser := block.NewDeserializer(config.EVMNetworkID())
 		blk, err := deser.FromBlockProto(blkInfo.GetBlock())
 		if err != nil {
 			return nil, err

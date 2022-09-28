@@ -10,11 +10,10 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/pkg/log"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.1.0"
+const VERSION = "2.2.0"
 
 type priceWorkerPlugin struct {
 	stop chan bool
@@ -30,10 +29,6 @@ func (b priceWorkerPlugin) Type() plugin.Type {
 }
 
 func (b priceWorkerPlugin) Start(ctx context.Context) error {
-	if err := db.DB().AutoMigrate(&db.Store{}); err != nil {
-		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
-	}
-
 	goPrice := func() {
 		price, err := priceFetcher()
 		if err != nil {

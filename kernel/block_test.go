@@ -27,7 +27,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 		testutil.CleanupPath(testPath)
 	}()
 
-	corecfg.SetEVMNetworkID(4689)
+	config.SetEVMNetworkID(4689)
 	var tip protocol.TipInfo
 	ctx := protocol.WithBlockchainCtx(
 		genesis.WithGenesisContext(context.Background(), genesis.Default),
@@ -39,7 +39,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = testPath
-	deser := block.NewDeserializer(corecfg.EVMNetworkID())
+	deser := block.NewDeserializer(config.EVMNetworkID())
 	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
 	require.NoError(dao.Start(ctx))
 	defer func() {
@@ -84,7 +84,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 
 func TestGetBlockByHeight(t *testing.T) {
 	require := require.New(t)
-	corecfg.SetEVMNetworkID(4689)
+	config.SetEVMNetworkID(4689)
 	var tip protocol.TipInfo
 	ctx := protocol.WithBlockchainCtx(
 		genesis.WithGenesisContext(context.Background(), genesis.Default),
@@ -96,7 +96,7 @@ func TestGetBlockByHeight(t *testing.T) {
 	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = "/tmp/chain.db"
-	deser := block.NewDeserializer(corecfg.EVMNetworkID())
+	deser := block.NewDeserializer(config.EVMNetworkID())
 	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
 	require.NoError(dao.Start(ctx))
 	defer func() {

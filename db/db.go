@@ -38,7 +38,7 @@ func Connect() (*gorm.DB, error) {
 	)
 	gormConfig := &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-		SkipDefaultTransaction:                   true,
+		SkipDefaultTransaction:                   false,
 		Logger:                                   newLogger,
 	}
 	switch driver {
@@ -66,7 +66,7 @@ func Connect() (*gorm.DB, error) {
 	if config.Default.Database.Debug {
 		db = db.Debug()
 	}
-	db.AutoMigrate(&IndexHeight{})
+	db.AutoMigrate(&IndexHeight{}, &Store{})
 	return db, err
 }
 

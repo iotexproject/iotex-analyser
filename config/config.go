@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/imdario/mergo"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
@@ -146,4 +147,20 @@ func FindDefaultConfigPath() string {
 		}
 	}
 	return ""
+}
+
+var (
+	evmNetworkID uint32
+)
+
+func SetEVMNetworkID(id uint32) {
+	atomic.StoreUint32(&evmNetworkID, id)
+}
+
+func EVMNetworkID() uint32 {
+	id := atomic.LoadUint32(&evmNetworkID)
+	if id == 0 {
+		panic("EVM network ID is not set")
+	}
+	return id
 }

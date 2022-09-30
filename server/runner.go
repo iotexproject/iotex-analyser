@@ -104,7 +104,7 @@ func (r *runner) Start(ctx context.Context) error {
 	}
 	if config.Default.Iotex.CrawlMode {
 		for _, nextHeight := range config.Default.Iotex.CrawlHeight {
-			blk, err := kernel.GetBlockByHeightFromChain(nextHeight)
+			blk, err := kernel.GetBlockByHeightFromChain(ctx, nextHeight)
 			if err != nil {
 				r.logger.Error("failed to read block from chain", zap.Error(err))
 				continue
@@ -163,7 +163,7 @@ func (r *runner) Start(ctx context.Context) error {
 					if !config.Default.Iotex.CatchUpMode {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 					} else {
-						blk, err = kernel.GetBlockByHeightFromChain(nextHeight)
+						blk, err = kernel.GetBlockByHeightFromChain(ctx, nextHeight)
 					}
 					if err != nil {
 						r.logger.Error("failed to read block from dao",

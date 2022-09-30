@@ -43,15 +43,12 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 }
 
 func processTransactionLog(blk *block.Block, tlogs *iotextypes.TransactionLogs) (*block.Block, error) {
-	for _, l := range tlogs.Logs {
-		l := l
-		if len(l.Transactions) == 0 {
+	for _, l := range tlogs.GetLogs() {
+		if len(l.GetTransactions()) == 0 {
 			continue
 		}
-		logs := make([]*action.TransactionLog, len(l.Transactions))
-		for i, txn := range l.Transactions {
-			i := i
-			txn := txn
+		logs := make([]*action.TransactionLog, len(l.GetTransactions()))
+		for i, txn := range l.GetTransactions() {
 			amount, ok := new(big.Int).SetString(txn.Amount, 10)
 			if !ok {
 				return nil, errors.New("failed to parse transaction amount")
@@ -63,9 +60,8 @@ func processTransactionLog(blk *block.Block, tlogs *iotextypes.TransactionLogs) 
 				Recipient: txn.Recipient,
 			}
 		}
-		for k, j := range blk.Receipts {
-			k := k
-			j := j
+		receipts := blk.Receipts
+		for k, j := range receipts {
 			if j.ActionHash == hash.BytesToHash256(l.ActionHash) {
 				if len(j.TransactionLogs()) == 0 {
 					blk.Receipts[k] = j.AddTransactionLogs(logs...)
@@ -79,45 +75,37 @@ func processTransactionLog(blk *block.Block, tlogs *iotextypes.TransactionLogs) 
 	return blk, nil
 }
 
-func GetBlockByHeightFromChain(height uint64) (*block.Block, error) {
-	chainClient := ChainClient()
+func GetBlockByHeightFromChain(ctx context.Context, height uint64) (*block.Block, error) {
+	cli := ChainClient()
 	count := uint64(1)
 	startHeight := height
 	rawRequest := &iotexapi.GetRawBlocksRequest{
-		StartHeight:  startHeight,
-		Count:        count,
-		WithReceipts: true,
+		StartHeight:         startHeight,
+		Count:               count,
+		WithReceipts:        true,
+		WithTransactionLogs: true,
 	}
-	getRawBlocksRes, err := chainClient.GetRawBlocks(context.Background(), rawRequest)
+	response, err := cli.GetRawBlocks(ctx, rawRequest)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, blkInfo := range getRawBlocksRes.GetBlocks() {
+	for _, blkInfo := range response.GetBlocks() {
 		deser := block.NewDeserializer(config.EVMNetworkID())
 		blk, err := deser.FromBlockProto(blkInfo.GetBlock())
 		if err != nil {
 			return nil, err
 		}
-		receipts := map[hash.Hash256]*action.Receipt{}
+		receipts := make(map[hash.Hash256]*action.Receipt)
 		for _, receiptPb := range blkInfo.GetReceipts() {
 			receipt := &action.Receipt{}
 			receipt.ConvertFromReceiptPb(receiptPb)
 			receipts[receipt.ActionHash] = receipt
 			blk.Receipts = append(blk.Receipts, receipt)
 		}
-		transactionLogs, err := chainClient.GetTransactionLogByBlockHeight(
-			context.Background(),
-			&iotexapi.GetTransactionLogByBlockHeightRequest{
-				BlockHeight: blk.Header.Height(),
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		for _, tlogs := range transactionLogs.TransactionLogs.Logs {
-			logs := make([]*action.TransactionLog, len(tlogs.Transactions))
-			for i, txn := range tlogs.Transactions {
+		for _, tlogs := range blkInfo.GetTransactionLogs().GetLogs() {
+			logs := make([]*action.TransactionLog, len(tlogs.GetTransactions()))
+			for i, txn := range tlogs.GetTransactions() {
 				amount, ok := new(big.Int).SetString(txn.Amount, 10)
 				if !ok {
 					return nil, errors.Errorf("failed to parse %s", txn.Amount)

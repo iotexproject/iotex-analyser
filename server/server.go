@@ -170,48 +170,40 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			count = tipHeight - startHeight + 1
 		}
 		rawRequest := &iotexapi.GetRawBlocksRequest{
-			StartHeight:  startHeight,
-			Count:        count,
-			WithReceipts: true,
+			StartHeight:         startHeight,
+			Count:               count,
+			WithReceipts:        true,
+			WithTransactionLogs: true,
 		}
 		srv.logger.Debug("chain client get raw blocks start",
 			zap.Uint64("startHeight", startHeight),
 			zap.Uint64("count", count),
 		)
 		timeStart := time.Now()
-		getRawBlocksRes, err := chainClient.GetRawBlocks(context.Background(), rawRequest)
+		response, err := chainClient.GetRawBlocks(context.Background(), rawRequest)
 		if err != nil {
 			return errors.Wrap(err, "failed to get raw blocks from the chain")
 		}
 		srv.logger.Debug("chain client get raw blocks end",
 			zap.Duration("timeSpent", time.Since(timeStart)),
-			zap.Int("blocks", len(getRawBlocksRes.GetBlocks())),
+			zap.Int("blocks", len(response.GetBlocks())),
 		)
-		for _, blkInfo := range getRawBlocksRes.GetBlocks() {
+		for _, blkInfo := range response.GetBlocks() {
 			deser := block.NewDeserializer(config.EVMNetworkID())
 			blk, err := deser.FromBlockProto(blkInfo.GetBlock())
 			if err != nil {
 				return err
 			}
-			receipts := map[hash.Hash256]*action.Receipt{}
+			receipts := make(map[hash.Hash256]*action.Receipt)
 			for _, receiptPb := range blkInfo.GetReceipts() {
 				receipt := &action.Receipt{}
 				receipt.ConvertFromReceiptPb(receiptPb)
 				receipts[receipt.ActionHash] = receipt
 				blk.Receipts = append(blk.Receipts, receipt)
 			}
-			transactionLogs, err := chainClient.GetTransactionLogByBlockHeight(
-				context.Background(),
-				&iotexapi.GetTransactionLogByBlockHeightRequest{
-					BlockHeight: blk.Header.Height(),
-				},
-			)
-			if err != nil {
-				return errors.Wrap(err, "failed to fetch transaction logs")
-			}
-			for _, tlogs := range transactionLogs.TransactionLogs.Logs {
-				logs := make([]*action.TransactionLog, len(tlogs.Transactions))
-				for i, txn := range tlogs.Transactions {
+			for _, tlogs := range blkInfo.GetTransactionLogs().GetLogs() {
+				logs := make([]*action.TransactionLog, len(tlogs.GetTransactions()))
+				for i, txn := range tlogs.GetTransactions() {
 					amount, ok := new(big.Int).SetString(txn.Amount, 10)
 					if !ok {
 						return errors.Errorf("failed to parse %s", txn.Amount)

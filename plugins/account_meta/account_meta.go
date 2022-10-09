@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.1"
+const VERSION = "2.1.2"
 
 type accountMetaPlugin struct {
 	cachedAccounts sync.Map
@@ -51,7 +51,8 @@ func getAccounts(blk *block.Block) ([]string, error) {
 			recipient := transation.Recipient
 			if len(recipient) > 0 {
 				if addr, err := address.FromString(recipient); err != nil {
-					return nil, errors.Wrapf(err, "failed to parse recipient %s", recipient)
+					//skip invalid address
+					continue
 				} else {
 					recipient = addr.String()
 				}

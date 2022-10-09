@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.2"
+const VERSION = "2.1.3"
 
 type income struct {
 	inFlow        *big.Int
@@ -102,7 +102,8 @@ func getIncomes(blk *block.Block) (map[string]income, error) {
 			recipient := transation.Recipient
 			if len(recipient) > 0 {
 				if addr, err := address.FromString(recipient); err != nil {
-					return nil, err
+					//skip invalid address
+					continue
 				} else {
 					recipient = addr.String()
 				}
@@ -173,20 +174,8 @@ func (b accountIncomePlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					return err
 				}
 			}
-			// if err := tx.Clauses(clause.OnConflict{
-			// 	Columns: []clause.Column{{Name: "address"}},
-			// 	DoUpdates: clause.Assignments(map[string]interface{}{
-			// 		"address":         accountAddress,
-			// 		"in_flow":         gorm.Expr("in_flow + ?", inFlow),
-			// 		"in_num_actions":  gorm.Expr("in_num_actions + ?", accountIncome.inNumActions),
-			// 		"out_flow":        gorm.Expr("out_flow + ?", outFlow),
-			// 		"out_num_actions": gorm.Expr("out_num_actions + ?", accountIncome.outNumActions),
-			// 	}),
-			// }).Create(aicm).Error; err != nil {
-			// 	return err
-			// }
 		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blkHeight)
 	})
 
 	return err

@@ -141,7 +141,7 @@ func verifyDB(c *cli.Context) error {
 				fmt.Printf("\nblkNum=%d receipt verify error=%v \n", i, err)
 			}
 			if err := verifyTransactions(dao, db, i); errors.Cause(err) == ErrTransactionNoMatch {
-				fmt.Printf("\nblkNum=%d transaction no match \n", i)
+				fmt.Printf("\nblkNum=%d %v \n", i, err)
 			} else if err != nil {
 				fmt.Printf("\nblkNum=%d transaction verify error=%v \n", i, err)
 			}
@@ -280,11 +280,15 @@ func verifyTransactions(dao blockdao.BlockDAO, db *gorm.DB, height uint64) error
 	if err := db.Table("block_receipt_transactions").Where("block_height = ?", height).Find(&transactions).Error; err != nil {
 		return err
 	}
+	daoLen := 0
+	for _, transactionLogs := range daoTransactions.GetLogs() {
+		daoLen += len(transactionLogs.GetTransactions())
+	}
+	if daoLen != len(transactions) {
+		return errors.Wrapf(ErrTransactionNoMatch, "blkNum=%d transaction len not match, dao[%d]!=db[%d]", height, daoLen, len(transactions))
+	}
 	for _, transactionLogs := range daoTransactions.GetLogs() {
 		actionHash := hex.EncodeToString(transactionLogs.ActionHash[:])
-		if transactionLogs.GetNumTransactions() != uint64(len(transactions)) {
-			return errors.Wrapf(ErrTransactionNoMatch, "blkNum=%d transaction len not match", height)
-		}
 		for _, transaction := range transactionLogs.GetTransactions() {
 			actType := getTransactionType(transaction.Type)
 			ok := false

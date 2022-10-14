@@ -4,10 +4,11 @@ go 1.18
 
 require (
 	github.com/ethereum/go-ethereum v1.10.21
+	github.com/gammazero/workerpool v1.1.3
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.13
 	github.com/iotexproject/iotex-address v0.2.8
-	github.com/iotexproject/iotex-core v1.8.3-rc4
+	github.com/iotexproject/iotex-core v1.9.0-rc0.0.20221012090041-436b7b54fe48
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.10
 	github.com/millken/gocache v1.0.5
@@ -16,6 +17,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/rodaine/table v1.0.1
+	github.com/schollz/progressbar/v3 v3.11.0
 	github.com/sethvargo/go-envconfig v0.5.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.8.0
@@ -44,7 +46,9 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/dustinxie/gmsm v1.4.0 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
+	github.com/fatih/color v1.10.0 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
+	github.com/gammazero/deque v0.2.0 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -137,7 +141,7 @@ require (
 	github.com/libp2p/go-yamux/v2 v2.2.0 // indirect
 	github.com/magefile/mage v1.9.0 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
-	github.com/mattn/go-runewidth v0.0.12 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mattn/go-sqlite3 v1.14.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/miekg/dns v1.1.41 // indirect
@@ -145,6 +149,7 @@ require (
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-base32 v0.0.3 // indirect
@@ -188,7 +193,8 @@ require (
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b // indirect
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde // indirect
-	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261 // indirect
+	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
 	google.golang.org/genproto v0.0.0-20211223182754-3ac035c7e7cb // indirect

@@ -39,6 +39,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = testPath
+	cfg.ReadOnly = true
 	deser := block.NewDeserializer(config.EVMNetworkID())
 	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
 	require.NoError(dao.Start(ctx))

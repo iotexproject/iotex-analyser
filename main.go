@@ -59,6 +59,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		cmd.Server,
 		cmd.Plugin,
+		cmd.Tools,
 	}
 	if err := app.Run(os.Args); err != nil {
 		log.L().Error("Failed to start application", zap.Error(err))

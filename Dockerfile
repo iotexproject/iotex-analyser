@@ -1,5 +1,5 @@
 #can not work on alpine3.14
-FROM golang:1.17-alpine3.15 AS builder
+FROM golang:1.18-alpine3.15 AS builder
 WORKDIR /app
 
 # ENV GO111MODULE on

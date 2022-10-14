@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"os"
 	"runtime"
 	"strings"
 	"unicode"
@@ -124,6 +125,7 @@ func verifyDB(c *cli.Context) error {
 	wp := workerpool.New(c.Int("worker"))
 	bar := progressbar.NewOptions(int(endBlkNum-startBlkNum+1),
 		progressbar.OptionSetDescription("Verifying..."),
+		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionShowCount(),
 	)
 	for i := startBlkNum; i <= endBlkNum; i++ {

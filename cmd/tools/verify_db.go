@@ -85,7 +85,7 @@ func openDAO(c *cli.Context) (blockdao.BlockDAO, error) {
 	deser := block.NewDeserializer(config.EVMNetworkID())
 	blockDB := config.Default.BlockDB
 	blockDB.ReadOnly = true
-	dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB, deser)
+	dao = blockdao.NewBlockDAO(indexers, blockDB, deser)
 
 	if err := dao.Start(ctxDao); err != nil {
 		return nil, err

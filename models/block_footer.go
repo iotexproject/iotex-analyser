@@ -18,7 +18,7 @@ func (c *Endorser) Scan(src any) error {
 
 type BlockFooter struct {
 	BlockHeight uint64   `gorm:"primary_key;" sql:"type:bigint;"`
-	Endorser    Endorser `gorm:"type:json"`
+	Endorser    Endorser `gorm:"type:jsonb;index:,type:gin;"`
 }
 
 func (BlockFooter) TableName() string {

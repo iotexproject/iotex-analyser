@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type blockFooterPlugin struct {
 }
@@ -35,19 +35,18 @@ func (b blockFooterPlugin) Start(ctx context.Context) error {
 
 func (b blockFooterPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
-	var endorser []string
-	for _, endor := range blk.Footer.Endorsements() {
-		pubKey := endor.Endorser()
-		endorser = append(endorser, pubKey.Address().String())
-	}
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		bm := models.BlockFooter{
-			BlockHeight: blkHeight,
-			Endorser:    endorser,
-		}
+		for _, endor := range blk.Footer.Endorsements() {
+			pubKey := endor.Endorser()
+			endorser := pubKey.Address().String()
+			blkFooter := &models.BlockFooter{
+				BlockHeight: blkHeight,
+				Endorser:    endorser,
+			}
 
-		if err := tx.Create(&bm).Error; err != nil {
-			return err
+			if err := tx.Create(&blkFooter).Error; err != nil {
+				return err
+			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})

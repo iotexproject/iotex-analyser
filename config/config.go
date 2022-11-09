@@ -61,6 +61,7 @@ type (
 		Debug    bool   `yaml:"debug"  env:"DB_DEBUG"`
 	}
 	Iotex struct {
+		EVMNetworkID       uint32   `yaml:"evmNetworkID"`
 		CrawlMode          bool     `yaml:"crawlMode"`
 		CrawlHeight        []uint64 `yaml:"crawlHeight"`
 		DisableRebuildDB   bool     `yaml:"disableRebuildDB"`

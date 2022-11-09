@@ -45,11 +45,15 @@ func main() {
 			fmt.Fprintf(os.Stderr, "ERROR: Failed to init logger: %v\n", err)
 			os.Exit(1)
 		}
-		if strings.Contains(cfg.Iotex.ChainEndPoint, "testnet") {
-			config.SetEVMNetworkID(4690)
-		} else {
-			config.SetEVMNetworkID(4689)
+		config.SetEVMNetworkID(cfg.Iotex.EVMNetworkID)
+		if cfg.Iotex.EVMNetworkID == 0 {
+			if strings.Contains(cfg.Iotex.ChainEndPoint, "testnet") {
+				config.SetEVMNetworkID(4690)
+			} else {
+				config.SetEVMNetworkID(4689)
+			}
 		}
+
 		log.L().Debug("loaded iotex-core configure",
 			zap.String("version", version),
 			zap.Uint32("EVMNetworkID", config.EVMNetworkID()),

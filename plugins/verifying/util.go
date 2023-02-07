@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"unicode"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -41,17 +42,57 @@ var (
 	ErrTransactionNoMatch = errors.New("transaction no match")
 )
 
+type diffBlk struct {
+	BlkHash         string
+	ProducerAddress string
+	Timestamp       int64
+	NumActions      int
+}
+
+type diffAction struct {
+	ActionHash string
+	GasPrice   decimal.Decimal
+	GasLimit   uint64
+	Nonce      uint64
+	ActionType string
+	Amount     decimal.Decimal
+	Payload    []byte
+	Sender     string
+	Recipient  string
+}
+
+type diffActions []diffAction
+
+func (d diffActions) Len() int {
+	return len(d)
+}
+func (d diffActions) Less(i, j int) bool {
+	return d[i].ActionHash < d[j].ActionHash
+}
+func (d diffActions) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
+}
+
 func verifyAction(blk *block.Block, db *gorm.DB, height uint64) error {
 	var block models.Block
 	if err := db.Table("block").Where("block_height = ?", height).Find(&block).Error; err != nil {
 		return err
 	}
 	blkHash := blk.HashBlock()
-	if block.BlockHash != hex.EncodeToString(blkHash[:]) ||
-		block.ProducerAddress != blk.ProducerAddress() ||
-		block.Timestamp.Unix() != blk.Timestamp().Unix() ||
-		block.NumActions != len(blk.Actions) {
-		return ErrActionNoMatch
+	got, want := diffBlk{
+		BlkHash:         block.BlockHash,
+		ProducerAddress: block.ProducerAddress,
+		Timestamp:       block.Timestamp.Unix(),
+		NumActions:      block.NumActions,
+	}, diffBlk{
+		BlkHash:         hex.EncodeToString(blkHash[:]),
+		ProducerAddress: blk.ProducerAddress(),
+		Timestamp:       blk.Timestamp().Unix(),
+		NumActions:      len(blk.Actions),
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		fmt.Printf("\nmismatch blk (-want +got):\n%s\n", diff)
+		return errors.Wrapf(ErrActionNoMatch, "mismatch blk")
 	}
 
 	var actions []models.BlockAction
@@ -61,6 +102,7 @@ func verifyAction(blk *block.Block, db *gorm.DB, height uint64) error {
 	if len(actions) != len(blk.Actions) {
 		return errors.Wrapf(ErrActionNoMatch, "blkNum=%d action len not match", height)
 	}
+	var want1, got1 diffActions
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
@@ -72,31 +114,81 @@ func verifyAction(blk *block.Block, db *gorm.DB, height uint64) error {
 		amount, payload := getPayloadAmount(act)
 		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
 		dst, _ := selp.Destination()
-
-		for i, action := range actions {
-			if hex.EncodeToString(actionHash[:]) == action.ActionHash &&
-				gasPrice.Equal(action.GasPrice) &&
-				gasLimit == action.GasLimit &&
-				nonce == action.Nonce &&
-				actionType == action.ActionType &&
-				action.Amount.Equal(decimal.NewFromBigInt(amount, 0)) &&
-				bytes.Equal(payload, action.Payload) &&
-				sender.String() == action.Sender &&
-				dst == action.Recipient {
-				actions = append(actions[:i], actions[i+1:]...)
-				break
-			}
-		}
-		if len(actions) == 0 {
-			break
-		}
+		want1 = append(want1, diffAction{
+			ActionHash: hex.EncodeToString(actionHash[:]),
+			GasPrice:   gasPrice,
+			GasLimit:   gasLimit,
+			Nonce:      nonce,
+			ActionType: actionType,
+			Amount:     decimal.NewFromBigInt(amount, 0),
+			Payload:    payload,
+			Sender:     sender.String(),
+			Recipient:  strings.ToLower(dst),
+		})
 	}
-	if len(actions) != 0 {
-		return errors.Wrapf(ErrActionNoMatch, "blkNum=%d action not match", height)
+
+	for _, action := range actions {
+		got1 = append(got1, diffAction{
+			ActionHash: action.ActionHash,
+			GasPrice:   action.GasPrice,
+			GasLimit:   action.GasLimit,
+			Nonce:      action.Nonce,
+			ActionType: action.ActionType,
+			Amount:     action.Amount,
+			Payload:    action.Payload,
+			Sender:     action.Sender,
+			Recipient:  action.Recipient,
+		})
+	}
+
+	sort.Sort(want1)
+	sort.Sort(got1)
+	if diff := cmp.Diff(want1, got1); diff != "" {
+		fmt.Printf("\nmismatch actions (-want +got):\n%s\n", diff)
+		return errors.Wrapf(ErrActionNoMatch, "mismatch actions")
 	}
 	return nil
 }
 
+type diffReceipt struct {
+	ActionHash         string
+	Status             uint64
+	GasConsumed        uint64
+	ContractAddress    string
+	ExecutionRevertMsg string
+}
+type diffReceipts []diffReceipt
+
+func (d diffReceipts) Len() int {
+	return len(d)
+}
+func (d diffReceipts) Less(i, j int) bool {
+	return d[i].ActionHash < d[j].ActionHash
+}
+func (d diffReceipts) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
+}
+
+type diffReceiptLog struct {
+	ActionHash string
+	Address    string
+	Topic0     string
+	Topic1     string
+	Topic2     string
+	Topic3     string
+	Data       []byte
+}
+type diffReceiptLogs []diffReceiptLog
+
+func (d diffReceiptLogs) Len() int {
+	return len(d)
+}
+func (d diffReceiptLogs) Less(i, j int) bool {
+	return d[i].ActionHash < d[j].ActionHash
+}
+func (d diffReceiptLogs) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
+}
 func verifyReceipt(blk *block.Block, db *gorm.DB, height uint64) error {
 	daoReceipts := blk.Receipts
 	var receipts []models.BlockReceipt
@@ -106,52 +198,94 @@ func verifyReceipt(blk *block.Block, db *gorm.DB, height uint64) error {
 	if len(daoReceipts) != len(receipts) {
 		return errors.Wrapf(ErrReceiptNoMatch, "blkNum=%d receipt len not match", height)
 	}
+	var want, got diffReceipts
 	for _, receipt := range daoReceipts {
-		actionHash := hex.EncodeToString(receipt.ActionHash[:])
-		for i, dbReceipt := range receipts {
-			if actionHash == dbReceipt.ActionHash &&
-				receipt.Status == dbReceipt.Status &&
-				receipt.GasConsumed == dbReceipt.GasConsumed &&
-				receipt.ContractAddress == dbReceipt.ContractAddress &&
-				receipt.ExecutionRevertMsg() == dbReceipt.ExecutionRevertMsg {
-				receipts = append(receipts[:i], receipts[i+1:]...)
-				break
-			}
-		}
-		if len(receipts) == 0 {
-			break
-		}
+		want = append(want, diffReceipt{
+			ActionHash:         hex.EncodeToString(receipt.ActionHash[:]),
+			Status:             receipt.Status,
+			GasConsumed:        receipt.GasConsumed,
+			ContractAddress:    receipt.ContractAddress,
+			ExecutionRevertMsg: receipt.ExecutionRevertMsg(),
+		})
 	}
-	if len(receipts) != 0 {
-		return errors.Wrapf(ErrReceiptNoMatch, "blkNum=%d receipt not match", height)
+	for _, receipt := range receipts {
+		got = append(got, diffReceipt{
+			ActionHash:         receipt.ActionHash,
+			Status:             receipt.Status,
+			GasConsumed:        receipt.GasConsumed,
+			ContractAddress:    receipt.ContractAddress,
+			ExecutionRevertMsg: receipt.ExecutionRevertMsg,
+		})
+	}
+	sort.Sort(want)
+	sort.Sort(got)
+	if diff := cmp.Diff(want, got); diff != "" {
+		fmt.Printf("\nmismatch receipt (-want +got):\n%s\n", diff)
+		return errors.Wrapf(ErrReceiptNoMatch, "mismatch receipt")
 	}
 
 	var logs []models.BlockReceiptLog
 	if err := db.Table("block_receipt_logs").Where("block_height = ?", height).Find(&logs).Error; err != nil {
 		return err
 	}
+	var want1, got1 diffReceiptLogs
 	for _, receipt := range daoReceipts {
 		actionHash := hex.EncodeToString(receipt.ActionHash[:])
 		for _, log := range receipt.Logs() {
-			for i, dbLog := range logs {
-				topic0, topic1, topic2, topic3 := parseTopics(log.Topics)
-				if actionHash == dbLog.ActionHash &&
-					log.Address == dbLog.Address &&
-					topic0 == dbLog.Topic0 &&
-					topic1 == dbLog.Topic1 &&
-					topic2 == dbLog.Topic2 &&
-					topic3 == dbLog.Topic3 &&
-					bytes.Equal(log.Data, dbLog.Data) {
-					logs = append(logs[:i], logs[i+1:]...)
-					break
-				}
+			topic0, topic1, topic2, topic3 := parseTopics(log.Topics)
+			logData := log.Data
+			if log.Data == nil {
+				logData = []byte("")
 			}
+			want1 = append(want1, diffReceiptLog{
+				ActionHash: actionHash,
+				Address:    log.Address,
+				Topic0:     topic0,
+				Topic1:     topic1,
+				Topic2:     topic2,
+				Topic3:     topic3,
+				Data:       logData,
+			})
+
 		}
 	}
-	if len(logs) != 0 {
-		return errors.Wrapf(ErrReceiptNoMatch, "blkNum=%d receipt log not match", height)
+	for _, dbLog := range logs {
+		got1 = append(got1, diffReceiptLog{
+			ActionHash: dbLog.ActionHash,
+			Address:    dbLog.Address,
+			Topic0:     dbLog.Topic0,
+			Topic1:     dbLog.Topic1,
+			Topic2:     dbLog.Topic2,
+			Topic3:     dbLog.Topic3,
+			Data:       dbLog.Data,
+		})
+	}
+	sort.Sort(want1)
+	sort.Sort(got1)
+	if diff := cmp.Diff(want1, got1); diff != "" {
+		fmt.Printf("\nmismatch receipt logs (-want +got):\n%s\n", diff)
+		return errors.Wrapf(ErrReceiptNoMatch, "mismatch receipt logs")
 	}
 	return nil
+}
+
+type diffTransaction struct {
+	ActionHash string
+	Sender     string
+	Recipient  string
+	Amount     string
+	ActionType string
+}
+type diffTransactions []diffTransaction
+
+func (d diffTransactions) Len() int {
+	return len(d)
+}
+func (d diffTransactions) Less(i, j int) bool {
+	return d[i].ActionHash < d[j].ActionHash
+}
+func (d diffTransactions) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
 }
 
 func verifyTransactions(blk *block.Block, db *gorm.DB, height uint64) error {
@@ -160,35 +294,35 @@ func verifyTransactions(blk *block.Block, db *gorm.DB, height uint64) error {
 	if err := db.Table("block_receipt_transactions").Where("block_height = ?", height).Find(&transactions).Error; err != nil {
 		return err
 	}
-	daoLen := 0
-	for _, receipt := range daoReceipts {
-		daoLen += len(receipt.TransactionLogs())
-	}
-	if daoLen != len(transactions) {
-		return errors.Wrapf(ErrTransactionNoMatch, "blkNum=%d transaction len not match, dao[%d]!=db[%d]", height, daoLen, len(transactions))
-	}
+	var want, got diffTransactions
 	for _, receipt := range daoReceipts {
 		actionHash := hex.EncodeToString(receipt.ActionHash[:])
 		for _, transaction := range receipt.TransactionLogs() {
 			actType := getTransactionType(transaction.Type)
-			ok := false
-			for i, dbTransaction := range transactions {
-				if actionHash == dbTransaction.ActionHash &&
-					transaction.Sender == dbTransaction.Sender &&
-					transaction.Recipient == dbTransaction.Recipient &&
-					dbTransaction.Amount.String() == transaction.Amount.String() &&
-					actType == dbTransaction.Type {
-					transactions = append(transactions[:i], transactions[i+1:]...)
-					ok = true
-					break
-				}
-			}
-			if !ok {
-				return errors.Wrapf(ErrTransactionNoMatch, "blkNum=%d transaction not match", height)
-			}
+			want = append(want, diffTransaction{
+				ActionHash: actionHash,
+				Sender:     transaction.Sender,
+				Recipient:  transaction.Recipient,
+				Amount:     transaction.Amount.String(),
+				ActionType: actType,
+			})
 		}
 	}
-
+	for _, dbTransaction := range transactions {
+		got = append(got, diffTransaction{
+			ActionHash: dbTransaction.ActionHash,
+			Sender:     dbTransaction.Sender,
+			Recipient:  dbTransaction.Recipient,
+			Amount:     dbTransaction.Amount.String(),
+			ActionType: dbTransaction.Type,
+		})
+	}
+	sort.Sort(want)
+	sort.Sort(got)
+	if diff := cmp.Diff(want, got); diff != "" {
+		fmt.Printf("\nmismatch transactions (-want +got):\n%s\n", diff)
+		return errors.Wrapf(ErrReceiptNoMatch, "mismatch transactions")
+	}
 	return nil
 }
 

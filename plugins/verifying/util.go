@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -184,7 +185,25 @@ func (d diffReceiptLogs) Len() int {
 	return len(d)
 }
 func (d diffReceiptLogs) Less(i, j int) bool {
-	return d[i].ActionHash < d[j].ActionHash
+	if d[i].ActionHash != d[j].ActionHash {
+		return d[i].ActionHash < d[j].ActionHash
+	}
+	if d[i].Address != d[j].Address {
+		return d[i].Address < d[j].Address
+	}
+	if d[i].Topic0 != d[j].Topic0 {
+		return d[i].Topic0 < d[j].Topic0
+	}
+	if d[i].Topic1 != d[j].Topic1 {
+		return d[i].Topic1 < d[j].Topic1
+	}
+	if d[i].Topic2 != d[j].Topic2 {
+		return d[i].Topic2 < d[j].Topic2
+	}
+	if d[i].Topic3 != d[j].Topic3 {
+		return d[i].Topic3 < d[j].Topic3
+	}
+	return bytes.Compare(d[i].Data, d[j].Data) < 0
 }
 func (d diffReceiptLogs) Swap(i, j int) {
 	d[i], d[j] = d[j], d[i]
@@ -282,7 +301,22 @@ func (d diffTransactions) Len() int {
 	return len(d)
 }
 func (d diffTransactions) Less(i, j int) bool {
-	return d[i].ActionHash < d[j].ActionHash
+	if d[i].ActionHash != d[j].ActionHash {
+		return d[i].ActionHash < d[j].ActionHash
+	}
+	if d[i].Sender != d[j].Sender {
+		return d[i].Sender < d[j].Sender
+	}
+	if d[i].Recipient != d[j].Recipient {
+		return d[i].Recipient < d[j].Recipient
+	}
+	if d[i].Amount != d[j].Amount {
+		return d[i].Amount < d[j].Amount
+	}
+	if d[i].ActionType != d[j].ActionType {
+		return d[i].ActionType < d[j].ActionType
+	}
+	return false
 }
 func (d diffTransactions) Swap(i, j int) {
 	d[i], d[j] = d[j], d[i]

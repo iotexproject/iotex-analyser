@@ -1,43 +1,44 @@
 
 # Overview
 
-iotex-analyser is a project developed by Golang for asynchronous analysis of iotex blockchain data. 
-
-It has the function of synchronous iotex blockchain block data.
-
-You can analyze the data on the chain and store it in the database (MySQL, PostgreSQL, SQLite3) or other external storage by writing a plugin.
+Proofread version: IoTeX Analyzer is a project developed by the IoTeX team to enable asynchronous analysis of IoTeX blockchain data. It allows for indexing the data on the IoTeX blockchain and storing it in a database of your choice among MySQL, PostgreSQL, or SQLite3. Additionally, any other storage can be supported by writing a plugin.
 
 ![Technical architecture of Iotex analyser](docs/assets/images/162696321861.png)
 
 ## Feature
-iotex-analyser enables you to deploy your plugins without any downtime，Dynamic load/unload plugins. 
-The plugins directory has realized several basic functions. 
-You can also write your own plugins to complete the functions you want.
+With iotex-analyser, you can deploy your plugins without any downtime and dynamically load and unload them. The plugins directory includes several basic functions, and you can write your own plugins to customize and enhance the desired functionality.
 
-## Documentation
-### build from code
+## Running using Docker Compose
+```
+docker-compose up
+```
 
-Download and build the code
+## Building from source
+
+### Build
+
+Clone this repository and build the service including plugins with:
 ```
 git clone https://github.com/iotexproject/iotex-analyser.git
 cd iotex-analyser
-make build
-``` 
-Build the project for general purpose (server, plugins) by
-```
 make
+``` 
+
+Or build the service only with:
+```
+make build
 ```
 
-### Usage
+### Run
 
-You needs to create database before start server, use docker here
+You need to create the database before you start server. Below, we use docker to run a Postgres database service:
 
 ```
 docker run --name postgres12 -e POSTGRES_PASSWORD=admin --publish 5432:5432 -d postgres:12-alpine
 
 ```
 
-simple config.yml
+Below we show a simple `config.yml`for the IoTeX Analyser service:
 ```yml
 server:
   #loaded default plugin list
@@ -59,33 +60,30 @@ log:
   zap:
     level: info
 ```
-- `chain.db` we can use the snapshot with index data:
-   1. https://t.iotex.me/mainnet-data-with-idx-latest
-   2. https://t.iotex.me/testnet-data-with-idx-latest
+where:ì for `chain.db` we can use the snapshot with index data:
+   - mainnet: https://t.iotex.me/mainnet-data-with-idx-latest
+   - testnet: https://t.iotex.me/testnet-data-with-idx-latest
    
-start server
+### Commands
+
+Start IoTeX Analyser with:
 ```sh
 ./iotex-analyser -c config.yml server
 ```
-dynamic load a plugin
+Dynamically load a plugin with:
 ```sh
 ./iotex-analyser -c config.yml plugin load simple.so
 ```
-dynamic unload a plugin
+Dynamically unload a plugin with:
 ```sh
 ./iotex-analyser -c config.yml plugin unload simple.so
 ```
-display plugin running infomation
+List running plugins with:
 ```sh
 ./iotex-analyser -c config.yml plugin info
 ```
 
-### Quickstart Docker Compose
-```
-docker-compose up
-```
-
-### GraphQL Support 
+## GraphQL Support 
 
 [Hasura](https://hasura.io/) is a GraphQL Engine, a tool that places a GraphQL API in front of a PostgreSQL Database.
 
@@ -93,14 +91,15 @@ Hasura Console: `https://iotexscout.io/hasura/console`
 
 GraphQL Endpoint: `https://iotexscout.io/hasura/v1/graphql`
 
-### plugin lists
+## plugin lists
   - [block](plugins/block/)
   - [block_action](plugins/block_action/)
   - [candidate](plugins/candidate/)
   - [staking_action](plugins/staking_action/)
   - [probation](plugins/probation/)
-## How to writing a plugin
-Currently, a adapter interface is defined, and the written plugin needs to implement the interface.
+  
+## Creating plugins
+Any plugin is required to be implemented according to the following adapter interface:
 ```go
 type Adapter interface {
 	Name() string
@@ -112,7 +111,7 @@ type Adapter interface {
 }
 ```
 
-The following code `simple/simple.go` demonstrates how to write a plugin
+The following code (included in `simple/simple.go`) demonstrates how to write a simple plugin:
 ```go
 package main
 
@@ -157,7 +156,7 @@ func (b simplePlugin) Version() string {
 var Plugin = simplePlugin{}
 
 ```
-### build plugin
+### Build your plugin
 ```sh
 make plugin name=simple
 ```
@@ -165,7 +164,7 @@ This  will generates a file of `simple.so` in the current directory, and then lo
 ```
 ./iotex-analyser -c config.yml plugin load simple.so
 ```
-After successfully running the plugin, the server will output similar text
+After successfully running the plugin, the server will output something like:
 ```
 block height: 1
 ...

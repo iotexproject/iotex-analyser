@@ -1,7 +1,7 @@
 
 # Overview
 
-Proofread version: IoTeX Analyzer is a project developed by the IoTeX team to enable asynchronous analysis of IoTeX blockchain data. It allows for indexing the data on the IoTeX blockchain and storing it in a database of your choice among MySQL, PostgreSQL, or SQLite3. Additionally, any other storage can be supported by writing a plugin.
+IoTeX Analyzer is a project developed by the IoTeX team to enable asynchronous analysis of IoTeX blockchain data. It allows for indexing the data on the IoTeX blockchain and storing it in a database of your choice among MySQL, PostgreSQL, or SQLite3. Additionally, any other storage can be supported by writing a plugin.
 
 ![Technical architecture of Iotex analyser](docs/assets/images/162696321861.png)
 

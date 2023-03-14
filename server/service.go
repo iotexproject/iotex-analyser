@@ -66,7 +66,7 @@ func NewService(dao blockdao.BlockDAO) *Service {
 func (s *Service) Start(ctx context.Context) error {
 	s.logger.Info("starting plugin service")
 	go func() {
-		refreshTicker := time.NewTicker(time.Minute * 1)
+		refreshTicker := time.NewTicker(time.Second * 5)
 		defer refreshTicker.Stop()
 		for {
 			select {

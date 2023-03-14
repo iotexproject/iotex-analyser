@@ -92,7 +92,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}).Create(&model).Error; err != nil {
 								return err
 							}
-							//born
+							//burn
 						} else if toAddr.String() == address.ZeroAddress {
 							if err := tx.Where("contract_address = ? and token_id= ?", log.Address, tokenID).Delete(&models.Erc1155721Holder{}).Error; err != nil {
 								return err
@@ -178,7 +178,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}).Create(&model).Error; err != nil {
 								return err
 							}
-							//born
+							//burn
 						} else if toAddr.String() == address.ZeroAddress {
 							if err := tx.Where("contract_address = ? and token_id= ?", log.Address, tokenID).Delete(&models.Erc1155721Holder{}).Error; err != nil {
 								return err

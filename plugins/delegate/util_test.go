@@ -25,7 +25,14 @@ func TestVotes(t *testing.T) {
 	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
 
-	epochNumber := uint64(24738)
+	/*
+		10250  gamefantasy error
+		epochData:{num:10249 height:5562361}
+		epochData:{num:10250 height:5563081}
+	*/
+	fmt.Printf("%d=", kernel.GetEpochLastBlockHeight(10250))
+	return
+	epochNumber := uint64(10249)
 	pluginHeight := kernel.GetEpochLastBlockHeight(epochNumber)
 	stakings, err := getCandidateStaking(pluginHeight)
 	require.NoError(err)
@@ -34,11 +41,17 @@ func TestVotes(t *testing.T) {
 	require.NoError(err)
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
+	tmpStakings := make([]Staking, 0)
 	for _, staking := range stakings {
+		cand, err := candidates.ByOwnerAddress(staking.Candidate)
+		require.NoError(err)
+		if cand.Name != "gamefantasy" {
+			continue
+		}
+		tmpStakings = append(tmpStakings, *staking)
 		delegate, ok := delegateMap[staking.Candidate]
 		if !ok {
-			cand, err := candidates.ByOwnerAddress(staking.Candidate)
-			require.NoError(err)
+
 			active := false
 			productionNum := 0
 			//cand.OperatorAddress is block producer address
@@ -75,12 +88,17 @@ func TestVotes(t *testing.T) {
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate
 	}
+	fmt.Printf("%+v\n", tmpStakings)
 	probationList := getProbationList(pluginHeight)
 	for c, d := range delegateMap {
 		probated := false
 		if _, ok := probationList[d.OperatorAddress]; ok {
 			probated = true
 		}
+		if d.Name != "gamefantasy" {
+			continue
+		}
+
 		modelDelegate := models.Delegate{
 			BlockHeight:     pluginHeight,
 			OperatorAddress: d.OperatorAddress,

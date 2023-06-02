@@ -118,7 +118,6 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		totalMap := make(map[string]int, 0)
 
 		for _, selp := range blk.Actions {
-			accounts := []string{}
 			actionHash, _ := selp.Hash()
 			receipt, ok := receipts[actionHash]
 			if !ok {
@@ -149,6 +148,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				Nonce:              nonce,
 				Amount:             amountDec,
 				GasConsumed:        receipt.GasConsumed,
+				ChainID:            selp.ChainID(),
+				Encoding:           selp.Encoding(),
+				Version:            selp.Version(),
 				ContractAddress:    receipt.ContractAddress,
 				Status:             receipt.Status,
 				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),

@@ -29,5 +29,5 @@ type BlockAction struct {
 }
 
 func (BlockAction) TableName() string {
-	return "block_action"
+	return "block_action_new"
 }

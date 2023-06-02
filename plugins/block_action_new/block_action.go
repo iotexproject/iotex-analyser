@@ -25,7 +25,7 @@ type blockActionPlugin struct {
 }
 
 func (b blockActionPlugin) Name() string {
-	return "block_action"
+	return "block_action_new"
 }
 
 func (b blockActionPlugin) Type() plugin.Type {
@@ -34,7 +34,7 @@ func (b blockActionPlugin) Type() plugin.Type {
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
-		&models.BlockAction{},
+		&models.BlockActionNew{},
 		&models.AccountActionCount{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -118,7 +118,6 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		totalMap := make(map[string]int, 0)
 
 		for _, selp := range blk.Actions {
-			accounts := []string{}
 			actionHash, _ := selp.Hash()
 			receipt, ok := receipts[actionHash]
 			if !ok {
@@ -138,7 +137,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			amount, payload := getPayloadAmount(act)
 
 			amountDec := decimal.NewFromBigInt(amount, 0)
-			m := &models.BlockAction{
+			m := &models.BlockActionNew{
 				ActionHash:         hex.EncodeToString(actionHash[:]),
 				ActionType:         actionType,
 				BlockHeight:        blk.Height(),
@@ -149,6 +148,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				Nonce:              nonce,
 				Amount:             amountDec,
 				GasConsumed:        receipt.GasConsumed,
+				ChainID:            selp.ChainID(),
+				Encoding:           selp.Encoding(),
+				Version:            selp.Version(),
 				ContractAddress:    receipt.ContractAddress,
 				Status:             receipt.Status,
 				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
@@ -164,9 +166,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				}
 			}
 		}
-		// if err := processMap(totalMap, tx); err != nil {
-		// 	return err
-		// }
+		if err := processMap(totalMap, tx); err != nil {
+			return err
+		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 	return err

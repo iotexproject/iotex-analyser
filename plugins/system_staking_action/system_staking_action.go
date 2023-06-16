@@ -364,10 +364,6 @@ func (b systemStakingActionPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.WithStack(err)
 					}
-					decmailAmount, err := getTokenSumAmountByTokenID(tx, tokenID.Uint64())
-					if err != nil {
-						return errors.Wrapf(err, errBucketSumAmount, tokenID)
-					}
 					cadidateAddr, _ := address.FromHex(event.NewDelegate.String())
 					info, err := getTokenInfoAddressByTokenID(tx, tokenID.Uint64())
 					if err != nil {
@@ -380,7 +376,7 @@ func (b systemStakingActionPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						OwnerAddress: info.OwnerAddress,
 						ActHash:      actHash,
 						Candidate:    cadidateAddr.String(),
-						Amount:       decmailAmount,
+						Amount:       zeroAmount,
 						EventType:    "DelegateChanged",
 						AutoStake:    info.AutoStake,
 						Duration:     info.Duration,

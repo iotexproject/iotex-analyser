@@ -21,18 +21,18 @@ import (
 
 const VERSION = "2.2.2"
 
-type blockActionPlugin struct {
+type blockActionNewPlugin struct {
 }
 
-func (b blockActionPlugin) Name() string {
+func (b blockActionNewPlugin) Name() string {
 	return "block_action_new"
 }
 
-func (b blockActionPlugin) Type() plugin.Type {
+func (b blockActionNewPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b blockActionPlugin) Start(ctx context.Context) error {
+func (b blockActionNewPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
 		&models.BlockActionNew{},
 		&models.AccountActionCount{}); err != nil {
@@ -112,7 +112,7 @@ func getAccounts(selp action.SealedEnvelope, receipt *action.Receipt) (address.A
 	return sender, dst, accounts, nil
 }
 
-func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func (b blockActionNewPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		receipts := getReceiptsFromBlock(blk)
 		totalMap := make(map[string]int, 0)
@@ -174,13 +174,13 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 	return err
 }
 
-func (b blockActionPlugin) Stop(ctx context.Context) error {
+func (b blockActionNewPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (b blockActionPlugin) Version() string {
+func (b blockActionNewPlugin) Version() string {
 	return VERSION
 }
 
 // exported
-var Plugin = blockActionPlugin{}
+var Plugin = blockActionNewPlugin{}

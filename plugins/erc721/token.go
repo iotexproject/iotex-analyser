@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.1"
+const VERSION = "2.2.2"
 
 var (
 	erc721ABI      abi.ABI

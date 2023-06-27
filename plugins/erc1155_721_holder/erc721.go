@@ -69,13 +69,7 @@ func isErc721(addr, topics, data string) bool {
 		return true
 	}
 
-	ret := readContract(addr, totalSupply, false)
-	if !ret {
-		nonErc721Contract[addr] = true
-		return false
-	}
-
-	ret = readContract(addr, balanceOf, false)
+	ret := readContract(addr, balanceOf, false)
 	if !ret {
 		nonErc721Contract[addr] = true
 		return false

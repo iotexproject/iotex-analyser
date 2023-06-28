@@ -25,7 +25,7 @@ type blockActionPlugin struct {
 }
 
 func (b blockActionPlugin) Name() string {
-	return "block_action_new"
+	return "block_action"
 }
 
 func (b blockActionPlugin) Type() plugin.Type {

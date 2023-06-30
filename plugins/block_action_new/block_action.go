@@ -22,7 +22,7 @@ import (
 const VERSION = "2.3.0"
 
 var (
-	queue      = []models.BlockActionNew{}
+	queue      = []*models.BlockActionNew{}
 	updateTime = time.Now()
 )
 
@@ -54,7 +54,7 @@ func (b blockActionNewPlugin) process() error {
 	var blkMaxHeight uint64
 
 	for _, act := range queue {
-		acts = append(acts, act)
+		acts = append(acts, *act)
 		if act.BlockHeight > blkMaxHeight {
 			blkMaxHeight = act.BlockHeight
 		}
@@ -68,7 +68,7 @@ func (b blockActionNewPlugin) process() error {
 	if err := db.UpdateIndexHeight(b.Name(), blkMaxHeight); err != nil {
 		return err
 	}
-	queue = []models.BlockActionNew{}
+	queue = []*models.BlockActionNew{}
 	updateTime = time.Now()
 	return nil
 }
@@ -188,7 +188,7 @@ func (b blockActionNewPlugin) PutBlock(ctx context.Context, blk *block.Block) er
 			ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
 			Payload:            payload,
 		}
-		queue = append(queue, *m)
+		queue = append(queue, m)
 		// if err := tx.Create(m).Error; err != nil {
 		// 	return err
 		// }

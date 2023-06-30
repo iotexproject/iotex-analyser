@@ -195,7 +195,7 @@ func (r *runner) Start(ctx context.Context) error {
 	return nil
 }
 
-//checking dependent plugin
+// checking dependent plugin
 func (r *runner) getTipHeight() (uint64, error) {
 	depHeight, err := r.dao.Height()
 	if err != nil {

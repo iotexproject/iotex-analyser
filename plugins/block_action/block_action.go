@@ -19,7 +19,12 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.2"
+const VERSION = "2.3.1"
+
+var (
+	queue      = []*models.BlockAction{}
+	updateTime = time.Now()
+)
 
 type blockActionPlugin struct {
 }
@@ -35,9 +40,36 @@ func (b blockActionPlugin) Type() plugin.Type {
 func (b blockActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
 		&models.BlockAction{},
-		&models.AccountActionCount{}); err != nil {
+	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
+	return nil
+}
+
+func (b blockActionPlugin) process() error {
+	if updateTime.Add(4 * time.Second).After(time.Now()) {
+		return nil
+	}
+	var acts []models.BlockAction
+	var blkMaxHeight uint64
+
+	for _, act := range queue {
+		acts = append(acts, *act)
+		if act.BlockHeight > blkMaxHeight {
+			blkMaxHeight = act.BlockHeight
+		}
+	}
+	if len(acts) == 0 {
+		return nil
+	}
+	if err := db.DB().CreateInBatches(&acts, 100).Error; err != nil {
+		return err
+	}
+	if err := db.UpdateIndexHeight(b.Name(), blkMaxHeight); err != nil {
+		return err
+	}
+	queue = []*models.BlockAction{}
+	updateTime = time.Now()
 	return nil
 }
 
@@ -113,62 +145,56 @@ func getAccounts(selp action.SealedEnvelope, receipt *action.Receipt) (address.A
 }
 
 func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		receipts := getReceiptsFromBlock(blk)
-		totalMap := make(map[string]int, 0)
-
-		for _, selp := range blk.Actions {
-			actionHash, _ := selp.Hash()
-			receipt, ok := receipts[actionHash]
-			if !ok {
-				continue
-			}
-			sender, dst, accounts, err := getAccounts(selp, receipt)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
-			}
-
-			gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-			gasLimit := selp.GasLimit()
-			nonce := selp.Nonce()
-
-			act := selp.Action()
-			actionType := getActionTypeString(act)
-			amount, payload := getPayloadAmount(act)
-
-			amountDec := decimal.NewFromBigInt(amount, 0)
-			m := &models.BlockAction{
-				ActionHash:         hex.EncodeToString(actionHash[:]),
-				ActionType:         actionType,
-				BlockHeight:        blk.Height(),
-				Sender:             sender.String(),
-				Recipient:          dst,
-				GasPrice:           gasPrice,
-				GasLimit:           gasLimit,
-				Nonce:              nonce,
-				Amount:             amountDec,
-				GasConsumed:        receipt.GasConsumed,
-				ContractAddress:    receipt.ContractAddress,
-				Status:             receipt.Status,
-				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
-				ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
-				Payload:            payload,
-			}
-			if err := tx.Create(m).Error; err != nil {
-				return err
-			}
-			if len(accounts) > 0 {
-				for _, account := range accounts {
-					totalMap[account]++
-				}
-			}
+	receipts := getReceiptsFromBlock(blk)
+	for _, selp := range blk.Actions {
+		actionHash, _ := selp.Hash()
+		receipt, ok := receipts[actionHash]
+		if !ok {
+			continue
 		}
-		// if err := processMap(totalMap, tx); err != nil {
+		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+		dst, _ := selp.Destination()
+		//sender, dst, accounts, err := getAccounts(selp, receipt)
+		// if err != nil {
+		// 	return errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
+		// }
+
+		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
+		gasLimit := selp.GasLimit()
+		nonce := selp.Nonce()
+
+		act := selp.Action()
+		actionType := getActionTypeString(act)
+		amount, payload := getPayloadAmount(act)
+
+		amountDec := decimal.NewFromBigInt(amount, 0)
+		m := &models.BlockAction{
+			ActionHash:         hex.EncodeToString(actionHash[:]),
+			ActionType:         actionType,
+			BlockHeight:        blk.Height(),
+			Sender:             sender.String(),
+			Recipient:          dst,
+			GasPrice:           gasPrice,
+			GasLimit:           gasLimit,
+			Nonce:              nonce,
+			Amount:             amountDec,
+			GasConsumed:        receipt.GasConsumed,
+			ChainID:            selp.ChainID(),
+			Encoding:           selp.Encoding(),
+			Version:            selp.Version(),
+			ContractAddress:    receipt.ContractAddress,
+			Status:             receipt.Status,
+			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
+			ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
+			Payload:            payload,
+		}
+		queue = append(queue, m)
+		// if err := tx.Create(m).Error; err != nil {
 		// 	return err
 		// }
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-	})
-	return err
+
+	}
+	return b.process()
 }
 
 func (b blockActionPlugin) Stop(ctx context.Context) error {

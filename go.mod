@@ -34,6 +34,7 @@ require (
 )
 
 require (
+	github.com/PaulXu-cn/go-mod-graph-chart v0.5.3 // indirect
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

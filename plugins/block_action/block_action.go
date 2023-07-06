@@ -22,8 +22,9 @@ import (
 const VERSION = "2.3.2"
 
 var (
-	queue      = []*models.BlockAction{}
-	updateTime = time.Now()
+	queue          = []models.BlockAction{}
+	updateTime     = time.Now()
+	updateInterval = 2 * time.Second
 )
 
 type blockActionPlugin struct {
@@ -47,14 +48,12 @@ func (b blockActionPlugin) Start(ctx context.Context) error {
 }
 
 func (b blockActionPlugin) process() error {
-	if updateTime.Add(4 * time.Second).After(time.Now()) {
+	if updateTime.Add(updateInterval).After(time.Now()) {
 		return nil
 	}
-	var acts []models.BlockAction
 	var blkMinHeight, blkMaxHeight uint64
 
 	for _, act := range queue {
-		acts = append(acts, *act)
 		if act.BlockHeight > blkMaxHeight {
 			blkMaxHeight = act.BlockHeight
 		}
@@ -62,10 +61,10 @@ func (b blockActionPlugin) process() error {
 			blkMinHeight = act.BlockHeight
 		}
 	}
-	if len(acts) == 0 {
+	if len(queue) == 0 {
 		return nil
 	}
-	if err := db.DB().CreateInBatches(&acts, 100).Error; err != nil {
+	if err := db.DB().CreateInBatches(&queue, 200).Error; err != nil {
 		return err
 	}
 	query := `delete from block_action where id in(select id from (
@@ -73,7 +72,7 @@ func (b blockActionPlugin) process() error {
 		ROW_NUMBER() OVER(PARTITION BY action_hash,action_type,sender,recipient,gas_price,gas_limit,nonce,amount,gas_consumed,chain_id,"encoding","version",contract_address,status,execution_revert_msg,payload ORDER BY id asc) AS Row
 		FROM block_action where block_height >= ? and block_height <= ?
 	  ) dups
-	  where 
+	  where
 	  dups.Row > 1)`
 	if err := db.DB().Exec(query, blkMinHeight, blkMaxHeight).Error; err != nil {
 		return err
@@ -81,7 +80,7 @@ func (b blockActionPlugin) process() error {
 	if err := db.UpdateIndexHeight(b.Name(), blkMaxHeight); err != nil {
 		return err
 	}
-	queue = []*models.BlockAction{}
+	queue = []models.BlockAction{}
 	updateTime = time.Now()
 	return nil
 }
@@ -181,7 +180,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		amount, payload := getPayloadAmount(act)
 
 		amountDec := decimal.NewFromBigInt(amount, 0)
-		m := &models.BlockAction{
+		m := models.BlockAction{
 			ActionHash:         hex.EncodeToString(actionHash[:]),
 			ActionType:         actionType,
 			BlockHeight:        blk.Height(),

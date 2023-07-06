@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.3.1"
+const VERSION = "2.3.2"
 
 var (
 	queue      = []*models.BlockAction{}
@@ -51,18 +51,31 @@ func (b blockActionPlugin) process() error {
 		return nil
 	}
 	var acts []models.BlockAction
-	var blkMaxHeight uint64
+	var blkMinHeight, blkMaxHeight uint64
 
 	for _, act := range queue {
 		acts = append(acts, *act)
 		if act.BlockHeight > blkMaxHeight {
 			blkMaxHeight = act.BlockHeight
 		}
+		if act.BlockHeight < blkMinHeight || blkMinHeight == 0 {
+			blkMinHeight = act.BlockHeight
+		}
 	}
 	if len(acts) == 0 {
 		return nil
 	}
 	if err := db.DB().CreateInBatches(&acts, 100).Error; err != nil {
+		return err
+	}
+	query := `delete from block_action where id in(select id from (
+		SELECT id,
+		ROW_NUMBER() OVER(PARTITION BY action_hash,action_type,sender,recipient,gas_price,gas_limit,nonce,amount,gas_consumed,chain_id,"encoding","version",contract_address,status,execution_revert_msg,payload ORDER BY id asc) AS Row
+		FROM block_action where block_height >= ? and block_height <= ?
+	  ) dups
+	  where 
+	  dups.Row > 1)`
+	if err := db.DB().Exec(query, blkMinHeight, blkMaxHeight).Error; err != nil {
 		return err
 	}
 	if err := db.UpdateIndexHeight(b.Name(), blkMaxHeight); err != nil {

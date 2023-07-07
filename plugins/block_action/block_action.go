@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.2"
+const VERSION = "2.2.3"
 
 type blockActionPlugin struct {
 }
@@ -148,6 +148,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				Nonce:              nonce,
 				Amount:             amountDec,
 				GasConsumed:        receipt.GasConsumed,
+				ChainID:            selp.ChainID(),
+				Encoding:           selp.Encoding(),
+				Version:            selp.Version(),
 				ContractAddress:    receipt.ContractAddress,
 				Status:             receipt.Status,
 				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),

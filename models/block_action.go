@@ -18,6 +18,9 @@ type BlockAction struct {
 	Nonce              uint64          `gorm:"type:int8;unsigned;not null;default:0"`
 	Amount             decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	GasConsumed        uint64          `gorm:"type:int4;unsigned;not null;default:0"`
+	ChainID            uint32          `gorm:"type:int4;unsigned;not null;default:0"`
+	Encoding           uint32          `gorm:"type:int4;unsigned;not null;default:0"`
+	Version            uint32          `gorm:"type:int4;unsigned;not null;default:0"`
 	ContractAddress    string          `gorm:"size:42;not null;default:'';index:,type:hash;index:idx_ca_at,priority:1;"`
 	Status             uint64          `gorm:"type:int2;unsigned;not null;default:0"`
 	ExecutionRevertMsg string          `gorm:"size:255;not null;default:''"`

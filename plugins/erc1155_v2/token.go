@@ -14,7 +14,6 @@ import (
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	slog "github.com/iotexproject/iotex-core/pkg/log"
@@ -24,11 +23,12 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.0"
+const VERSION = "2.2.2"
 
 var (
 	errFailedInsertTable = "failed to insert table data"
 )
+
 var (
 	erc1155ABI         abi.ABI
 	HashTransferBatch  hash.Hash256
@@ -67,7 +67,7 @@ type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc1155"
+	return "erc1155_" + VERSION
 }
 
 func (b tokenPlugin) Type() plugin.Type {
@@ -79,10 +79,10 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
-		&models.Erc1155TransferBatch{},
-		&models.Erc1155TransferSingle{},
-		&models.Erc1155URI{},
-		&models.Erc1155ApprovalForAll{}); err != nil {
+		&Erc1155TransferBatch{},
+		&Erc1155TransferSingle{},
+		&Erc1155URI{},
+		&Erc1155ApprovalForAll{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
@@ -96,16 +96,19 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])
 			for _, log := range receipt.Logs() {
-				if log.Address == "" || len(log.Topics) < 2 {
+				if _, ok := nonErc1155Contract[log.Address]; ok {
 					continue
 				}
-				data := hex.EncodeToString(log.Data)
-				var topics string
-				for _, t := range log.Topics {
-					topics += hex.EncodeToString(t[:])
-				}
-				if !isErc1155(log.Address, topics, data) {
-					continue
+				if _, ok := erc1155Contract[log.Address]; !ok {
+					ok, err := kernel.IsErc1155(log.Address)
+					if err != nil {
+						return errors.Wrap(err, "failed to check erc1155")
+					}
+					if !ok {
+						nonErc1155Contract[log.Address] = struct{}{}
+						continue
+					}
+					erc1155Contract[log.Address] = struct{}{}
 				}
 				switch log.Topics[0] {
 				//TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)
@@ -134,7 +137,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					}
 					jsonIds, _ := json.Marshal(ids)
 					jsonValues, _ := json.Marshal(values)
-					model := models.Erc1155TransferBatch{
+					model := Erc1155TransferBatch{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
@@ -167,7 +170,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					operator, _ := address.FromBytes(event.Operator.Bytes())
 					from, _ := address.FromBytes(event.From.Bytes())
 					to, _ := address.FromBytes(event.To.Bytes())
-					model := models.Erc1155TransferSingle{
+					model := Erc1155TransferSingle{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
@@ -192,7 +195,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						return errors.WithMessagef(err, "URI event: %v", &event)
 					}
 					id := decimal.NewFromBigInt(event.Id, 0)
-					model := models.Erc1155URI{
+					model := Erc1155URI{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
@@ -216,7 +219,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					}
 					account, _ := address.FromBytes(event.Account.Bytes())
 					operator, _ := address.FromBytes(event.Operator.Bytes())
-					model := models.Erc1155ApprovalForAll{
+					model := Erc1155ApprovalForAll{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,

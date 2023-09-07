@@ -1,9 +1,14 @@
-package models
+package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
+)
+
+var (
+	versionSuffix = "_v" + strings.ReplaceAll(VERSION, ".", "_")
 )
 
 type Erc1155TransferBatch struct {
@@ -20,7 +25,7 @@ type Erc1155TransferBatch struct {
 }
 
 func (Erc1155TransferBatch) TableName() string {
-	return "erc1155_transfer_batchs"
+	return "erc1155_transfer_batchs" + versionSuffix
 }
 
 type Erc1155TransferSingle struct {
@@ -37,7 +42,7 @@ type Erc1155TransferSingle struct {
 }
 
 func (Erc1155TransferSingle) TableName() string {
-	return "erc1155_transfer_singles"
+	return "erc1155_transfer_singles" + versionSuffix
 }
 
 type Erc1155URI struct {
@@ -51,7 +56,7 @@ type Erc1155URI struct {
 }
 
 func (Erc1155URI) TableName() string {
-	return "erc1155_uris"
+	return "erc1155_uris" + versionSuffix
 }
 
 type Erc1155ApprovalForAll struct {
@@ -66,29 +71,5 @@ type Erc1155ApprovalForAll struct {
 }
 
 func (Erc1155ApprovalForAll) TableName() string {
-	return "erc1155_approval_for_alls"
-}
-
-type Erc1155721Holder struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9;uniqueIndex:idx_contract_address_holder_token_id"`
-	Holder          string          `gorm:"size:42;not null;default:'';index:,length:9;uniqueIndex:idx_contract_address_holder_token_id"`
-	ErcType         uint16          `gorm:"index;default:0;"` // 1155 or 721
-	TokenID         decimal.Decimal `gorm:"type:decimal(128,0);not null;default:0;uniqueIndex:idx_contract_address_holder_token_id"`
-	TokenValue      decimal.Decimal `gorm:"type:decimal(128,0);not null;default:0;"`
-}
-
-func (Erc1155721Holder) TableName() string {
-	return "erc1155_721_holders"
-}
-
-type Erc1155721Meta struct {
-	ID              uint64 `gorm:"primary_key;" sql:"type:bigint"`
-	ContractAddress string `gorm:"size:42;not null;default:'';uniqueIndex:,"`
-	ErcType         uint16 `gorm:"index;default:0;"`
-	IsSBT           bool   `gorm:"type:bool;not null;default:false"`
-}
-
-func (Erc1155721Meta) TableName() string {
-	return "erc1155_721_meta"
+	return "erc1155_approval_for_alls" + versionSuffix
 }

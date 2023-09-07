@@ -13,7 +13,6 @@ import (
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	slog "github.com/iotexproject/iotex-core/pkg/log"
@@ -23,13 +22,28 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.2"
+const VERSION = "2.2.3"
+
+const (
+	// TransferString is sha3 of xrc20's transfer event,keccak('Transfer(address,address,uint256)')
+	TransferString = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+
+	//Approve(address,address,uint256)
+	ApproveString = "8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925"
+
+	//ApprovalForAll(address,address,bool)
+	ApprovalForAllString = "17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31"
+
+	successStatus = uint64(1)
+)
 
 var (
-	erc721ABI      abi.ABI
-	Transfer       hash.Hash256
-	Approval       hash.Hash256
-	ApprovalForAll hash.Hash256
+	erc721ABI         abi.ABI
+	Transfer          hash.Hash256
+	Approval          hash.Hash256
+	ApprovalForAll    hash.Hash256
+	erc721Contract    = make(map[string]struct{})
+	nonErc721Contract = make(map[string]struct{})
 )
 var (
 	errFailedInsertTable = "failed to insert table data"
@@ -63,7 +77,7 @@ type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc721"
+	return "erc721_" + VERSION
 }
 
 func (b tokenPlugin) Type() plugin.Type {
@@ -75,11 +89,10 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
-		&models.AccountActionCount{},
-		&models.Erc721Transfer{},
-		&models.Erc721Holder{},
-		&models.Erc721Approval{},
-		&models.Erc721ApprovalForAll{},
+		&Erc721Transfer{},
+		&Erc721Holder{},
+		&Erc721Approval{},
+		&Erc721ApprovalForAll{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -88,20 +101,25 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 
 func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		totalMap := make(map[string]int, 0)
 		for _, receipt := range blk.Receipts {
 			if receipt.Status != successStatus {
 				continue
 			}
 			actionHash := hex.EncodeToString(receipt.ActionHash[:])
 			for _, log := range receipt.Logs() {
-				data := hex.EncodeToString(log.Data)
-				var topics string
-				for _, t := range log.Topics {
-					topics += hex.EncodeToString(t[:])
-				}
-				if !isErc721(log.Address, topics, data) {
+				if _, ok := nonErc721Contract[log.Address]; ok {
 					continue
+				}
+				if _, ok := erc721Contract[log.Address]; !ok {
+					ok, err := kernel.IsErc721(log.Address)
+					if err != nil {
+						return errors.Wrap(err, "failed to check erc721")
+					}
+					if !ok {
+						nonErc721Contract[log.Address] = struct{}{}
+						continue
+					}
+					erc721Contract[log.Address] = struct{}{}
 				}
 				var holders []string
 				switch log.Topics[0] {
@@ -121,7 +139,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					tokenID := decimal.NewFromBigInt(event.TokenId, 0)
 					fromAddr, _ := address.FromBytes(event.From.Bytes())
 					toAddr, _ := address.FromBytes(event.To.Bytes())
-					model := models.Erc721Transfer{
+					model := Erc721Transfer{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
@@ -134,8 +152,6 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						return errors.Wrap(err, errFailedInsertTable)
 					}
 					holders = []string{fromAddr.String(), toAddr.String()}
-					totalMap[fromAddr.String()]++
-					totalMap[toAddr.String()]++
 
 				//Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
 				case Approval:
@@ -151,7 +167,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					tokenID := decimal.NewFromBigInt(event.TokenId, 0)
 					owner, _ := address.FromBytes(event.Owner.Bytes())
 					approved, _ := address.FromBytes(event.Approved.Bytes())
-					model := models.Erc721Approval{
+					model := Erc721Approval{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
@@ -176,7 +192,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					}
 					owner, _ := address.FromBytes(event.Owner.Bytes())
 					operator, _ := address.FromBytes(event.Operator.Bytes())
-					model := models.Erc721ApprovalForAll{
+					model := Erc721ApprovalForAll{
 						BlockHeight:     blk.Height(),
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
@@ -200,7 +216,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					if addr == "" {
 						continue
 					}
-					model := models.Erc721Holder{
+					model := Erc721Holder{
 						ContractAddress: log.Address,
 						Holder:          addr,
 					}
@@ -211,18 +227,6 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						if err := tx.Create(&model).Error; err != nil {
 							return err
 						}
-					}
-				}
-				for addr, count := range totalMap {
-					if addr == "" {
-						continue
-					}
-					m := &models.AccountActionCount{
-						Address:     addr,
-						Erc721Count: uint64(count),
-					}
-					if err := m.AddCount(tx, uint64(count), models.AccountActionCountErc721); err != nil {
-						return err
 					}
 				}
 			}

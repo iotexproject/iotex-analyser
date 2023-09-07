@@ -9,7 +9,6 @@ import (
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
@@ -18,13 +17,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc1155_721_holder"
+	return "erc1155_721_holder_" + VERSION
 }
 
 func (b tokenPlugin) Type() plugin.Type {
@@ -36,7 +35,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
-		&models.Erc1155721Holder{}); err != nil {
+		&Erc1155721Holder{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
@@ -53,12 +52,11 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				if log.Address == "" || len(log.Topics) < 2 {
 					continue
 				}
-				data := hex.EncodeToString(log.Data)
-				var topics string
-				for _, t := range log.Topics {
-					topics += hex.EncodeToString(t[:])
+				ok, err := isErc721(log.Address)
+				if err != nil {
+					return err
 				}
-				if isErc721(log.Address, topics, data) {
+				if ok {
 					switch log.Topics[0] {
 					case Transfer:
 						event := struct {
@@ -75,7 +73,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						toAddr, _ := address.FromBytes(event.To.Bytes())
 						//mint
 						if fromAddr.String() == address.ZeroAddress {
-							model := models.Erc1155721Holder{
+							model := Erc1155721Holder{
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         721,
@@ -89,15 +87,15 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}
 							//burn
 						} else if toAddr.String() == address.ZeroAddress {
-							if err := tx.Where("contract_address = ? and token_id= ?", log.Address, tokenID).Delete(&models.Erc1155721Holder{}).Error; err != nil {
+							if err := tx.Where("contract_address = ? and token_id= ?", log.Address, tokenID).Delete(&Erc1155721Holder{}).Error; err != nil {
 								return err
 							}
 							//transfer
 						} else {
-							if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenID).Delete(&models.Erc1155721Holder{}).Error; err != nil {
+							if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenID).Delete(&Erc1155721Holder{}).Error; err != nil {
 								return err
 							}
-							model := models.Erc1155721Holder{
+							model := Erc1155721Holder{
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         721,
@@ -113,7 +111,11 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						}
 					}
 				}
-				if isErc1155(log.Address, topics, data) {
+				ok, err = isErc1155(log.Address)
+				if err != nil {
+					return err
+				}
+				if ok {
 					var tokenIDs, tokenVals []*big.Int
 					var fromAddr, toAddr address.Address
 					switch log.Topics[0] {
@@ -162,7 +164,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						tokenValDec := decimal.NewFromBigInt(tokenVals[idx], 0)
 						//mint
 						if fromAddr.String() == address.ZeroAddress {
-							model := models.Erc1155721Holder{
+							model := Erc1155721Holder{
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         1155,
@@ -178,16 +180,16 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							//burn
 						} else if toAddr.String() == address.ZeroAddress {
 							var tokenOldVal string
-							if err := tx.Model(&models.Erc1155721Holder{}).Select("token_value").Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Scan(&tokenOldVal).Error; err != nil {
+							if err := tx.Model(&Erc1155721Holder{}).Select("token_value").Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Scan(&tokenOldVal).Error; err != nil {
 								return err
 							}
 							tokenOldValDec, _ := decimal.NewFromString(tokenOldVal)
 							if tokenOldValDec.Equal(tokenValDec) {
-								if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Delete(&models.Erc1155721Holder{}).Error; err != nil {
+								if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Delete(&Erc1155721Holder{}).Error; err != nil {
 									return err
 								}
 							} else {
-								if err := tx.Model(&models.Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr("erc1155_721_holders.token_value - ?", tokenValDec)).Error; err != nil {
+								if err := tx.Model(&Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr("erc1155_721_holders.token_value - ?", tokenValDec)).Error; err != nil {
 									return err
 								}
 							}
@@ -195,20 +197,20 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							//transfer
 						} else {
 							var tokenOldVal string
-							if err := tx.Model(&models.Erc1155721Holder{}).Select("token_value").Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Scan(&tokenOldVal).Error; err != nil {
+							if err := tx.Model(&Erc1155721Holder{}).Select("token_value").Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Scan(&tokenOldVal).Error; err != nil {
 								return err
 							}
 							tokenOldValDec, _ := decimal.NewFromString(tokenOldVal)
 							if tokenOldValDec.Equal(tokenValDec) {
-								if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Delete(&models.Erc1155721Holder{}).Error; err != nil {
+								if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Delete(&Erc1155721Holder{}).Error; err != nil {
 									return err
 								}
 							} else {
-								if err := tx.Model(&models.Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr("erc1155_721_holders.token_value - ?", tokenValDec)).Error; err != nil {
+								if err := tx.Model(&Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr("erc1155_721_holders.token_value - ?", tokenValDec)).Error; err != nil {
 									return err
 								}
 							}
-							model := models.Erc1155721Holder{
+							model := Erc1155721Holder{
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         1155,

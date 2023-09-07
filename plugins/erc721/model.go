@@ -1,9 +1,14 @@
-package models
+package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
+)
+
+var (
+	versionSuffix = "_v" + strings.ReplaceAll(VERSION, ".", "_")
 )
 
 type Erc721Transfer struct {
@@ -18,7 +23,7 @@ type Erc721Transfer struct {
 }
 
 func (Erc721Transfer) TableName() string {
-	return "erc721_transfers"
+	return "erc721_transfers" + versionSuffix
 }
 
 type Erc721Approval struct {
@@ -33,7 +38,7 @@ type Erc721Approval struct {
 }
 
 func (Erc721Approval) TableName() string {
-	return "erc721_approvals"
+	return "erc721_approvals" + versionSuffix
 }
 
 type Erc721Holder struct {
@@ -43,7 +48,7 @@ type Erc721Holder struct {
 }
 
 func (Erc721Holder) TableName() string {
-	return "erc721_holders"
+	return "erc721_holders" + versionSuffix
 }
 
 type Erc721ApprovalForAll struct {
@@ -58,5 +63,5 @@ type Erc721ApprovalForAll struct {
 }
 
 func (Erc721ApprovalForAll) TableName() string {
-	return "erc721_approval_for_alls"
+	return "erc721_approval_for_alls" + versionSuffix
 }

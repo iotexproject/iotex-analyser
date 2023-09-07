@@ -2,23 +2,22 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc1155_721_meta"
+	return "erc1155_721_meta_" + VERSION
 }
 
 func (b tokenPlugin) Type() plugin.Type {
@@ -30,7 +29,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
-		&models.Erc1155721Meta{}); err != nil {
+		&Erc1155721Meta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil
@@ -43,23 +42,19 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				continue
 			}
 			for _, log := range receipt.Logs() {
-				if log.Address == "" || len(log.Topics) < 2 {
-					continue
+				ok, err := isErc721(log.Address)
+				if err != nil {
+					return err
 				}
-				data := hex.EncodeToString(log.Data)
-				var topics string
-				for _, t := range log.Topics {
-					topics += hex.EncodeToString(t[:])
-				}
-				if isErc721(log.Address, topics, data) {
+				if ok {
 					if isHandled(log.Address) {
 						continue
 					}
-					isSBT, err := isSBT(log.Address, erc721ABI)
+					isSBT, err := kernel.IsSBT(log.Address)
 					if err != nil {
 						return err
 					}
-					model := models.Erc1155721Meta{
+					model := Erc1155721Meta{
 						ContractAddress: log.Address,
 						ErcType:         721,
 						IsSBT:           isSBT,
@@ -69,15 +64,19 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					}
 					cachedContract[log.Address] = struct{}{}
 				}
-				if isErc1155(log.Address, topics, data) {
+				ok, err = isErc1155(log.Address)
+				if err != nil {
+					return err
+				}
+				if ok {
 					if isHandled(log.Address) {
 						continue
 					}
-					isSBT, err := isSBT(log.Address, erc1155ABI)
+					isSBT, err := kernel.IsSBT(log.Address)
 					if err != nil {
 						return err
 					}
-					model := models.Erc1155721Meta{
+					model := Erc1155721Meta{
 						ContractAddress: log.Address,
 						ErcType:         1155,
 						IsSBT:           isSBT,

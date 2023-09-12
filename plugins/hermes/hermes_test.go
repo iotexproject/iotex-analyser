@@ -18,36 +18,21 @@ import (
 
 func TestHermes(t *testing.T) {
 	require := require.New(t)
-	// config.Default.Database = config.Database{
-	// 	Driver:   "postgres",
-	// 	Name:     "mainnet",
-	// 	Host:     "scout.cluster-cpx5likuxolf.us-west-1.rds.amazonaws.com",
-	// 	Port:     "5432",
-	// 	User:     "scout",
-	// 	Password: "ScoutPssw0rd",
-	// 	Debug:    true,
-	// }
-	// config.Default.Database = config.Database{
-	// 	Driver:   "postgres",
-	// 	Name:     "mainnet",
-	// 	Host:     "35.245.68.77",
-	// 	Port:     "5432",
-	// 	User:     "postgres",
-	// 	Password: "MevbHde6PJN9F3zxrh61ViF9q3SeFKzD",
-	// 	Debug:    true,
-	// }
 	config.Default.Database = config.Database{
 		Driver:   "postgres",
-		Name:     "mainlive",
-		Host:     "127.0.0.1",
+		Name:     "mainnet",
+		Host:     "35.225.125.51",
 		Port:     "5432",
 		User:     "postgres",
-		Password: "admin",
+		Password: "Eu8KgtnKfDCmd9nI",
 		Debug:    true,
 	}
+
 	_, err := db.Connect()
 	require.NoError(err)
-	err = rebuildAccountRewardTable2(24738)
+	for i := uint64(25049); i <= 25049; i++ {
+		err = rebuildAccountRewardTable2(38257)
+	}
 	require.NoError(err)
 }
 

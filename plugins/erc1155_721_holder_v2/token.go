@@ -173,9 +173,9 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
-								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": gorm.Expr("erc1155_721_holders.token_value + ?", tokenValDec)}),
+								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": gorm.Expr(Erc1155721Holder{}.TableName()+".token_value + ?", tokenValDec)}),
 							}).Create(&model).Error; err != nil {
-								return err
+								return errors.Wrap(err, "failed to update mint token")
 							}
 							//burn
 						} else if toAddr.String() == address.ZeroAddress {
@@ -189,8 +189,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 									return err
 								}
 							} else {
-								if err := tx.Model(&Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr("erc1155_721_holders.token_value - ?", tokenValDec)).Error; err != nil {
-									return err
+								if err := tx.Model(&Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr(Erc1155721Holder{}.TableName()+".token_value - ?", tokenValDec)).Error; err != nil {
+									return errors.Wrap(err, "failed to update burn value")
 								}
 							}
 
@@ -206,8 +206,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 									return err
 								}
 							} else {
-								if err := tx.Model(&Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr("erc1155_721_holders.token_value - ?", tokenValDec)).Error; err != nil {
-									return err
+								if err := tx.Model(&Erc1155721Holder{}).Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenIDDec).Update("token_value", gorm.Expr(Erc1155721Holder{}.TableName()+".token_value - ?", tokenValDec)).Error; err != nil {
+									return errors.Wrap(err, "failed to update token value")
 								}
 							}
 							model := Erc1155721Holder{
@@ -219,9 +219,9 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
-								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": gorm.Expr("erc1155_721_holders.token_value + ?", tokenValDec)}),
+								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": gorm.Expr(Erc1155721Holder{}.TableName()+".token_value + ?", tokenValDec)}),
 							}).Create(&model).Error; err != nil {
-								return err
+								return errors.Wrap(err, "failed to create token")
 							}
 
 						}

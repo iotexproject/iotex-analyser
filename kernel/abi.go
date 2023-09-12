@@ -83,8 +83,9 @@ func CheckInterfaceID(addr string, interfaceID [4]byte) (bool, error) {
 		if err != nil {
 			return false, err
 		}
+		// supportsInterface(bytes4 interfaceID) should return bool
 		if len(data) != 32 {
-			return false, errors.New("invalid interfaceID")
+			return false, nil
 		}
 
 		return data[31] == byte(1), nil

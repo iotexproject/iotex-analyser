@@ -532,6 +532,7 @@ func getLog(contractAddress string, from, count uint64, chainClient iotexapi.API
 		if i == shard-1 && count%maxBlockRange != 0 {
 			shardCount = count % maxBlockRange
 		}
+
 		response, err := chainClient.GetLogs(context.Background(), &iotexapi.GetLogsRequest{
 			Filter: &iotexapi.LogsFilter{
 				Address: []string{contractAddress},

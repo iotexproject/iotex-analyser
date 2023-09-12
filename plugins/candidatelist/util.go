@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
@@ -68,7 +69,9 @@ func getStakingCandidates(chainClient iotexapi.APIServiceClient, offset, limit u
 		Arguments:  [][]byte{arg},
 		Height:     strconv.FormatUint(height, 10),
 	}
-	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_CANDIDATES)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(15)*time.Second))
+	defer cancel()
+	ctx = context.WithValue(ctx, &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_CANDIDATES)
 	readStateRes, err := chainClient.ReadState(ctx, readStateRequest)
 	if err != nil {
 		return

@@ -24,14 +24,14 @@ func TestHermes(t *testing.T) {
 		Host:     "35.225.125.51",
 		Port:     "5432",
 		User:     "postgres",
-		Password: "Eu8KgtnKfDCmd9nI",
+		Password: "",
 		Debug:    true,
 	}
 
 	_, err := db.Connect()
 	require.NoError(err)
-	for i := uint64(25049); i <= 25049; i++ {
-		err = rebuildAccountRewardTable2(38257)
+	for i := uint64(38256); i <= 25049; i++ {
+		err = rebuildAccountRewardTable2(i)
 	}
 	require.NoError(err)
 }

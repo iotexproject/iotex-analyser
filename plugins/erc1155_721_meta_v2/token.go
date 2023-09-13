@@ -47,7 +47,11 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					return err
 				}
 				if ok {
-					if isHandled(log.Address) {
+					ok, err := isHandled(log.Address)
+					if err != nil {
+						return errors.Wrap(err, "failed to check isHandled")
+					}
+					if ok {
 						continue
 					}
 					isSBT, err := kernel.IsSBT(log.Address)
@@ -69,7 +73,11 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					return err
 				}
 				if ok {
-					if isHandled(log.Address) {
+					ok, err := isHandled(log.Address)
+					if err != nil {
+						return errors.Wrap(err, "failed to check isHandled")
+					}
+					if ok {
 						continue
 					}
 					isSBT, err := kernel.IsSBT(log.Address)

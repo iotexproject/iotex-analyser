@@ -22,17 +22,14 @@ var (
 	cachedContract    = make(map[string]struct{})
 )
 
-func isHandled(addr string) bool {
+func isHandled(addr string) (bool, error) {
 	if _, ok := cachedContract[addr]; ok {
-		return true
+		return true, nil
 	}
 	var count int64
 	m := &Erc1155721Meta{}
 	err := db.DB().Model(m).Where("contract_address = ?", addr).Count(&count).Error
-	if err != nil {
-		panic(err)
-	}
-	return count > 0
+	return count > 0, err
 }
 
 func isErc721(addr string) (bool, error) {

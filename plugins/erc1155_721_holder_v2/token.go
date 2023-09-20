@@ -11,6 +11,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -52,10 +53,12 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				if log.Address == "" || len(log.Topics) < 2 {
 					continue
 				}
+				slog.L().Debug("start checking address isErc721")
 				ok, err := isErc721(log.Address)
 				if err != nil {
 					return err
 				}
+				slog.L().Debug("end checking address isErc721")
 				if ok {
 					switch log.Topics[0] {
 					case Transfer:
@@ -79,12 +82,14 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								ErcType:         721,
 								TokenID:         tokenID,
 							}
+							slog.L().Debug("start handle create mint 721")
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
 								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": 0}),
 							}).Create(&model).Error; err != nil {
 								return err
 							}
+							slog.L().Debug("end handle create mint 721")
 							//burn
 						} else if toAddr.String() == address.ZeroAddress {
 							if err := tx.Where("contract_address = ? and token_id= ?", log.Address, tokenID).Delete(&Erc1155721Holder{}).Error; err != nil {
@@ -92,6 +97,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}
 							//transfer
 						} else {
+							slog.L().Debug("start handle create transfer 721")
 							if err := tx.Where("contract_address = ? and holder=? and token_id= ?", log.Address, fromAddr.String(), tokenID).Delete(&Erc1155721Holder{}).Error; err != nil {
 								return err
 							}
@@ -107,14 +113,16 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 							}).Create(&model).Error; err != nil {
 								return err
 							}
-
+							slog.L().Debug("end handle create transfer 721")
 						}
 					}
 				}
+				slog.L().Debug("start checking isErc1155")
 				ok, err = isErc1155(log.Address)
 				if err != nil {
 					return err
 				}
+				slog.L().Debug("end checking isErc1155")
 				if ok {
 					var tokenIDs, tokenVals []*big.Int
 					var fromAddr, toAddr address.Address
@@ -171,12 +179,14 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								TokenID:         tokenIDDec,
 								TokenValue:      tokenValDec,
 							}
+							slog.L().Debug("start handle create mint 1155")
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
 								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": gorm.Expr(Erc1155721Holder{}.TableName()+".token_value + ?", tokenValDec)}),
 							}).Create(&model).Error; err != nil {
 								return errors.Wrap(err, "failed to update mint token")
 							}
+							slog.L().Debug("end handle create mint 1155")
 							//burn
 						} else if toAddr.String() == address.ZeroAddress {
 							var tokenOldVal string
@@ -217,13 +227,14 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								TokenID:         tokenIDDec,
 								TokenValue:      tokenValDec,
 							}
+							slog.L().Debug("start handle create transfer 1155")
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
 								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": gorm.Expr(Erc1155721Holder{}.TableName()+".token_value + ?", tokenValDec)}),
 							}).Create(&model).Error; err != nil {
 								return errors.Wrap(err, "failed to create token")
 							}
-
+							slog.L().Debug("end handle create transfer 1155")
 						}
 					}
 				}

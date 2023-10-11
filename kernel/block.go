@@ -126,3 +126,7 @@ func GetBlockByHeightFromChain(ctx context.Context, height uint64) (*block.Block
 	}
 	return nil, errors.New("failed to get block by height")
 }
+
+func IsTestnet() bool {
+	return config.EVMNetworkID() == 4690
+}

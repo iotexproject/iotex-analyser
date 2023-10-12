@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.1"
+const VERSION = "2.2.2"
 
 const (
 	errBucketSumAmount             = "getBucketSumAmountByBucketID error, bucketID: %d"
@@ -101,6 +101,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					}
 					stakedAmount := decmailAmount.Add(decimal.NewFromBigInt(event.Amount, 0))
 					duration := durationDays(uint32(event.Duration.Uint64()))
+					voteWeight := getVoteWeight(blk.Height(), uint32(duration), stakedAmount.Coefficient(), true, false)
 					cadidateAddr, _ := address.FromHex(event.Delegate.String())
 					stakingBucket = models.SystemStakingBucket{
 						BlockHeight:      blk.Height(),
@@ -111,7 +112,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						CreateTime:       info.CreateTime,
 						StakeStartTime:   blk.Timestamp().Unix(),
 						StakedAmount:     stakedAmount,
-						VotingPower:      stakedAmount,
+						VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
 						UnstakeStartTime: 0,
 						Candidate:        cadidateAddr.String(),
 						Amount:           decimal.NewFromBigInt(event.Amount, 0),
@@ -250,6 +251,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					}
 					duration := durationDays(uint32(event.Duration.Uint64()))
 					autoStake := true //locked must auto stake
+					voteWeight := getVoteWeight(blk.Height(), uint32(duration), decmailAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucket{
 						BlockHeight:      blk.Height(),
 						BucketID:         tokenID.Uint64(),
@@ -260,7 +262,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						StakeStartTime:   info.StakeStartTime,
 						UnstakeStartTime: info.UnstakeStartTime,
 						StakedAmount:     decmailAmount,
-						VotingPower:      decmailAmount,
+						VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
 						Candidate:        info.Candidate,
 						Amount:           zeroAmount,
 						EventType:        "Locked",
@@ -281,7 +283,9 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrapf(err, errBucketSumAmount, tokenID)
 					}
-					//autoStake := false //unlocked means auto stake is false
+					duration := info.Duration
+					autoStake := false //unlocked means auto stake is false
+					voteWeight := getVoteWeight(blk.Height(), uint32(duration), decmailAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucket{
 						BlockHeight:      blk.Height(),
 						BucketID:         tokenID.Uint64(),
@@ -292,7 +296,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						StakeStartTime:   info.StakeStartTime,
 						UnstakeStartTime: info.UnstakeStartTime,
 						StakedAmount:     decmailAmount,
-						VotingPower:      decmailAmount,
+						VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
 						Candidate:        info.Candidate,
 						Amount:           zeroAmount,
 						EventType:        "Unlocked",
@@ -358,6 +362,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					duration := durationDays(uint32(event.Duration.Uint64()))
 					autoStake := true
 					stakeAmount := decmailAmount
+					voteWeight := getVoteWeight(blk.Height(), uint32(duration), stakeAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucket{
 						BlockHeight:      blk.Height(),
 						BucketID:         tokenID.Uint64(),
@@ -368,7 +373,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						StakeStartTime:   info.StakeStartTime,
 						UnstakeStartTime: info.UnstakeStartTime,
 						StakedAmount:     stakeAmount,
-						VotingPower:      stakeAmount,
+						VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
 						Candidate:        info.Candidate,
 						Amount:           decmailAmount.Sub(tokenAmount),
 						EventType:        "Merged",
@@ -401,6 +406,8 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					duration := durationDays(uint32(event.Duration.Uint64()))
 					autoStake := true
 					stakeAmount := decmailAmount
+					oldVoteWeight := getVoteWeight(blk.Height(), info.Duration, oldDecmailAmount.BigInt(), info.AutoStake, false)
+					voteWeight := getVoteWeight(blk.Height(), uint32(duration), stakeAmount.BigInt(), autoStake, false)
 
 					stakingBucket = models.SystemStakingBucket{
 						BlockHeight:      blk.Height(),
@@ -412,7 +419,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						StakeStartTime:   info.StakeStartTime,
 						UnstakeStartTime: info.UnstakeStartTime,
 						StakedAmount:     oldDecmailAmount,
-						VotingPower:      stakeAmount,
+						VotingPower:      decimal.NewFromBigInt(oldVoteWeight, 0),
 						Candidate:        info.Candidate,
 						AutoStake:        info.AutoStake,
 						EventType:        "BucketExpanded",
@@ -433,7 +440,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						StakeStartTime:   info.StakeStartTime,
 						UnstakeStartTime: info.UnstakeStartTime,
 						StakedAmount:     stakeAmount,
-						VotingPower:      stakeAmount,
+						VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
 						Candidate:        info.Candidate,
 						Amount:           decmailAmount,
 						EventType:        "BucketExpanded",

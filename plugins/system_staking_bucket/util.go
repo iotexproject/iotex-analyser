@@ -65,7 +65,11 @@ type VoteBucket struct {
 	AutoStake        bool
 }
 
-func getVoteWeight(duration uint32, stakeAmount *big.Int, autoStake, selfStake bool) *big.Int {
+func getVoteWeight(blkHeight uint64, duration uint32, stakeAmount *big.Int, autoStake, selfStake bool) *big.Int {
+	//todo update config.Default.Genesis.Blockchain.RedseaBlockHeight
+	if blkHeight > 0 {
+		return stakeAmount
+	}
 	voteBucket := &VoteBucket{
 		StakedAmount:   stakeAmount,
 		AutoStake:      autoStake,

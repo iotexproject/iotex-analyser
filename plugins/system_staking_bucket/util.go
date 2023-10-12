@@ -34,20 +34,20 @@ func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal
 }
 
 type BucketInfo struct {
-	OwnerAddress     string
-	Candidate        string
-	StakedAmount     string
-	VotingPower      string
-	AutoStake        bool
-	Duration         uint32
-	CreateTime       int64
-	StakeStartTime   int64
-	UnstakeStartTime int64
+	OwnerAddress         string
+	DelegateOwnerAddress string
+	StakedAmount         string
+	VotingPower          string
+	AutoStake            bool
+	Duration             uint32
+	CreateTime           int64
+	StakeStartTime       int64
+	UnstakeStartTime     int64
 }
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&models.SystemStakingBucket{}).Select("owner_address,candidate,staked_amount,voting_power,auto_stake,duration,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Last(&bi).Error; err != nil {
+	if err := tx.Model(&models.SystemStakingBucket{}).Select("owner_address,delegate_owner_address,staked_amount,voting_power,auto_stake,duration,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Last(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil

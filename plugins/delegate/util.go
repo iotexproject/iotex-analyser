@@ -12,10 +12,12 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Delegate struct {
@@ -34,6 +36,7 @@ type Delegate struct {
 }
 
 func delegate() error {
+	log.L().Debug("delegate start")
 	pluginHeight, err := db.GetIndexHeight("staking_actions")
 	if err != nil {
 		return errors.WithStack(err)
@@ -67,9 +70,26 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if len(delegateMap) == 0 {
+		return nil
+	}
 	probationList := getProbationList(pluginHeight)
+	existDelegates := getAllDelegate()
+	copyDelegates := make([]string, 0)
+	for e := range existDelegates {
+		for _, d := range delegateMap {
+			if e == d.OwnerAddress {
+				continue
+			}
+		}
+		copyDelegates = append(copyDelegates, e)
+	}
+	if len(copyDelegates) > 0 {
+		if err := db.DB().Where("owner_address in ?", copyDelegates).Delete(&models.Delegate{}).Error; err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	err = db.DB().Transaction(func(tx *gorm.DB) error {
-		tx.Where("1 = 1").Delete(&models.Delegate{})
 		for c, d := range delegateMap {
 			probated := false
 			if _, ok := probationList[d.OperatorAddress]; ok {
@@ -89,7 +109,22 @@ func delegate() error {
 				Productivity:    d.Productivity,
 				Probated:        probated,
 			}
-			if err := tx.Create(&modelDelegate).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "owner_address"}},
+				DoUpdates: clause.Assignments(map[string]interface{}{
+					"block_height":     pluginHeight,
+					"reward_address":   d.RewardAddress,
+					"operator_address": d.OperatorAddress,
+					"candidate":        c,
+					"active":           d.Active,
+					"name":             d.Name,
+					"stake_amount":     decimal.NewFromBigInt(d.StakeAmount, 0),
+					"vote_weight":      decimal.NewFromBigInt(d.VoteWeight, 0),
+					"self_stake":       d.SelfStake,
+					"productivity":     d.Productivity,
+					"probated":         probated,
+				}),
+			}).Create(&modelDelegate).Error; err != nil {
 				return err
 			}
 		}
@@ -255,4 +290,19 @@ func getProbationList(height uint64) map[string]struct{} {
 		probationList[a.Address] = struct{}{}
 	}
 	return probationList
+}
+
+func getAllDelegate() map[string]struct{} {
+	delegates := make(map[string]struct{})
+	var addresses []struct {
+		OwnerAddress string
+	}
+	db := db.DB()
+	if err := db.Model(&models.Delegate{}).Select("owner_address").Scan(&addresses).Error; err != nil {
+		return delegates
+	}
+	for _, a := range addresses {
+		delegates[a.OwnerAddress] = struct{}{}
+	}
+	return delegates
 }

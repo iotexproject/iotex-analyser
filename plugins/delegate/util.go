@@ -152,7 +152,7 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.C
 			}
 			delegate = &Delegate{
 				Name:            cand.Name,
-				OwnerAddress:    staking.OwnerAddress,
+				OwnerAddress:    cand.OwnerAddress,
 				Candidate:       staking.Candidate,
 				OperatorAddress: cand.OperatorAddress,
 				RewardAddress:   cand.RewardAddress,

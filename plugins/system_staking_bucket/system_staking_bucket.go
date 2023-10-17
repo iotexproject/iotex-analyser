@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.2"
+const VERSION = "2.2.3"
 
 const (
 	errBucketSumAmount             = "getBucketSumAmountByBucketID error, bucketID: %d"
@@ -45,7 +45,14 @@ func (b systemStakingBucketPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.SystemStakingBucket{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
-	return db.UpdateIndexHeight(b.Name(), config.Default.Genesis.Poll.SystemStakingContractHeight)
+	height, err := db.GetIndexHeight(b.Name())
+	if err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	if height == 0 {
+		return db.UpdateIndexHeight(b.Name(), config.Default.Genesis.Poll.SystemStakingContractHeight)
+	}
+	return nil
 }
 
 func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) error {

@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.3"
+const VERSION = "2.2.4"
 
 const (
 	errBucketSumAmount             = "getBucketSumAmountByBucketID error, bucketID: %d"
@@ -490,6 +490,36 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						EventType:            "DelegateChanged",
 						AutoStake:            info.AutoStake,
 						Duration:             info.Duration,
+						Timestamp:            blk.Timestamp().Unix(),
+					}
+					if err := tx.Create(&stakingBucket).Error; err != nil {
+						return err
+					}
+				case "Withdrawal": //Withdrawal(uint256 indexed tokenId, address indexed recipient);
+					tokenID := new(big.Int).SetBytes(log.Topics[1][:])
+					recipient, _ := address.FromBytes(log.Topics[2][:])
+
+					info, err := getBucketInfoAddressByBucketID(tx, tokenID.Uint64())
+					if err != nil {
+						return errors.Wrap(err, errBucketInfoAddressByBucketID)
+					}
+					stakingBucket = models.SystemStakingBucket{
+						BlockHeight:          blk.Height(),
+						BucketID:             tokenID.Uint64(),
+						CreateTime:           info.CreateTime,
+						StakeStartTime:       info.StakeStartTime,
+						UnstakeStartTime:     info.UnstakeStartTime,
+						StakedAmount:         decimal.NewFromInt(0),
+						VotingPower:          decimal.NewFromInt(0),
+						OwnerAddress:         info.OwnerAddress,
+						Sender:               sender.String(),
+						Recipient:            recipient.String(),
+						ActHash:              actHash,
+						DelegateOwnerAddress: info.DelegateOwnerAddress,
+						AutoStake:            false,
+						EventType:            "Withdrawal",
+						Duration:             0,
+						Amount:               decimal.NewFromInt(0),
 						Timestamp:            blk.Timestamp().Unix(),
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {

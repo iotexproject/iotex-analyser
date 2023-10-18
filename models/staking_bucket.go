@@ -40,6 +40,7 @@ type SystemStakingBucket struct {
 	Amount               decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	EventType            string          `gorm:"size:42;not null;default:'';index"`
 	Sender               string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Recipient            string          `gorm:"size:42;not null;default:'';index:,length:9"`
 	Timestamp            int64           `gorm:"type:int4;unsigned;not null;default:0"`
 	ActHash              string
 	AutoStake            bool

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
@@ -76,10 +77,11 @@ func delegate() error {
 	probationList := getProbationList(pluginHeight)
 	existDelegates := getAllDelegate()
 	copyDelegates := make([]string, 0)
+outerLoop:
 	for e := range existDelegates {
 		for _, d := range delegateMap {
-			if e == d.OwnerAddress {
-				continue
+			if strings.EqualFold(e, d.OwnerAddress) {
+				continue outerLoop
 			}
 		}
 		copyDelegates = append(copyDelegates, e)
@@ -128,7 +130,7 @@ func delegate() error {
 				return err
 			}
 		}
-		return nil
+		return db.UpdateIndexHeightByTx(tx, "delegate", pluginHeight)
 	})
 	return err
 }

@@ -57,7 +57,14 @@ func delegate() error {
 	if err := store.Save(); err != nil {
 		return errors.WithStack(err)
 	}
-
+	err = makeMaxIDTempTable(pluginHeight)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	bucketSumAmount, err := getBucketSumAmount(pluginHeight)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	stakings, err := getCandidateStaking(pluginHeight)
 	if err != nil {
 		return errors.WithStack(err)
@@ -67,7 +74,7 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	delegateMap, err := getDelegateMap(epochNumber, stakings, candidates, delegateActives)
+	delegateMap, err := getDelegateMap(epochNumber, stakings, candidates, delegateActives, bucketSumAmount)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -135,7 +142,7 @@ outerLoop:
 	return err
 }
 
-func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.Candidates, delegateActives map[string]int) (map[string]*Delegate, error) {
+func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
 	for _, staking := range stakings {
@@ -165,7 +172,11 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.C
 				Productivity:    productionNum,
 			}
 		}
-		stakeAmount, _ := big.NewInt(0).SetString(staking.Amount, 0)
+
+		stakeAmount, ok := bucketAmount[staking.BucketID]
+		if !ok {
+			return delegateMap, errors.New("can not found bucketAmount with bucketID:" + string(staking.BucketID))
+		}
 		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
 		voteBucket := &VoteBucket{
 			StakedAmount:   stakeAmount,
@@ -227,10 +238,47 @@ func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake
 	return weightedAmount
 }
 
+func makeMaxIDTempTable(blockHeight uint64) error {
+	query := "CREATE TEMP TABLE  IF NOT EXISTS temp_staking_id (id bigint PRIMARY KEY)"
+	if err := db.DB().Exec(query).Error; err != nil {
+		return err
+	}
+	//empty temp table
+	if err := db.DB().Exec("truncate table temp_staking_id").Error; err != nil {
+		return err
+	}
+	query = "insert into temp_staking_id select max(id) from staking_actions where block_height<=? group by bucket_id"
+	if err := db.DB().Exec(query, blockHeight).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func getBucketSumAmount(height uint64) (map[uint64]*big.Int, error) {
+	db := db.DB()
+	query := "select bucket_id,sum(amount) as amount from staking_actions where block_height<=? group by bucket_id"
+	rows, err := db.Raw(query, height).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results = make(map[uint64]*big.Int)
+	for rows.Next() {
+		var bucketID uint64
+		var amount string
+		if err := rows.Scan(&bucketID, &amount); err != nil {
+			return nil, err
+		}
+		amountInt, _ := big.NewInt(0).SetString(amount, 0)
+		results[bucketID] = amountInt
+	}
+	return results, nil
+}
+
 func getCandidateStaking(height uint64) ([]*Staking, error) {
 	db := db.DB()
-	query := "select id,block_height,bucket_id,owner_address,candidate,(select sum(b.amount) from staking_actions b where b.block_height<=? and b.bucket_id=a.bucket_id) as amount,act_type,auto_stake,duration from staking_actions a where id=any(array(select max(id) from staking_actions where block_height<=? group by bucket_id))"
-	rows, err := db.Raw(query, height, height).Rows()
+	query := "SELECT a.id, a.block_height, a.bucket_id, a.owner_address, a.candidate, a.amount, a.act_type, a.auto_stake, a.duration FROM staking_actions a INNER JOIN temp_staking_id b ON a.id = b.id"
+	rows, err := db.Raw(query).Rows()
 	if err != nil {
 		return nil, err
 	}

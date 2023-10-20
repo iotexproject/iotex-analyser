@@ -5,13 +5,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.3.3"
+const VERSION = "2.3.4"
 
 type delegatePlugin struct {
 	stop chan bool
@@ -27,9 +30,9 @@ func (b delegatePlugin) Type() plugin.Type {
 }
 
 func (b delegatePlugin) Start(ctx context.Context) error {
-	// if err := db.AutoMigrate(b.Name(), &models.Delegate{}); err != nil {
-	// 	return errors.Wrapf(err, "failed to start plugin %s", b.Name())
-	// }
+	if err := db.AutoMigrate(b.Name(), &models.Delegate{}); err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
 	go func() {
 		ticker := time.NewTicker(time.Minute * 1)
 		defer ticker.Stop()

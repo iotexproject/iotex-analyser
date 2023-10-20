@@ -69,12 +69,16 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	systemStakings, err := getSystemStaking(pluginHeight)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	delegateActives := getDelegateActive(pluginHeight)
 	candidates, err := models.GetAllCandidates()
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	delegateMap, err := getDelegateMap(epochNumber, stakings, candidates, delegateActives, bucketSumAmount)
+	delegateMap, err := getDelegateMap(epochNumber, stakings, systemStakings, candidates, delegateActives, bucketSumAmount)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -142,7 +146,7 @@ outerLoop:
 	return err
 }
 
-func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
+func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
 	for _, staking := range stakings {
@@ -192,6 +196,18 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, candidates models.C
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate
 	}
+	for _, staking := range systemStakings {
+		delegate, ok := delegateMap[staking.DelegateOwnerAddress]
+		if !ok {
+			continue
+		}
+		stakeAmount, _ := big.NewInt(0).SetString(staking.StakedAmount, 0)
+		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
+		voteWeight, _ := big.NewInt(0).SetString(staking.VotingPower, 0)
+		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
+		totalVotes = totalVotes.Add(totalVotes, voteWeight)
+		delegateMap[staking.DelegateOwnerAddress] = delegate
+	}
 	return delegateMap, nil
 }
 
@@ -217,6 +233,26 @@ type VoteBucket struct {
 	UnstakeStartTime time.Time
 	AutoStake        bool
 }
+type SystemStakingBucket struct {
+	ID                   uint64
+	BucketID             uint64
+	BlockHeight          uint64
+	CreateTime           int64
+	StakeStartTime       int64
+	UnstakeStartTime     int64
+	StakedAmount         string
+	VotingPower          string
+	OwnerAddress         string
+	DelegateOwnerAddress string
+	Amount               string
+	EventType            string
+	Sender               string
+	Recipient            string
+	ActHash              string
+	Timestamp            int64
+	AutoStake            bool
+	Duration             uint32
+}
 
 func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
 	remainingTime := float64(v.StakedDuration * 86400)
@@ -239,7 +275,7 @@ func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake
 }
 
 func makeMaxIDTempTable(blockHeight uint64) error {
-	query := "CREATE TEMP TABLE  IF NOT EXISTS temp_staking_id (id bigint PRIMARY KEY)"
+	query := "CREATE TABLE  IF NOT EXISTS temp_staking_id (id bigint PRIMARY KEY)"
 	if err := db.DB().Exec(query).Error; err != nil {
 		return err
 	}
@@ -287,6 +323,25 @@ func getCandidateStaking(height uint64) ([]*Staking, error) {
 	for rows.Next() {
 		av := new(Staking)
 
+		if err := db.ScanRows(rows, av); err != nil {
+			return nil, err
+		}
+		results = append(results, av)
+	}
+	return results, nil
+}
+
+func getSystemStaking(height uint64) ([]*SystemStakingBucket, error) {
+	db := db.DB()
+	query := "select t1.* from system_staking_buckets t1 INNER JOIN (select MAX(id)AS max_id  from system_staking_buckets t4 where block_height<=? GROUP BY bucket_id) as t2 on t2.max_id=t1.id"
+	rows, err := db.Raw(query, height).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results []*SystemStakingBucket
+	for rows.Next() {
+		av := new(SystemStakingBucket)
 		if err := db.ScanRows(rows, av); err != nil {
 			return nil, err
 		}

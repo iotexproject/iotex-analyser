@@ -22,7 +22,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.4.4"
+const VERSION = "2.4.5"
 
 var FairbankBlockHeight = 5165641
 
@@ -306,14 +306,12 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		if !ok {
 			return errors.New("failed to convert string to big int")
 		}
-		var weightedAmount *big.Int
-		if config.Default.Genesis.RedseaBlockHeight >= blkHeight {
+		weightedAmount := stakeAmount
+		if blkHeight >= config.Default.Genesis.RedseaBlockHeight {
 			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
 			if err != nil {
 				return errors.Wrap(err, "failed to calculate vote weight")
 			}
-		} else {
-			weightedAmount = stakeAmount
 		}
 		if val, ok := sumOfWeightedVotes[key]; ok {
 			val.Add(val, weightedAmount)

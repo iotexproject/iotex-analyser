@@ -114,7 +114,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						BlockHeight:          blk.Height(),
 						BucketID:             tokenID.Uint64(),
 						Sender:               sender.String(),
-						OwnerAddress:         sender.String(),
+						OwnerAddress:         info.OwnerAddress,
 						ActHash:              actHash,
 						CreateTime:           info.CreateTime,
 						StakeStartTime:       blk.Timestamp().Unix(),
@@ -525,6 +525,18 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
 					}
+					// case "OwnershipTransferred": //OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+					// event := struct {
+					// 	PreviousOwner common.Address
+					// 	NewOwner      common.Address
+					// }{}
+					// err := _systemStakingContractABI.UnpackIntoInterface(&event, "OwnershipTransferred", log.Data)
+					// if err != nil {
+					// 	return errors.WithStack(err)
+					// }
+					// previousOwner, _ := address.FromHex(event.PreviousOwner.String())
+					// newOwner, _ := address.FromHex(event.NewOwner.String())
+
 				}
 			}
 		}

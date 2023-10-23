@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -195,7 +196,7 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			}
 			if count == 0 {
 				// update aggregate_voting and voting_meta table
-				if err = b.updateAggregateStaking(tx, voteBucketList, candidateList, epochNum, probationList); err != nil {
+				if err = b.updateAggregateStaking(blkHeight, tx, voteBucketList, candidateList, epochNum, probationList); err != nil {
 					return err
 				}
 			}
@@ -243,7 +244,7 @@ func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.Ca
 	}
 	return nil
 }
-func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.VoteBucketList, delegates *iotextypes.CandidateListV2, epochNumber uint64, probationList *iotextypes.ProbationCandidateList) (err error) {
+func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, votes *iotextypes.VoteBucketList, delegates *iotextypes.CandidateListV2, epochNumber uint64, probationList *iotextypes.ProbationCandidateList) (err error) {
 	nameMap, err := ownerAddressToNameMap(delegates)
 	if err != nil {
 		return errors.Wrap(err, "owner address to name map error")
@@ -254,10 +255,16 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 	sumOfWeightedVotes := make(map[aggregateKey]*big.Int)
 	totalVoted := big.NewInt(0)
 	selfStakeIndex := selfStakeIndexMap(delegates)
+	lsdBuckets := make([]*iotextypes.VoteBucket, 0)
 	for _, vote := range votes.Buckets {
 		if _, ok := nameMap[vote.CandidateAddress]; !ok {
 			// the candidate is no longer active (and non-eligible for reward)
 			// vote is not counted
+			continue
+		}
+		//lsd buckets
+		if vote.ContractAddress != "" {
+			lsdBuckets = append(lsdBuckets, vote)
 			continue
 		}
 		//for sumOfWeightedVotes
@@ -278,6 +285,35 @@ func (b hermesPlugin) updateAggregateStaking(tx *gorm.DB, votes *iotextypes.Vote
 		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
 		if !ok {
 			return errors.New("failed to convert string to big int")
+		}
+		if val, ok := sumOfWeightedVotes[key]; ok {
+			val.Add(val, weightedAmount)
+		} else {
+			sumOfWeightedVotes[key] = weightedAmount
+		}
+		totalVoted.Add(totalVoted, stakeAmount)
+	}
+	for _, vote := range lsdBuckets {
+		key := aggregateKey{
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      false,
+		}
+		selfStake := false
+
+		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
+		if !ok {
+			return errors.New("failed to convert string to big int")
+		}
+		var weightedAmount *big.Int
+		if config.Default.Genesis.RedseaBlockHeight >= blkHeight {
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+			if err != nil {
+				return errors.Wrap(err, "failed to calculate vote weight")
+			}
+		} else {
+			weightedAmount = stakeAmount
 		}
 		if val, ok := sumOfWeightedVotes[key]; ok {
 			val.Add(val, weightedAmount)

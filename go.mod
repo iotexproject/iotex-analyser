@@ -3,13 +3,13 @@ module github.com/iotexproject/iotex-analyser
 go 1.18
 
 require (
-	github.com/ethereum/go-ethereum v1.10.21
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/gammazero/workerpool v1.1.3
 	github.com/google/go-cmp v0.5.9
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.13
 	github.com/iotexproject/iotex-address v0.2.8
-	github.com/iotexproject/iotex-core v1.11.2
+	github.com/iotexproject/iotex-core v1.12.0-rc0
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.14
 	github.com/millken/gocache v1.0.5

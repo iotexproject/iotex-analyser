@@ -135,6 +135,148 @@ func TestProbationList(t *testing.T) {
 	require.Equal(probationList1.IntensityRate, probationList2.IntensityRate)
 }
 
+func TestHermesUpdate(t *testing.T) {
+	var candidateList *iotextypes.CandidateListV2
+	var voteBucketList *iotextypes.VoteBucketList
+	var probationList *iotextypes.ProbationCandidateList
+	var err error
+	require := require.New(t)
+	_, err = db.LoadDBFromEnv()
+	require.NoError(err)
+	epochNumber := uint64(39282)
+	blkHeight := kernel.GetEpochHeight(epochNumber)
+	require.NoError(err)
+	probationList, err = models.GetProbationListByEpoch(epochNumber)
+	require.NoError(err)
+	voteBucketList, err = models.GetVoteBucketList(epochNumber)
+	require.NoError(err)
+	candidateList, err = models.GetCandidateList(epochNumber)
+	require.NoError(err)
+	if probationList != nil {
+		candidateList, err = filterStakingCandidates(candidateList, probationList, blkHeight)
+		require.NoError(err)
+	}
+
+	nameMap, err := ownerAddressToNameMap(candidateList)
+	if err != nil {
+		require.NoError(err)
+	}
+	pb := convertProbationListToLocal(probationList)
+	intensityRate, probationMap := stakingProbationListToMap(candidateList, pb)
+	//update aggregate voting table
+	sumOfWeightedVotes := make(map[aggregateKey]*big.Int)
+	totalVoted := big.NewInt(0)
+	selfStakeIndex := selfStakeIndexMap(candidateList)
+	lsdBuckets := make([]*iotextypes.VoteBucket, 0)
+	for _, vote := range voteBucketList.Buckets {
+		if vote.Index != 83 {
+			continue
+		}
+		fmt.Printf("%v\n", vote)
+		if _, ok := nameMap[vote.CandidateAddress]; !ok {
+			// the candidate is no longer active (and non-eligible for reward)
+			// vote is not counted
+			continue
+		}
+		//lsd buckets
+		// if vote.ContractAddress != "" {
+		// 	lsdBuckets = append(lsdBuckets, vote)
+		// 	continue
+		// }
+
+		//for sumOfWeightedVotes
+		key := aggregateKey{
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      true,
+		}
+		selfStake := false
+		if _, ok := selfStakeIndex[vote.Index]; ok {
+			selfStake = true
+		}
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+		require.NoError(err)
+		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
+		require.True(ok)
+		if val, ok := sumOfWeightedVotes[key]; ok {
+			val.Add(val, weightedAmount)
+		} else {
+			sumOfWeightedVotes[key] = weightedAmount
+		}
+		totalVoted.Add(totalVoted, stakeAmount)
+	}
+	for _, vote := range lsdBuckets {
+		key := aggregateKey{
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      false,
+		}
+		selfStake := false
+		fmt.Printf("lsdBuckets aggregateKey%+v\n", key)
+		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
+		require.True(ok)
+		weightedAmount := stakeAmount
+		if config.Default.Genesis.RedseaBlockHeight <= blkHeight {
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+			require.NoError(err)
+		}
+		if val, ok := sumOfWeightedVotes[key]; ok {
+			val.Add(val, weightedAmount)
+		} else {
+			sumOfWeightedVotes[key] = weightedAmount
+		}
+		totalVoted.Add(totalVoted, stakeAmount)
+	}
+	//update voting meta table
+	totalWeighted := big.NewInt(0)
+	for _, cand := range candidateList.Candidates {
+		totalWeightedVotes, ok := big.NewInt(0).SetString(cand.TotalWeightedVotes, 10)
+		if !ok {
+			return
+		}
+		totalWeighted.Add(totalWeighted, totalWeightedVotes)
+	}
+	m := models.HermesVotingMeta{
+		EpochNumber:        epochNumber,
+		VotedToken:         decimal.NewFromBigInt(totalVoted, 0),
+		TotalWeightedVotes: decimal.NewFromBigInt(totalWeighted, 0),
+		DelegateCount:      len(candidateList.Candidates),
+	}
+	fmt.Printf("HermesVotingMeta %+v\n", m)
+
+	uniqueMap := make(map[string]bool)
+	batches := make([]models.HermesAggregateVoting, 0)
+	for key, val := range sumOfWeightedVotes {
+		k := fmt.Sprintf("%d%s%s%t", key.epochNumber, key.candidateName, key.voterAddress, key.isNative)
+
+		if _, ok := uniqueMap[k]; ok {
+			continue
+		}
+		if _, ok := probationMap[key.candidateName]; ok {
+			// filter based on probation
+			votingPower := new(big.Float).SetInt(val)
+			val, _ = votingPower.Mul(votingPower, big.NewFloat(intensityRate)).Int(nil)
+		}
+		_, ok := nameMap[key.candidateName]
+		require.True(ok)
+
+		aggregateVotes := decimal.NewFromBigInt(val, 0)
+
+		m := models.HermesAggregateVoting{
+			EpochNumber:    key.epochNumber,
+			CandidateName:  nameMap[key.candidateName],
+			VoterAddress:   key.voterAddress,
+			NativeFlag:     key.isNative,
+			AggregateVotes: aggregateVotes,
+		}
+		fmt.Printf("HermesAggregateVoting %+v\n", m)
+		batches = append(batches, m)
+		uniqueMap[k] = true
+	}
+}
+
 func TestHermesVotingResults(t *testing.T) {
 	var candidateList *iotextypes.CandidateListV2
 	// var voteBucketList *iotextypes.VoteBucketList
@@ -143,7 +285,7 @@ func TestHermesVotingResults(t *testing.T) {
 	require := require.New(t)
 	_, err = db.LoadDBFromEnv()
 	require.NoError(err)
-	epochNumber := uint64(25049)
+	epochNumber := uint64(39282)
 	blkHeight := kernel.GetEpochHeight(epochNumber)
 	epochStartheight := blkHeight
 	chainClient, err := kernel.ChainClientWithEndPoint("api.iotex.one:80", true)

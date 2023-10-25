@@ -42,7 +42,7 @@ const (
 	// PollProtocolID is ID of poll protocol
 	PollProtocolID      = "poll"
 	protocolID          = "staking"
-	readBucketsLimit    = 30000
+	readBucketsLimit    = 300000
 	readCandidatesLimit = 20000
 )
 
@@ -291,13 +291,12 @@ func getProductivity(tx *gorm.DB, epochNumber uint64) (map[string]*Productivity,
 	return productivityMap, nil
 }
 
-// GetAllStakingBuckets get all buckets by height
-func GetAllStakingBuckets(chainClient iotexapi.APIServiceClient, height uint64) (voteBucketListAll *iotextypes.VoteBucketList, err error) {
+func GetAllStakingBuckets(chainClient iotexapi.APIServiceClient, epochHeight uint64) (voteBucketListAll *iotextypes.VoteBucketList, err error) {
 	voteBucketListAll = &iotextypes.VoteBucketList{}
 	for i := uint32(0); ; i++ {
 		offset := i * readBucketsLimit
 		size := uint32(readBucketsLimit)
-		voteBucketList, err := getStakingBuckets(chainClient, offset, size, height)
+		voteBucketList, err := getStakingBuckets(chainClient, offset, size, epochHeight)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get bucket")
 		}
@@ -317,12 +316,12 @@ func GetAllStakingBuckets(chainClient iotexapi.APIServiceClient, height uint64) 
 // getStakingBuckets get specific buckets by height
 func getStakingBuckets(chainClient iotexapi.APIServiceClient, offset, limit uint32, height uint64) (voteBucketList *iotextypes.VoteBucketList, err error) {
 	methodName, err := proto.Marshal(&iotexapi.ReadStakingDataMethod{
-		Method: iotexapi.ReadStakingDataMethod_BUCKETS,
+		Method: iotexapi.ReadStakingDataMethod_COMPOSITE_BUCKETS,
 	})
 	if err != nil {
 		return nil, err
 	}
-	arg, err := proto.Marshal(&iotexapi.ReadStakingDataRequest{
+	arguments := &iotexapi.ReadStakingDataRequest{
 		Request: &iotexapi.ReadStakingDataRequest_Buckets{
 			Buckets: &iotexapi.ReadStakingDataRequest_VoteBuckets{
 				Pagination: &iotexapi.PaginationParam{
@@ -331,17 +330,15 @@ func getStakingBuckets(chainClient iotexapi.APIServiceClient, offset, limit uint
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, err
 	}
+	argumentsBytes, _ := proto.Marshal(arguments)
 	readStateRequest := &iotexapi.ReadStateRequest{
 		ProtocolID: []byte(protocolID),
 		MethodName: methodName,
-		Arguments:  [][]byte{arg},
+		Arguments:  [][]byte{argumentsBytes},
 		Height:     fmt.Sprintf("%d", height),
 	}
-	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_BUCKETS)
+	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_COMPOSITE_BUCKETS)
 	readStateRes, err := chainClient.ReadState(ctx, readStateRequest)
 	if err != nil {
 		return

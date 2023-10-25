@@ -22,7 +22,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.4.5"
+const VERSION = "2.4.6"
 
 var FairbankBlockHeight = 5165641
 
@@ -68,7 +68,7 @@ func (b hermesPlugin) Type() plugin.Type {
 }
 
 func (b hermesPlugin) DependentPlugins() []string {
-	return []string{"block_meta", "block_reward", "probation", "vote_bucketlist", "candidatelist"}
+	return []string{"block_meta", "block_reward", "probation", "candidatelist"}
 }
 
 func (b hermesPlugin) Start(ctx context.Context) error {
@@ -111,7 +111,7 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			return errors.Wrapf(err, "failed to get probation list from chain service in epoch %d", epochNum)
 		}
 		preEpochNum := epochNum - 1
-		voteBucketList, err = models.GetVoteBucketList(preEpochNum)
+		voteBucketList, err = GetAllStakingBuckets(chainClient, kernel.GetEpochHeight(preEpochNum))
 		if err != nil {
 			return errors.Wrap(err, "failed to get buckets count")
 		}

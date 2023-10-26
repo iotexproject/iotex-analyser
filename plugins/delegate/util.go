@@ -17,6 +17,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -43,6 +44,10 @@ func delegate() error {
 		return errors.WithStack(err)
 	}
 	epochNumber := kernel.GetEpochNum(pluginHeight)
+	if !checkSelfStakeStatus(epochNumber) {
+		log.L().Warn("currentlly no self stake status, please check hermes_voting_results table", zap.Uint64("epoch_number", epochNumber))
+		return nil
+	}
 	request := &iotexapi.GetEpochMetaRequest{EpochNumber: epochNumber}
 	chainClient := kernel.ChainClient()
 	epochMeta, err := chainClient.GetEpochMeta(context.Background(), request)
@@ -348,6 +353,14 @@ func getSystemStaking(height uint64) ([]*SystemStakingBucket, error) {
 		results = append(results, av)
 	}
 	return results, nil
+}
+
+func checkSelfStakeStatus(epochNumber uint64) bool {
+	var count int64
+	if err := db.DB().Model(&models.HermesVotingResult{}).Where("epoch_number=?", epochNumber).Count(&count).Error; err != nil {
+		return false
+	}
+	return count > 0
 }
 
 // check candidate register and amount >= 1200000000000000000000000

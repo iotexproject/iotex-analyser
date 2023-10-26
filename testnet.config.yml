@@ -23,7 +23,6 @@ server:
     - reward_history.so
     - staking_actions.so
     - staking_bucket.so
-    - vote_bucketlist.so
 database:
   driver: postgres
   host: 127.0.0.1

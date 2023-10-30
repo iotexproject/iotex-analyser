@@ -9,7 +9,7 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/iotexproject/go-pkgs v0.1.13
 	github.com/iotexproject/iotex-address v0.2.8
-	github.com/iotexproject/iotex-core v1.12.0-rc0
+	github.com/iotexproject/iotex-core v1.12.0
 	github.com/iotexproject/iotex-election v0.3.5-0.20210611041425-20ddf674363d
 	github.com/iotexproject/iotex-proto v0.5.14
 	github.com/millken/gocache v1.0.5

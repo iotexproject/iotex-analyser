@@ -65,3 +65,15 @@ SELECT *
 FROM staking_buckets t1
 INNER JOIN max_ids t2 ON t2.max_id = t1.id
 ```
+- 获取 system_staking_buckets 表中指定高度下所有 bucket_id 的最新记录
+```sql
+WITH max_ids AS (
+		SELECT MAX(id) AS max_id
+		FROM system_staking_buckets
+		WHERE block_height <= 1697819060
+		GROUP BY bucket_id
+	)
+	SELECT *
+	FROM system_staking_buckets t1
+	RIGHT JOIN max_ids t2 ON  t1.id=t2.max_id order by bucket_id
+```

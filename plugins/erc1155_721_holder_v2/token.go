@@ -81,11 +81,12 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								Holder:          toAddr.String(),
 								ErcType:         721,
 								TokenID:         tokenID,
+								TokenValue:      decimal.NewFromInt(1),
 							}
 							slog.L().Debug("start handle create mint 721")
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
-								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": 0}),
+								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": 1}),
 							}).Create(&model).Error; err != nil {
 								return err
 							}
@@ -106,10 +107,11 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								Holder:          toAddr.String(),
 								ErcType:         721,
 								TokenID:         tokenID,
+								TokenValue:      decimal.NewFromInt(1),
 							}
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
-								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": 0}),
+								DoUpdates: clause.Assignments(map[string]interface{}{"token_value": 1}),
 							}).Create(&model).Error; err != nil {
 								return err
 							}

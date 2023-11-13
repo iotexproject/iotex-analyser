@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,13 +15,14 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.4"
+const VERSION = "2.2.5"
 
 const (
 	errBucketSumAmount             = "getBucketSumAmountByBucketID error, bucketID: %d"
@@ -28,6 +30,7 @@ const (
 )
 
 type systemStakingBucketPlugin struct {
+	needUpdating bool
 }
 
 func (b systemStakingBucketPlugin) Name() string {
@@ -55,7 +58,47 @@ func (b systemStakingBucketPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func (b systemStakingBucketPlugin) fixingData(ctx context.Context) error {
+	db := db.DB()
+	query := "select * from system_staking_buckets where staked_amount >0 order by id asc"
+	rows, err := db.Raw(query).Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var bucket models.SystemStakingBucket
+		if err := db.ScanRows(rows, &bucket); err != nil {
+			return err
+		}
+		voteWeight := getVoteWeight(config.Default.Genesis.RedseaBlockHeight, bucket.Duration, bucket.StakedAmount.BigInt(), bucket.AutoStake, false)
+		if err := db.Model(&bucket).Update("voting_power", decimal.NewFromBigInt(voteWeight, 0)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if blk.Height() >= config.Default.Genesis.RedseaBlockHeight && !b.needUpdating {
+		store := &db.Store{
+			Key: "system_staking_bucket_increment_update",
+		}
+		if err := store.Get(); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				//it means the data is not fixed
+				log.L().Info("system_staking_bucket increment updating data")
+				b.fixingData(ctx)
+				store.Value = fmt.Sprintf(`{"block_height": %d}`, blk.Height())
+				if err := store.Save(); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		b.needUpdating = true
+	}
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		var stakingBucket models.SystemStakingBucket
 		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))

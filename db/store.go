@@ -31,3 +31,7 @@ func (s *Store) Save() error {
 	s.UpdateAt = now
 	return db.Create(s).Error
 }
+
+func (s *Store) Get() error {
+	return db.Model(s).Where(&Store{Key: s.Key}).First(s).Error
+}

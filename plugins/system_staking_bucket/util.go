@@ -66,8 +66,7 @@ type VoteBucket struct {
 }
 
 func getVoteWeight(blkHeight uint64, duration uint32, stakeAmount *big.Int, autoStake, selfStake bool) *big.Int {
-	//todo update config.Default.Genesis.Blockchain.RedseaBlockHeight
-	if blkHeight > 0 {
+	if blkHeight < config.Default.Genesis.RedseaBlockHeight {
 		return stakeAmount
 	}
 	voteBucket := &VoteBucket{

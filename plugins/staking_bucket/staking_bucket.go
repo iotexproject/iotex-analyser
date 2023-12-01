@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -13,19 +14,21 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.0"
+const VERSION = "2.2.1"
 
 const (
 	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
 )
 
 type stakingBucketPlugin struct {
+	fixingStakeAmount bool
 }
 
 func (b stakingBucketPlugin) Name() string {
@@ -47,7 +50,52 @@ func (b stakingBucketPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func (b stakingBucketPlugin) fixStakeAmount(ctx context.Context) error {
+	db := db.DB()
+	query := "select * from staking_buckets where act_type='Unstake' order by id asc"
+	rows, err := db.Raw(query).Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var bucket models.StakingBucket
+		if err := db.ScanRows(rows, &bucket); err != nil {
+			return err
+		}
+		decmailAmount, err := getBucketSumAmountByBucketID(db, bucket.BucketID)
+		if err != nil {
+			return err
+		}
+		if err := db.Model(&bucket).Update("staked_amount", decmailAmount).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if !b.fixingStakeAmount {
+		store := &db.Store{
+			Key: "staking_bucket_fix_stake_amount",
+		}
+		if err := store.Get(); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				//it means the data is not fixed
+				log.L().Info("staking_bucket fixing stake amount")
+				if err := b.fixStakeAmount(ctx); err != nil {
+					return err
+				}
+				store.Value = fmt.Sprintf(`{"block_height": %d}`, blk.Height())
+				if err := store.Save(); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		b.fixingStakeAmount = true
+	}
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		var stakingBucket models.StakingBucket
 		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
@@ -286,6 +334,10 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				}
 			case *action.Unstake:
 				bucketID := a.BucketIndex()
+				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
 					return err
@@ -296,7 +348,7 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					CreateTime:       info.CreateTime,
 					StakeStartTime:   info.StakeStartTime,
 					UnstakeStartTime: blk.Timestamp().Unix(),
-					StakedAmount:     decimal.NewFromInt(0),
+					StakedAmount:     decmailAmount,
 					VotingPower:      decimal.NewFromInt(0),
 					OwnerAddress:     info.OwnerAddress,
 					Sender:           sender.String(),

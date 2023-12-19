@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.4.1"
+const VERSION = "2.5.0"
 
 const (
 	transfer                   = "transfer"
@@ -74,34 +74,54 @@ func (b blockReceiptPlugin) Start(ctx context.Context) error {
 
 func (b blockReceiptPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	receipts := blk.Receipts
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		for _, receipt := range receipts {
-			receipt := receipt
-			actionHash := hex.EncodeToString(receipt.ActionHash[:])
-			br := &models.BlockReceipt{
-				BlockHeight:        blk.Height(),
-				ActionHash:         actionHash,
-				GasConsumed:        receipt.GasConsumed,
-				ContractAddress:    receipt.ContractAddress,
-				ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
-				Status:             receipt.Status,
-			}
-			if err := tx.Create(br).Error; err != nil {
-				return err
-			}
-			//transaction
-			if err := handleTransactionLogs(receipt.TransactionLogs(), actionHash, blk.Height(), tx); err != nil {
-				return err
-			}
-			//logs
-			if err := handleLogs(receipt.Logs(), actionHash, blk.Height(), tx); err != nil {
-				return err
-			}
+	var brs []models.BlockReceipt
+	var brts []models.BlockReceiptTransaction
+	var brls []models.BlockReceiptLog
+	for _, receipt := range receipts {
+		receipt := receipt
+		actionHash := hex.EncodeToString(receipt.ActionHash[:])
+		brs = append(brs, models.BlockReceipt{
+			BlockHeight:        blk.Height(),
+			ActionHash:         actionHash,
+			GasConsumed:        receipt.GasConsumed,
+			ContractAddress:    receipt.ContractAddress,
+			ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
+			Status:             receipt.Status,
+		})
+		//transaction
+		brt, err := handleTransactionLogs(receipt.TransactionLogs(), actionHash, blk.Height())
+		if err != nil {
+			return err
 		}
-
+		brts = append(brts, brt...)
+		//logs
+		brl, err := handleLogs(receipt.Logs(), actionHash, blk.Height())
+		if err != nil {
+			return err
+		}
+		brls = append(brls, brl...)
+	}
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("block_height = ?", blk.Height()).Delete(&models.BlockReceipt{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("block_height = ?", blk.Height()).Delete(&models.BlockReceiptTransaction{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("block_height = ?", blk.Height()).Delete(&models.BlockReceiptLog{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.BlockReceipt{}).CreateInBatches(brs, 200).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.BlockReceiptTransaction{}).CreateInBatches(brts, 200).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.BlockReceiptLog{}).CreateInBatches(brls, 200).Error; err != nil {
+			return err
+		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
-
 	return err
 }
 

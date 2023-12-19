@@ -9,7 +9,6 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 )
 
 var specialActionHash = hash.ZeroHash256
@@ -56,9 +55,8 @@ func getActionType(t iotextypes.TransactionLogType) string {
 	return ""
 }
 
-func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64, tx *gorm.DB) error {
-	totalMap := make(map[string]int, 0)
-
+func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64) ([]models.BlockReceiptTransaction, error) {
+	var brts []models.BlockReceiptTransaction
 	for _, transation := range transactionLogs {
 		transation := transation
 		amountDec := decimal.NewFromBigInt(transation.Amount, 0)
@@ -71,36 +69,21 @@ func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash 
 				recipient = addr.String()
 			}
 		}
-		totalMap[transation.Sender]++
-		totalMap[recipient]++
-		brt := &models.BlockReceiptTransaction{
+		brts = append(brts, models.BlockReceiptTransaction{
 			BlockHeight: blkHeight,
 			ActionHash:  actionHash,
 			Type:        getActionType(transation.Type),
 			Amount:      amountDec,
 			Sender:      transation.Sender,
 			Recipient:   recipient,
-		}
-		if err := tx.Create(brt).Error; err != nil {
-			return err
-		}
+		})
 	}
-	for addr, count := range totalMap {
-		if addr == "" {
-			continue
-		}
-		m := &models.AccountActionCount{
-			Address:    addr,
-			InnerCount: uint64(count),
-		}
-		if err := m.AddCount(tx, uint64(count), models.AccountActionCountInner); err != nil {
-			return err
-		}
-	}
-	return nil
+
+	return brts, nil
 }
 
-func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gorm.DB) error {
+func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64) ([]models.BlockReceiptLog, error) {
+	var brls []models.BlockReceiptLog
 	for _, log := range logs {
 		log := log
 		topic0, topic1, topic2, topic3 := parseTopics(log.Topics)
@@ -108,7 +91,7 @@ func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gor
 		if logData == nil {
 			logData = []byte("")
 		}
-		brl := &models.BlockReceiptLog{
+		brls = append(brls, models.BlockReceiptLog{
 			BlockHeight:        blkHeight,
 			ActionHash:         actionHash,
 			Address:            log.Address,
@@ -120,10 +103,7 @@ func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gor
 			Index:              uint(log.Index),
 			TxIndex:            uint(log.TxIndex),
 			NotFixTopicCopyBug: log.NotFixTopicCopyBug,
-		}
-		if err := tx.Create(brl).Error; err != nil {
-			return err
-		}
+		})
 	}
-	return nil
+	return brls, nil
 }

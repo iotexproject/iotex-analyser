@@ -104,6 +104,7 @@ func (r *runner) Start(ctx context.Context) error {
 	}
 	if config.Default.Iotex.CrawlMode {
 		for _, nextHeight := range config.Default.Iotex.CrawlHeight {
+			timeStart := time.Now()
 			blk, err := kernel.GetBlockByHeightFromChain(ctx, nextHeight)
 			if err != nil {
 				r.logger.Error("failed to read block from chain", zap.Error(err))
@@ -116,6 +117,7 @@ func (r *runner) Start(ctx context.Context) error {
 					zap.Error(err),
 				)
 			}
+			pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
 			r.logger.Debug("putblock to plugin",
 				zap.String("pluginName", r.plugin.Name()),
 				zap.Uint64("blkHeight", blk.Height()),
@@ -159,7 +161,7 @@ func (r *runner) Start(ctx context.Context) error {
 					if !r.isRunning.Get() {
 						break
 					}
-
+					timeStart := time.Now()
 					if !config.Default.Iotex.CatchUpMode {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 					} else {
@@ -187,6 +189,7 @@ func (r *runner) Start(ctx context.Context) error {
 						zap.Uint64("height", blk.Height()),
 					)
 					serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
+					pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
 					nextHeight++
 				}
 			}

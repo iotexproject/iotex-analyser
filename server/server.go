@@ -39,6 +39,14 @@ var (
 		},
 		[]string{"type", "name"},
 	)
+	pluginProcessingSecondsPerBlockMetrics = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:       "iotex_analyser_plugin_processing_seconds_per_block",
+			Help:       "iotex analyser plugin processing seconds per block",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		},
+		[]string{"name"},
+	)
 )
 
 type Server struct {
@@ -60,6 +68,7 @@ func New() *Server {
 // Start start the server
 func (srv *Server) Start(ctx context.Context) error {
 	prometheus.MustRegister(serverMetrics)
+	prometheus.MustRegister(pluginProcessingSecondsPerBlockMetrics)
 
 	_, err := db.Connect()
 	if err != nil {

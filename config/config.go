@@ -71,8 +71,6 @@ type (
 		ChainEndPoint      string   `yaml:"chainEndPoint" env:"IOTEX_CHAIN_END_POINT"`
 		ChainInsecure      bool     `yaml:"chainInsecure"`
 		BatchSize          uint64   `yaml:"batchSize"` //default 64, ~ 10 blocks
-		// InscriptionStartHeight is the height to start inscription
-		InscriptionStartHeight uint64 `yaml:"inscriptionStartHeight"`
 	}
 	Config struct {
 		Genesis  genesis.Genesis             `yaml:"genesis"`

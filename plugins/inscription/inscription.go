@@ -8,8 +8,8 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
-	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
@@ -18,6 +18,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
 
@@ -45,8 +46,18 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
-	if height == 0 {
-		return db.UpdateIndexHeight(b.Name(), config.Default.Iotex.InscriptionStartHeight)
+	startHeight := uint64(0)
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		cfg := &Config{}
+		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
+			slog.L().Error("failed to unmarshal plugin config", zap.Error(err), zap.String("config", string(cfgData)), zap.String("plugin", b.Name()))
+		} else {
+			startHeight = cfg.StartHeight
+			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		}
+	}
+	if height < startHeight && startHeight > 0 {
+		return db.UpdateIndexHeight(b.Name(), startHeight-1)
 	}
 	return nil
 }

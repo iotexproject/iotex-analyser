@@ -46,10 +46,11 @@ var (
 
 type (
 	Server struct {
-		Http          string   `yaml:"http"`
-		Addr          string   `yaml:"addr"`
-		HTTPAdminPort int      `yaml:"httpAdminPort"`
-		Plugins       []string `yaml:"plugins"`
+		Http          string         `yaml:"http"`
+		Addr          string         `yaml:"addr"`
+		HTTPAdminPort int            `yaml:"httpAdminPort"`
+		Plugins       []string       `yaml:"plugins"`
+		PluginConfigs map[string]any `yaml:"pluginConfigs"`
 	}
 	Database struct {
 		Driver   string `yaml:"driver" env:"DB_DRIVER"`

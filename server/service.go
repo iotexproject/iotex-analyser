@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	iap "github.com/iotexproject/iotex-analyser/plugin"
@@ -18,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rodaine/table"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 type pluginStatus int
@@ -103,19 +105,31 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 	pluginMap := s.pluginMap
 	s.mu.RUnlock()
 	plugins := make(map[string]*runner)
+	cfg, err := newConfigFromCtx(ctx)
+	if err != nil {
+		s.logger.Warn("failed to get config from context", zap.Error(err))
+	}
 
 	for name, plugin := range pluginMap {
 		plugins[name] = plugin
+		pluginCfg := []byte{}
+		if cfg != nil {
+			pluginCfg, err = makePluginConfig(cfg, name)
+			if err != nil {
+				s.logger.Warn("failed to make plugin config", zap.Error(err), zap.String("plugin", name))
+			}
+		}
+		pluginCtx := kernel.WithPluginConfigCtx(ctx, pluginCfg)
 		switch plugin.Status() {
 		case PluginStatusUnload:
-			if err := plugin.Stop(ctx); err != nil {
+			if err := plugin.Stop(pluginCtx); err != nil {
 				s.logger.Error("failed to unload plugin", zap.String("name", name), zap.Error(err))
 			} else {
 				delete(plugins, name)
 			}
 		case PluginStatusLoaded:
-			ctx = kernel.WithBlockDAOCtx(ctx, s.dao)
-			if err := plugin.Start(ctx); err != nil {
+			pluginCtx = kernel.WithBlockDAOCtx(pluginCtx, s.dao)
+			if err := plugin.Start(pluginCtx); err != nil {
 				s.logger.Error(errFailedLoadPlugin, zap.String("name", name), zap.Error(err))
 			} else {
 				plugin.UpdateStatus(PluginStatusRunning)
@@ -264,4 +278,24 @@ func loadPluginFile(path string) (iap.Adapter, error) {
 		return nil, errors.New("unexpected type from module symbol")
 	}
 	return adapter, nil
+}
+
+func newConfigFromCtx(ctx context.Context) (*config.Config, error) {
+	cfgPath, ok := kernel.GetConfigCtx(ctx)
+	if !ok {
+		return nil, errors.New("failed to get config path from context")
+	}
+	cfg, err := config.New(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func makePluginConfig(cfg *config.Config, name string) ([]byte, error) {
+	pluginConfig, ok := cfg.Server.PluginConfigs[name]
+	if !ok {
+		return []byte{}, nil
+	}
+	return yaml.Marshal(pluginConfig)
 }

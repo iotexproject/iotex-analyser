@@ -7,8 +7,9 @@ import (
 )
 
 type (
-	blockDAOCtxKey struct{}
-	configCtxKey   struct{}
+	blockDAOCtxKey     struct{}
+	configCtxKey       struct{}
+	pluginConfigCtxKey struct{}
 )
 
 // WithConfigCtx add config path into context.
@@ -31,4 +32,15 @@ func WithBlockDAOCtx(ctx context.Context, dao blockdao.BlockDAO) context.Context
 func GetBlockDAOCtx(ctx context.Context) (blockdao.BlockDAO, bool) {
 	dao, ok := ctx.Value(blockDAOCtxKey{}).(blockdao.BlockDAO)
 	return dao, ok
+}
+
+// WithPluginConfigCtx add plugin config into context.
+func WithPluginConfigCtx(ctx context.Context, config []byte) context.Context {
+	return context.WithValue(ctx, pluginConfigCtxKey{}, config)
+}
+
+// GetPluginConfigCtx gets plugin config
+func GetPluginConfigCtx(ctx context.Context) ([]byte, bool) {
+	c, ok := ctx.Value(pluginConfigCtxKey{}).([]byte)
+	return c, ok
 }

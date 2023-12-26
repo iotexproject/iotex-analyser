@@ -51,7 +51,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
 		cfg := &Config{}
 		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
-			slog.L().Error("failed to unmarshal plugin config", zap.Error(err), zap.String("config", string(cfgData)), zap.String("plugin", b.Name()))
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
 		} else {
 			startHeight = cfg.StartHeight
 			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))

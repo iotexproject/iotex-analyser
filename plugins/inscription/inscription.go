@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -108,7 +109,8 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			slog.L().Debug("skip action: empty data", zap.Any("hash", hex.EncodeToString(actHash[:])))
 			continue
 		}
-		if !utf8.Valid(data) {
+		text, err := bytesToUTF8(data)
+		if err != nil {
 			slog.L().Debug("skip action: not a utf8 string", zap.Any("hash", hex.EncodeToString(actHash[:])))
 			continue
 		}
@@ -120,7 +122,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			Sender:      fromAddr.String(),
 			Recipient:   toAddr.String(),
 			Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
-			RawData:     string(data),
+			RawData:     text,
 		})
 	}
 	if err := gormTx.CreateInBatches(inscripts, batchSize).Error; err != nil {
@@ -139,3 +141,13 @@ func (b tokenPlugin) Version() string {
 
 // exported
 var Plugin = tokenPlugin{}
+
+func bytesToUTF8(data []byte) (string, error) {
+	if !utf8.Valid(data) {
+		return "", errors.New("not a utf8 string")
+	}
+	res := string(data)
+	// remove null bytes
+	res = strings.Replace(res, "\x00", "", -1)
+	return res, nil
+}

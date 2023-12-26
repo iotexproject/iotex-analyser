@@ -129,7 +129,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		return errors.Wrapf(err, "failed to put block %d", blk.Height())
 	}
 	// TODO: move to plugin framework to update index height
-	return db.UpdateIndexHeight(b.Name(), blk.Height())
+	return db.UpdateIndexHeightByTx(gormTx, b.Name(), blk.Height())
 }
 
 func (b tokenPlugin) Stop(ctx context.Context) error {

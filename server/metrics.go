@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TODO: move metric to a plugin
 type metrics struct {
 	Prefix        string
 	Interval      int

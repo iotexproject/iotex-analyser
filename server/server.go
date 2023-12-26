@@ -114,11 +114,11 @@ func (srv *Server) startDebugService(ctx context.Context) {
 
 		port := fmt.Sprintf(":%d", config.Default.Server.HTTPAdminPort)
 		adminserv = httputil.Server(port, mux)
-		defer func() {
-			if err := adminserv.Shutdown(ctx); err != nil {
-				log.L().Error("Error when serving metrics data.", zap.Error(err))
-			}
-		}()
+		// defer func() {
+		// 	if err := adminserv.Shutdown(ctx); err != nil {
+		// 		log.L().Error("Error when serving metrics data.", zap.Error(err))
+		// 	}
+		// }()
 		go func() {
 			runtime.SetMutexProfileFraction(1)
 			runtime.SetBlockProfileRate(1)

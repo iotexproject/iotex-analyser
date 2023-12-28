@@ -78,7 +78,9 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		}
 		return nil
 	}
-	inscripts := make([]*models.InscriptionRaw, 0)
+	inscriptRaws := make([]*models.InscriptionRaw, 0)
+	inscripts := make([]*models.Inscription, 0)
+	inscriptTransfers := make([]*models.InscriptionTransfer, 0)
 	for _, act := range blk.Actions {
 		actHash, err := act.Hash()
 		if err != nil {
@@ -116,16 +118,46 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		}
 		fromAddr, _ := address.FromBytes(act.SenderAddress().Bytes())
 		toAddr, _ := address.FromBytes(ethTx.To().Bytes())
-		inscripts = append(inscripts, &models.InscriptionRaw{
+		actHashStr := hex.EncodeToString(actHash[:])
+		inscriptRaws = append(inscriptRaws, &models.InscriptionRaw{
 			BlockHeight: blk.Height(),
-			ActionHash:  hex.EncodeToString(actHash[:]),
+			ActionHash:  actHashStr,
 			Sender:      fromAddr.String(),
 			Recipient:   toAddr.String(),
 			Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
 			RawData:     text,
 		})
+		uri, err := ParseDataURI(text)
+		if err != nil {
+			inscriptHash, err := address.FromHex(text)
+			if err != nil {
+				continue
+			}
+			inscriptTransfers = append(inscriptTransfers, &models.InscriptionTransfer{
+				BlockHeight:     blk.Height(),
+				ActionHash:      actHashStr,
+				Sender:          fromAddr.String(),
+				Recipient:       toAddr.String(),
+				Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				InscriptionHash: inscriptHash.String(),
+			})
+			continue
+		}
+		inscripts = append(inscripts, &models.Inscription{
+			ActionHash: actHashStr,
+			MIMEType:   uri.MIMEType,
+			Parameters: uri.Parameters,
+			Extension:  uri.Extension,
+			Data:       uri.Data,
+		})
+	}
+	if err := gormTx.CreateInBatches(inscriptRaws, batchSize).Error; err != nil {
+		return errors.Wrapf(err, "failed to put block %d", blk.Height())
 	}
 	if err := gormTx.CreateInBatches(inscripts, batchSize).Error; err != nil {
+		return errors.Wrapf(err, "failed to put block %d", blk.Height())
+	}
+	if err := gormTx.CreateInBatches(inscriptTransfers, batchSize).Error; err != nil {
 		return errors.Wrapf(err, "failed to put block %d", blk.Height())
 	}
 	// TODO: move to plugin framework to update index height

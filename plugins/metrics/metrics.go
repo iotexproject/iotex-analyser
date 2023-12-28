@@ -1,6 +1,7 @@
-package server
+package main
 
 import (
+	"context"
 	"database/sql"
 	"strconv"
 	"sync"
@@ -8,44 +9,40 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
-// TODO: move metric to a plugin
-type metrics struct {
-	Prefix        string
-	Interval      int
-	db            *gorm.DB
-	gauges        map[string]prometheus.Gauge
-	counters      map[string]prometheus.Counter
-	blockGasPrice prometheus.Gauge
-	lock          sync.RWMutex
+const VERSION = "0.0.1"
+
+var lock sync.RWMutex
+
+type metricsPlugin struct {
+	prefix   string
+	interval int
+	gauges   map[string]prometheus.Gauge
+	counters map[string]prometheus.Counter
 }
 
-func newMetrics(db *gorm.DB) *metrics {
-	m := &metrics{
-		Prefix:   "iotex_analyser_",
-		Interval: 10,
-		db:       db,
-		gauges:   make(map[string]prometheus.Gauge),
-		counters: make(map[string]prometheus.Counter),
-		lock:     sync.RWMutex{},
-	}
-
-	return m
+func (b metricsPlugin) Name() string {
+	return "metrics"
 }
 
-func (mt *metrics) Start() {
+func (b metricsPlugin) Type() plugin.Type {
+	return plugin.TypeWorker
+}
+
+func (b metricsPlugin) Start(ctx context.Context) error {
 	funM := []func(*sync.WaitGroup){
-		mt.updateBlockGasConsumed,
-		mt.updateBlockGasPrice,
+		b.updateBlockGasConsumed,
+		b.updateBlockGasPrice,
 	}
 
 	go func() {
-		for range time.Tick(time.Duration(mt.Interval) * time.Second) {
+		for range time.Tick(time.Duration(b.interval) * time.Second) {
 			var wg sync.WaitGroup
 			for _, f := range funM {
 				wg.Add(1)
@@ -54,35 +51,56 @@ func (mt *metrics) Start() {
 			wg.Wait()
 		}
 	}()
+	return nil
 }
 
-func (m *metrics) getGauge(identifier string) (prometheus.Gauge, bool) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (b metricsPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	return nil
+}
+
+func (b metricsPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b metricsPlugin) Version() string {
+	return VERSION
+}
+
+// exported
+var Plugin = metricsPlugin{
+	prefix:   "iotex_analyser_",
+	interval: 10,
+	gauges:   make(map[string]prometheus.Gauge),
+	counters: make(map[string]prometheus.Counter),
+}
+
+func (m metricsPlugin) getGauge(identifier string) (prometheus.Gauge, bool) {
+	lock.Lock()
+	defer lock.Unlock()
 	g, ok := m.gauges[identifier]
 	return g, ok
 }
 
-func (m *metrics) setGauge(identifier string, g prometheus.Gauge) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (m metricsPlugin) setGauge(identifier string, g prometheus.Gauge) {
+	lock.Lock()
+	defer lock.Unlock()
 	m.gauges[identifier] = g
 }
 
-func (m *metrics) getCounter(identifier string) (prometheus.Counter, bool) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (m metricsPlugin) getCounter(identifier string) (prometheus.Counter, bool) {
+	lock.Lock()
+	defer lock.Unlock()
 	c, ok := m.counters[identifier]
 	return c, ok
 }
 
-func (m *metrics) setCounter(identifier string, c prometheus.Counter) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (m metricsPlugin) setCounter(identifier string, c prometheus.Counter) {
+	lock.Lock()
+	defer lock.Unlock()
 	m.counters[identifier] = c
 }
 
-func (m *metrics) updateBlockGasConsumed(wg *sync.WaitGroup) {
+func (m metricsPlugin) updateBlockGasConsumed(wg *sync.WaitGroup) {
 	defer wg.Done()
 	metric := "block_gas_consumed"
 	blkHeight, err := db.GetIndexHeight("block_meta")
@@ -90,14 +108,14 @@ func (m *metrics) updateBlockGasConsumed(wg *sync.WaitGroup) {
 		return
 	}
 	var dbBlockMeta models.BlockMeta
-	if err := m.db.Model(dbBlockMeta).Where("block_height = ?", blkHeight).First(&dbBlockMeta).Error; err != nil {
+	if err := db.DB().Model(dbBlockMeta).Where("block_height = ?", blkHeight).First(&dbBlockMeta).Error; err != nil {
 		log.L().Error("failed to get block meta", zap.Error(err))
 		return
 	}
 	gauge, ok := m.getGauge(metric)
 	if !ok {
 		gauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: m.Prefix + metric,
+			Name: m.prefix + metric,
 			Help: "block gas consumed",
 		})
 
@@ -108,7 +126,7 @@ func (m *metrics) updateBlockGasConsumed(wg *sync.WaitGroup) {
 	gauge.Set(float64(dbBlockMeta.GasConsumed))
 }
 
-func (m *metrics) updateBlockGasPrice(wg *sync.WaitGroup) {
+func (m metricsPlugin) updateBlockGasPrice(wg *sync.WaitGroup) {
 	defer wg.Done()
 	metric := "block_gas_price"
 	blkHeight, err := db.GetIndexHeight("block_action")
@@ -116,7 +134,7 @@ func (m *metrics) updateBlockGasPrice(wg *sync.WaitGroup) {
 		return
 	}
 	var gasprice sql.NullString
-	if err := m.db.Model(&models.BlockAction{}).Select("avg(gas_price)").Where("block_height = ?", blkHeight).Scan(&gasprice).Error; err != nil {
+	if err := db.DB().Model(&models.BlockAction{}).Select("avg(gas_price)").Where("block_height = ?", blkHeight).Scan(&gasprice).Error; err != nil {
 		log.L().Error("failed to get block action", zap.Error(err))
 		return
 	}
@@ -132,7 +150,7 @@ func (m *metrics) updateBlockGasPrice(wg *sync.WaitGroup) {
 	gauge, ok := m.getGauge(metric)
 	if !ok {
 		gauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: m.Prefix + metric,
+			Name: m.prefix + metric,
 			Help: "block gas price",
 		})
 

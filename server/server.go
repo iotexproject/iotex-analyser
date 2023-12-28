@@ -70,7 +70,7 @@ func (srv *Server) Start(ctx context.Context) error {
 	prometheus.MustRegister(serverMetrics)
 	prometheus.MustRegister(pluginProcessingSecondsPerBlockMetrics)
 
-	db1, err := db.Connect()
+	_, err := db.Connect()
 	if err != nil {
 		return errors.Wrap(err, "failed to connect DB")
 	}
@@ -84,8 +84,6 @@ func (srv *Server) Start(ctx context.Context) error {
 	}
 
 	if config.Default.Server.Http != "" {
-		mt := newMetrics(db1)
-		mt.Start()
 		go func() {
 			if err := srv.startHTTPService(); err != nil {
 				srv.logger.Fatal("failed to start http service", zap.Error(err))

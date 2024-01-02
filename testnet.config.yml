@@ -23,6 +23,10 @@ server:
     - reward_history.so
     - staking_actions.so
     - staking_bucket.so
+  pluginConfigs:
+    account_abstraction:
+      startHeight: 21326560
+      entryPoint: io1cdf8xjx7ql2erjw4vl8pnx805gp3hpn49chxcv
 database:
   driver: postgres
   host: 127.0.0.1

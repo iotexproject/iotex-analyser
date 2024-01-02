@@ -127,9 +127,16 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
 			RawData:     text,
 		})
+
+		// validate inscription
 		uri, err := ParseDataURI(text)
+		// inscription transfer
 		if err != nil {
 			inscriptHash, err := address.FromHex(text)
+			if err != nil {
+				continue
+			}
+			inscript, raw, err := getInscriptionByHash(inscriptHash.String())
 			if err != nil {
 				continue
 			}
@@ -143,6 +150,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			})
 			continue
 		}
+		// inscription create
 		inscripts = append(inscripts, &models.Inscription{
 			ActionHash: actHashStr,
 			MIMEType:   uri.MIMEType,
@@ -183,4 +191,16 @@ func bytesToUTF8(data []byte) (string, error) {
 	// remove null bytes
 	res = strings.Replace(res, "\x00", "", -1)
 	return res, nil
+}
+
+func getInscriptionByHash(inscriptionHash string) (*models.Inscription, *models.InscriptionRaw, error) {
+	inscription := &models.Inscription{}
+	if err := db.DB().First(inscription, "inscription_hash = ?", inscriptionHash).Error; err != nil {
+		return nil, nil, err
+	}
+	inscriptionRaw := &models.InscriptionRaw{}
+	if err := db.DB().First(inscriptionRaw, "action_hash = ?", inscription.ActionHash).Error; err != nil {
+		return nil, nil, err
+	}
+	return inscription, inscriptionRaw, nil
 }

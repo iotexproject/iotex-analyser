@@ -40,7 +40,10 @@ func (b tokenPlugin) Type() plugin.Type {
 
 func (b tokenPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
-		&models.InscriptionRaw{}); err != nil {
+		&models.InscriptionRaw{},
+		&models.Inscription{},
+		&models.InscriptionTransfer{},
+	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	height, err := db.GetIndexHeight(b.Name())
@@ -132,11 +135,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		uri, err := ParseDataURI(text)
 		// inscription transfer
 		if err != nil {
-			inscriptHash, err := address.FromHex(text)
-			if err != nil {
-				continue
-			}
-			inscript, raw, err := getInscriptionByHash(inscriptHash.String())
+			inscript, err := getInscriptionByHash(text)
 			if err != nil {
 				continue
 			}
@@ -146,7 +145,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				Sender:          fromAddr.String(),
 				Recipient:       toAddr.String(),
 				Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-				InscriptionHash: inscriptHash.String(),
+				InscriptionHash: inscript.ActionHash,
 			})
 			continue
 		}
@@ -193,14 +192,10 @@ func bytesToUTF8(data []byte) (string, error) {
 	return res, nil
 }
 
-func getInscriptionByHash(inscriptionHash string) (*models.Inscription, *models.InscriptionRaw, error) {
+func getInscriptionByHash(inscriptionHash string) (*models.Inscription, error) {
 	inscription := &models.Inscription{}
-	if err := db.DB().First(inscription, "inscription_hash = ?", inscriptionHash).Error; err != nil {
-		return nil, nil, err
+	if err := db.DB().First(inscription, "action_hash = ?", inscriptionHash).Error; err != nil {
+		return nil, err
 	}
-	inscriptionRaw := &models.InscriptionRaw{}
-	if err := db.DB().First(inscriptionRaw, "action_hash = ?", inscription.ActionHash).Error; err != nil {
-		return nil, nil, err
-	}
-	return inscription, inscriptionRaw, nil
+	return inscription, nil
 }

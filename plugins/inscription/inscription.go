@@ -135,6 +135,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		uri, err := ParseDataURI(text)
 		// inscription transfer
 		if err != nil {
+			// EOA transfer
 			inscript, err := getInscriptionByHash(text)
 			if err != nil {
 				continue

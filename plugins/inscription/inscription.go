@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -194,9 +195,21 @@ func bytesToUTF8(data []byte) (string, error) {
 }
 
 func getInscriptionByHash(inscriptionHash string) (*models.Inscription, error) {
+	if !isHash(inscriptionHash) {
+		return nil, errors.New("not a hex string")
+	}
+
 	inscription := &models.Inscription{}
 	if err := db.DB().First(inscription, "action_hash = ?", inscriptionHash).Error; err != nil {
 		return nil, err
 	}
 	return inscription, nil
+}
+
+func isHash(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	matched, _ := regexp.MatchString(`^[a-fA-F0-9]*$`, s)
+	return matched
 }

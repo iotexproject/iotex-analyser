@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -40,7 +41,10 @@ func (b tokenPlugin) Type() plugin.Type {
 
 func (b tokenPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
-		&models.InscriptionRaw{}); err != nil {
+		&models.InscriptionRaw{},
+		&models.Inscription{},
+		&models.InscriptionTransfer{},
+	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	height, err := db.GetIndexHeight(b.Name())
@@ -78,7 +82,9 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		}
 		return nil
 	}
-	inscripts := make([]*models.InscriptionRaw, 0)
+	inscriptRaws := make([]*models.InscriptionRaw, 0)
+	inscripts := make([]*models.Inscription, 0)
+	inscriptTransfers := make([]*models.InscriptionTransfer, 0)
 	for _, act := range blk.Actions {
 		actHash, err := act.Hash()
 		if err != nil {
@@ -116,16 +122,51 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		}
 		fromAddr, _ := address.FromBytes(act.SenderAddress().Bytes())
 		toAddr, _ := address.FromBytes(ethTx.To().Bytes())
-		inscripts = append(inscripts, &models.InscriptionRaw{
+		actHashStr := hex.EncodeToString(actHash[:])
+		inscriptRaws = append(inscriptRaws, &models.InscriptionRaw{
 			BlockHeight: blk.Height(),
-			ActionHash:  hex.EncodeToString(actHash[:]),
+			ActionHash:  actHashStr,
 			Sender:      fromAddr.String(),
 			Recipient:   toAddr.String(),
 			Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
 			RawData:     text,
 		})
+
+		// validate inscription
+		uri, err := ParseDataURI(text)
+		// inscription transfer
+		if err != nil {
+			// EOA transfer
+			inscript, err := getInscriptionByHash(text)
+			if err != nil {
+				continue
+			}
+			inscriptTransfers = append(inscriptTransfers, &models.InscriptionTransfer{
+				BlockHeight:     blk.Height(),
+				ActionHash:      actHashStr,
+				Sender:          fromAddr.String(),
+				Recipient:       toAddr.String(),
+				Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				InscriptionHash: inscript.ActionHash,
+			})
+			continue
+		}
+		// inscription create
+		inscripts = append(inscripts, &models.Inscription{
+			ActionHash: actHashStr,
+			MIMEType:   uri.MIMEType,
+			Parameters: uri.Parameters,
+			Extension:  uri.Extension,
+			Data:       uri.Data,
+		})
+	}
+	if err := gormTx.CreateInBatches(inscriptRaws, batchSize).Error; err != nil {
+		return errors.Wrapf(err, "failed to put block %d", blk.Height())
 	}
 	if err := gormTx.CreateInBatches(inscripts, batchSize).Error; err != nil {
+		return errors.Wrapf(err, "failed to put block %d", blk.Height())
+	}
+	if err := gormTx.CreateInBatches(inscriptTransfers, batchSize).Error; err != nil {
 		return errors.Wrapf(err, "failed to put block %d", blk.Height())
 	}
 	// TODO: move to plugin framework to update index height
@@ -151,4 +192,24 @@ func bytesToUTF8(data []byte) (string, error) {
 	// remove null bytes
 	res = strings.Replace(res, "\x00", "", -1)
 	return res, nil
+}
+
+func getInscriptionByHash(inscriptionHash string) (*models.Inscription, error) {
+	if !isHash(inscriptionHash) {
+		return nil, errors.New("not a hex string")
+	}
+
+	inscription := &models.Inscription{}
+	if err := db.DB().First(inscription, "action_hash = ?", inscriptionHash).Error; err != nil {
+		return nil, err
+	}
+	return inscription, nil
+}
+
+func isHash(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	matched, _ := regexp.MatchString(`^[a-fA-F0-9]*$`, s)
+	return matched
 }

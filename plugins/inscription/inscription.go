@@ -44,6 +44,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		&models.InscriptionRaw{},
 		&models.Inscription{},
 		&models.InscriptionTransfer{},
+		&models.InscriptionHolder{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -85,7 +86,12 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 	inscriptRaws := make([]*models.InscriptionRaw, 0)
 	inscripts := make([]*models.Inscription, 0)
 	inscriptTransfers := make([]*models.InscriptionTransfer, 0)
-	for _, act := range blk.Actions {
+	inscriptionHolders := make([]*models.InscriptionHolder, 0)
+
+	inscriptMap := make(map[string]*models.Inscription, 0)
+	inscriptionHolderMap := make(map[string]*models.InscriptionHolder, 0)
+
+	for index, act := range blk.Actions {
 		actHash, err := act.Hash()
 		if err != nil {
 			continue
@@ -124,12 +130,13 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		toAddr, _ := address.FromBytes(ethTx.To().Bytes())
 		actHashStr := hex.EncodeToString(actHash[:])
 		inscriptRaws = append(inscriptRaws, &models.InscriptionRaw{
-			BlockHeight: blk.Height(),
-			ActionHash:  actHashStr,
-			Sender:      fromAddr.String(),
-			Recipient:   toAddr.String(),
-			Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
-			RawData:     text,
+			BlockHeight:      blk.Height(),
+			ActionHash:       actHashStr,
+			TransactionIndex: uint64(index),
+			Sender:           fromAddr.String(),
+			Recipient:        toAddr.String(),
+			Timestamp:        time.Unix(blk.Timestamp().Unix(), 0),
+			RawData:          text,
 		})
 
 		// validate inscription
@@ -137,28 +144,57 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		// inscription transfer
 		if err != nil {
 			// EOA transfer
-			inscript, err := getInscriptionByHash(text)
+			inscript, err := getInscriptionByHash(text, inscriptMap)
 			if err != nil {
+				slog.L().Debug("skip action: get inscription error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
 			inscriptTransfers = append(inscriptTransfers, &models.InscriptionTransfer{
-				BlockHeight:     blk.Height(),
-				ActionHash:      actHashStr,
-				Sender:          fromAddr.String(),
-				Recipient:       toAddr.String(),
-				Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-				InscriptionHash: inscript.ActionHash,
+				BlockHeight:      blk.Height(),
+				ActionHash:       actHashStr,
+				TransactionIndex: uint64(index),
+				Sender:           fromAddr.String(),
+				Recipient:        toAddr.String(),
+				Timestamp:        time.Unix(blk.Timestamp().Unix(), 0),
+				InscriptionHash:  inscript.ActionHash,
 			})
+
+			// update inscription holder
+			inscriptionHolder, err := getInscriptionHolderByHash(text, inscriptionHolderMap)
+			if err != nil {
+				slog.L().Debug("skip action: get inscription holder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
+				continue
+			}
+			if inscriptionHolder.Owner == fromAddr.String() && inscriptionHolder.IsTransfer == false {
+				inscriptionHolder.IsTransfer = true
+				inscriptionHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
+				// update Owner
+				inscriptionHolders = append(inscriptionHolders, inscriptionHolder)
+				// transfer Owner
+				toOwner := &models.InscriptionHolder{
+					Owner:           toAddr.String(),
+					InscriptionHash: text,
+					IsTransfer:      false,
+					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				}
+				inscriptionHolders = append(inscriptionHolders, toOwner)
+				// update inscriptionHolderMap
+				inscriptionHolderMap[text] = toOwner
+			}
 			continue
 		}
 		// inscription create
-		inscripts = append(inscripts, &models.Inscription{
-			ActionHash: actHashStr,
-			MIMEType:   uri.MIMEType,
-			Parameters: uri.Parameters,
-			Extension:  uri.Extension,
-			Data:       uri.Data,
-		})
+		inscription := &models.Inscription{
+			BlockHeight:      blk.Height(),
+			ActionHash:       actHashStr,
+			TransactionIndex: uint64(index),
+			MIMEType:         uri.MIMEType,
+			Parameters:       uri.Parameters,
+			Extension:        uri.Extension,
+			Data:             uri.Data,
+		}
+		inscripts = append(inscripts, inscription)
+		inscriptMap[actHashStr] = inscription
 	}
 	if err := gormTx.CreateInBatches(inscriptRaws, batchSize).Error; err != nil {
 		return errors.Wrapf(err, "failed to put block %d", blk.Height())
@@ -169,6 +205,10 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 	if err := gormTx.CreateInBatches(inscriptTransfers, batchSize).Error; err != nil {
 		return errors.Wrapf(err, "failed to put block %d", blk.Height())
 	}
+	if err := gormTx.CreateInBatches(inscriptionHolders, batchSize).Error; err != nil {
+		return errors.Wrapf(err, "failed to put block %d", blk.Height())
+	}
+
 	// TODO: move to plugin framework to update index height
 	return db.UpdateIndexHeightByTx(gormTx, b.Name(), blk.Height())
 }
@@ -194,15 +234,20 @@ func bytesToUTF8(data []byte) (string, error) {
 	return res, nil
 }
 
-func getInscriptionByHash(inscriptionHash string) (*models.Inscription, error) {
+func getInscriptionByHash(inscriptionHash string, inscriptionMap map[string]*models.Inscription) (*models.Inscription, error) {
 	if !isHash(inscriptionHash) {
 		return nil, errors.New("not a hex string")
+	}
+
+	if inscription, ok := inscriptionMap[inscriptionHash]; ok {
+		return inscription, nil
 	}
 
 	inscription := &models.Inscription{}
 	if err := db.DB().First(inscription, "action_hash = ?", inscriptionHash).Error; err != nil {
 		return nil, err
 	}
+	inscriptionMap[inscriptionHash] = inscription
 	return inscription, nil
 }
 
@@ -212,4 +257,17 @@ func isHash(s string) bool {
 	}
 	matched, _ := regexp.MatchString(`^[a-fA-F0-9]*$`, s)
 	return matched
+}
+
+func getInscriptionHolderByHash(inscriptionHash string, inscriptionHolderMap map[string]*models.InscriptionHolder) (*models.InscriptionHolder, error) {
+	if inscriptionHolder, ok := inscriptionHolderMap[inscriptionHash]; ok {
+		return inscriptionHolder, nil
+	}
+
+	inscriptionHolder := &models.InscriptionHolder{}
+	if err := db.DB().First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
+		return nil, err
+	}
+	inscriptionHolderMap[inscriptionHash] = inscriptionHolder
+	return inscriptionHolder, nil
 }

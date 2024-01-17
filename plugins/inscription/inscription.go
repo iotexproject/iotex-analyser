@@ -180,8 +180,6 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			if inscriptionHolder.Owner == fromAddr.String() && inscriptionHolder.IsTransfer == false {
 				inscriptionHolder.IsTransfer = true
 				inscriptionHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
-				// update Owner
-				inscriptionHolders = append(inscriptionHolders, inscriptionHolder)
 				// transfer Owner
 				toOwner := &models.InscriptionHolder{
 					Owner:           toAddr.String(),
@@ -189,7 +187,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					IsTransfer:      false,
 					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionHolders = append(inscriptionHolders, toOwner)
+				inscriptionHolders = append(inscriptionHolders, inscriptionHolder, toOwner)
 				// update inscriptionHolderMap
 				inscriptionHolderMap[text] = toOwner
 			} else {
@@ -239,8 +237,8 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					Lim:         gjson.Get(uri.Data, "lim").Uint(),
 					Description: gjson.Get(uri.Data, "description").String(),
 					Verified:    false,
+					Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokens = append(inscriptionTokens, inscriptionToken)
 			} else if errors.Is(err, gorm.ErrRecordNotFound) {
 				inscriptionToken = &models.InscriptionToken{
 					BlockHeight: blk.Height(),
@@ -253,33 +251,33 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					Lim:         gjson.Get(uri.Data, "lim").Uint(),
 					Description: gjson.Get(uri.Data, "description").String(),
 					Verified:    true,
+					Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokens = append(inscriptionTokens, inscriptionToken)
 				inscriptionTokenMap[getTokenKey(p, tick)] = inscriptionToken
 			} else {
 				slog.L().Debug("skip action: get inscription token error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
+			inscriptionTokens = append(inscriptionTokens, inscriptionToken)
 		case "mint":
 			tokenHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
 			if err == nil {
 				tokenHolder.Amt = tokenHolder.Amt + gjson.Get(uri.Data, "amt").Uint()
-				// TODO maybe repeat
-				inscriptionTokenHolders = append(inscriptionTokenHolders, tokenHolder)
+				tokenHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
 			} else if errors.Is(err, gorm.ErrRecordNotFound) {
 				tokenHolder = &models.InscriptionTokenHolder{
-					Owner: fromAddr.String(),
-					P:     p,
-					Tick:  tick,
-					Amt:   gjson.Get(uri.Data, "amt").Uint(),
+					Owner:     fromAddr.String(),
+					P:         p,
+					Tick:      tick,
+					Amt:       gjson.Get(uri.Data, "amt").Uint(),
+					Timestamp: time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokenHolders = append(inscriptionTokenHolders, tokenHolder)
 				inscriptionTokenHolderMap[fromAddr.String()] = tokenHolder
 			} else {
 				slog.L().Debug("skip action: get inscription token holder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
-
+			inscriptionTokenHolders = append(inscriptionTokenHolders, tokenHolder)
 		case "transfer":
 			fromHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
 			if err != nil {
@@ -298,20 +296,21 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			toHolder, err := getTokenHolderInfoByHolder(toAddr.String(), inscriptionTokenHolderMap)
 			if err == nil {
 				toHolder.Amt = toHolder.Amt + amt
-				inscriptionTokenHolders = append(inscriptionTokenHolders, toHolder)
+				toHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
 			} else if errors.Is(err, gorm.ErrRecordNotFound) {
 				toHolder = &models.InscriptionTokenHolder{
-					Owner: toAddr.String(),
-					P:     p,
-					Tick:  tick,
-					Amt:   amt,
+					Owner:     toAddr.String(),
+					P:         p,
+					Tick:      tick,
+					Amt:       amt,
+					Timestamp: time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokenHolders = append(inscriptionTokenHolders, toHolder)
 				inscriptionTokenHolderMap[toAddr.String()] = toHolder
 			} else {
 				slog.L().Debug("skip action: get inscription toHolder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
+			inscriptionTokenHolders = append(inscriptionTokenHolders, fromHolder, toHolder)
 		default:
 			slog.L().Debug("skip action: not support method", zap.Any("hash", hex.EncodeToString(actHash[:])))
 		}

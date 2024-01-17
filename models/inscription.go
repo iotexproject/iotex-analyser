@@ -63,24 +63,26 @@ type InscriptionTokenTransaction struct {
 
 // InscriptionToken token deploy
 type InscriptionToken struct {
-	ID          uint64 `gorm:"primary_key" sql:"type:bigint"`
-	BlockHeight uint64 `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash  string `gorm:"size:64;index;not null;index:,length:9"`
-	Owner       string `gorm:"size:42;index;not null;default:'';"`
-	P           string `gorm:"size:42;index;not null;default:'';"`
-	Tick        string `gorm:"size:42;index;not null;default:'';"`
-	Op          string `gorm:"size:42;not null;default:'';"`
-	Max         uint64 `gorm:"unsigned" sql:"type:bigint"`
-	Lim         uint64 `gorm:"unsigned" sql:"type:bigint"`
-	Mint        uint64 `gorm:"unsigned" sql:"type:bigint"`
-	Description string `gorm:"size:255;not null;default:'';"`
-	Verified    bool   `gorm:"type:bool;not null;default:true"`
+	ID          uint64    `gorm:"primary_key" sql:"type:bigint"`
+	BlockHeight uint64    `gorm:"unsigned;index" sql:"type:bigint"`
+	ActionHash  string    `gorm:"size:64;index;not null;index:,length:9"`
+	Owner       string    `gorm:"size:42;index;not null;default:'';"`
+	P           string    `gorm:"size:42;index;not null;default:'';"`
+	Tick        string    `gorm:"size:42;index;not null;default:'';"`
+	Op          string    `gorm:"size:42;not null;default:'';"`
+	Max         uint64    `gorm:"unsigned" sql:"type:bigint"`
+	Lim         uint64    `gorm:"unsigned" sql:"type:bigint"`
+	Mint        uint64    `gorm:"unsigned" sql:"type:bigint"`
+	Description string    `gorm:"size:255;not null;default:'';"`
+	Verified    bool      `gorm:"type:bool;not null;default:true"`
+	Timestamp   time.Time `gorm:"type:timestamp;"`
 }
 
 type InscriptionTokenHolder struct {
-	ID    uint64 `gorm:"primary_key" sql:"type:bigint"`
-	Owner string `gorm:"size:42;index;not null;default:'';"`
-	P     string `gorm:"size:42;index;not null;default:'';"`
-	Tick  string `gorm:"size:42;index;not null;default:'';"`
-	Amt   uint64 `gorm:"unsigned" sql:"type:bigint"`
+	ID        uint64    `gorm:"primary_key" sql:"type:bigint"`
+	Owner     string    `gorm:"size:42;index;not null;default:'';"`
+	P         string    `gorm:"size:42;index;not null;default:'';"`
+	Tick      string    `gorm:"size:42;index;not null;default:'';"`
+	Amt       uint64    `gorm:"unsigned" sql:"type:bigint"`
+	Timestamp time.Time `gorm:"type:timestamp;"`
 }

@@ -27,6 +27,8 @@ server:
     account_abstraction:
       startHeight: 21326560
       entryPoint: io1cdf8xjx7ql2erjw4vl8pnx805gp3hpn49chxcv
+    inscription:
+      startHeight: 23454230
 database:
   driver: postgres
   host: 127.0.0.1

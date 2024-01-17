@@ -195,6 +195,16 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		}
 		inscripts = append(inscripts, inscription)
 		inscriptMap[actHashStr] = inscription
+
+		// update inscription holder
+		inscriptionHolder := &models.InscriptionHolder{
+			Owner:           fromAddr.String(),
+			InscriptionHash: actHashStr,
+			IsTransfer:      false,
+			Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+		}
+		inscriptionHolders = append(inscriptionHolders, inscriptionHolder)
+		inscriptionHolderMap[actHashStr] = inscriptionHolder
 	}
 	if err := gormTx.CreateInBatches(inscriptRaws, batchSize).Error; err != nil {
 		return errors.Wrapf(err, "failed to put block %d", blk.Height())

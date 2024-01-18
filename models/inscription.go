@@ -65,7 +65,7 @@ type InscriptionTokenTransaction struct {
 type InscriptionToken struct {
 	ID          uint64    `gorm:"primary_key" sql:"type:bigint"`
 	BlockHeight uint64    `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash  string    `gorm:"size:64;index;not null;index:,length:9"`
+	ActionHash  string    `gorm:"size:64;index;not null;,length:9"`
 	Owner       string    `gorm:"size:42;index;not null;default:'';"`
 	P           string    `gorm:"size:42;index;not null;default:'';"`
 	Tick        string    `gorm:"size:42;index;not null;default:'';"`

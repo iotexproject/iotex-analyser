@@ -108,7 +108,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		if err != nil {
 			continue
 		}
-		slog.L().Debug("handle action", zap.Any("hash", hex.EncodeToString(actHash[:])))
+		slog.L().Debug("handle action", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Any("block", blk.Height()))
 		receipt := getActReceiptFun(blk, actHash)
 		if receipt == nil {
 			slog.L().Debug("skip action: no receipt", zap.Any("hash", hex.EncodeToString(actHash[:])))
@@ -187,6 +187,8 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					IsTransfer:      false,
 					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 				}
+				// set default ID for insert
+				inscriptionHolder.ID = 0
 				inscriptionHolders = append(inscriptionHolders, inscriptionHolder, toOwner)
 				// update inscriptionHolderMap
 				inscriptionHolderMap[text] = toOwner
@@ -258,6 +260,8 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				slog.L().Debug("skip action: get inscription token error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
+			// set default ID for insert
+			inscriptionToken.ID = 0
 			inscriptionTokens = append(inscriptionTokens, inscriptionToken)
 		case "mint":
 			tokenHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
@@ -277,6 +281,8 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				slog.L().Debug("skip action: get inscription token holder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
+			// set default ID for insert
+			tokenHolder.ID = 0
 			inscriptionTokenHolders = append(inscriptionTokenHolders, tokenHolder)
 		case "transfer":
 			fromHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
@@ -310,6 +316,9 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				slog.L().Debug("skip action: get inscription toHolder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
+			// set default ID for insert
+			fromHolder.ID = 0
+			toHolder.ID = 0
 			inscriptionTokenHolders = append(inscriptionTokenHolders, fromHolder, toHolder)
 		default:
 			slog.L().Debug("skip action: not support method", zap.Any("hash", hex.EncodeToString(actHash[:])))
@@ -404,7 +413,7 @@ func getInscriptionHolderByHash(inscriptionHash string, inscriptionHolderMap map
 	}
 
 	inscriptionHolder := &models.InscriptionHolder{}
-	if err := db.DB().First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
+	if err := db.DB().Order("id desc").First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
 		return nil, err
 	}
 	inscriptionHolderMap[inscriptionHash] = inscriptionHolder
@@ -434,7 +443,7 @@ func getTokenHolderInfoByHolder(holder string, inscriptionTokenHolderMap map[str
 	}
 
 	tokenHolder := &models.InscriptionTokenHolder{}
-	if err := db.DB().First(tokenHolder, "owner = ?", holder).Error; err != nil {
+	if err := db.DB().Order("id desc").First(tokenHolder, "owner = ?", holder).Error; err != nil {
 		return nil, err
 	}
 	inscriptionTokenHolderMap[holder] = tokenHolder

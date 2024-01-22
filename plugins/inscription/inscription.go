@@ -177,25 +177,22 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				slog.L().Debug("skip action: get inscription holder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
-			if inscriptionHolder.Owner == fromAddr.String() && inscriptionHolder.IsTransfer == false {
-				inscriptionHolder.IsTransfer = true
-				inscriptionHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
-				// transfer Owner
-				toOwner := &models.InscriptionHolder{
-					Owner:           toAddr.String(),
-					InscriptionHash: text,
-					IsTransfer:      false,
-					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-				}
-				// set default ID for insert
-				inscriptionHolder.ID = 0
-				inscriptionHolders = append(inscriptionHolders, inscriptionHolder, toOwner)
-				// update inscriptionHolderMap
-				inscriptionHolderMap[text] = toOwner
-			} else {
+			if inscriptionHolder.Owner != fromAddr.String() {
 				slog.L().Debug("skip action: inscription owner error", zap.Any("hash", hex.EncodeToString(actHash[:])))
+				continue
 			}
-			continue
+			inscriptionHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
+			// transfer Owner
+			toOwner := &models.InscriptionHolder{
+				Owner:           toAddr.String(),
+				InscriptionHash: text,
+				Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+			}
+			// set default ID for insert
+			inscriptionHolder.ID = 0
+			inscriptionHolders = append(inscriptionHolders, inscriptionHolder, toOwner)
+			// update inscriptionHolderMap
+			inscriptionHolderMap[text] = toOwner
 		}
 		// inscription create
 		inscription := &models.Inscription{
@@ -214,7 +211,6 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		inscriptionHolder := &models.InscriptionHolder{
 			Owner:           fromAddr.String(),
 			InscriptionHash: actHashStr,
-			IsTransfer:      false,
 			Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 		}
 		inscriptionHolders = append(inscriptionHolders, inscriptionHolder)
@@ -232,11 +228,11 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					BlockHeight: blk.Height(),
 					ActionHash:  actHashStr,
 					Owner:       fromAddr.String(),
-					P:           p,
+					Protocol:    p,
 					Tick:        tick,
 					Op:          op,
 					Max:         gjson.Get(uri.Data, "max").Uint(),
-					Lim:         gjson.Get(uri.Data, "lim").Uint(),
+					Limit:       gjson.Get(uri.Data, "lim").Uint(),
 					Description: gjson.Get(uri.Data, "description").String(),
 					Verified:    false,
 					Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
@@ -246,11 +242,11 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					BlockHeight: blk.Height(),
 					ActionHash:  actHashStr,
 					Owner:       fromAddr.String(),
-					P:           p,
+					Protocol:    p,
 					Tick:        tick,
 					Op:          op,
 					Max:         gjson.Get(uri.Data, "max").Uint(),
-					Lim:         gjson.Get(uri.Data, "lim").Uint(),
+					Limit:       gjson.Get(uri.Data, "lim").Uint(),
 					Description: gjson.Get(uri.Data, "description").String(),
 					Verified:    true,
 					Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
@@ -266,14 +262,14 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 		case "mint":
 			tokenHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
 			if err == nil {
-				tokenHolder.Amt = tokenHolder.Amt + gjson.Get(uri.Data, "amt").Uint()
+				tokenHolder.Amount = tokenHolder.Amount + gjson.Get(uri.Data, "amt").Uint()
 				tokenHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
 			} else if errors.Is(err, gorm.ErrRecordNotFound) {
 				tokenHolder = &models.InscriptionTokenHolder{
 					Owner:     fromAddr.String(),
-					P:         p,
+					Protocol:  p,
 					Tick:      tick,
-					Amt:       gjson.Get(uri.Data, "amt").Uint(),
+					Amount:    gjson.Get(uri.Data, "amt").Uint(),
 					Timestamp: time.Unix(blk.Timestamp().Unix(), 0),
 				}
 				inscriptionTokenHolderMap[fromAddr.String()] = tokenHolder
@@ -292,23 +288,23 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				continue
 			}
 			amt := gjson.Get(uri.Data, "amt").Uint()
-			if fromHolder.Amt-amt < 0 {
+			if fromHolder.Amount-amt < 0 {
 				slog.L().Debug("skip action: the balance not enough", zap.Any("hash", hex.EncodeToString(actHash[:])))
 				// TODO insert transactions
 				continue
 			}
-			fromHolder.Amt = fromHolder.Amt - amt
+			fromHolder.Amount = fromHolder.Amount - amt
 
 			toHolder, err := getTokenHolderInfoByHolder(toAddr.String(), inscriptionTokenHolderMap)
 			if err == nil {
-				toHolder.Amt = toHolder.Amt + amt
+				toHolder.Amount = toHolder.Amount + amt
 				toHolder.Timestamp = time.Unix(blk.Timestamp().Unix(), 0)
 			} else if errors.Is(err, gorm.ErrRecordNotFound) {
 				toHolder = &models.InscriptionTokenHolder{
 					Owner:     toAddr.String(),
-					P:         p,
+					Protocol:  p,
 					Tick:      tick,
-					Amt:       amt,
+					Amount:    amt,
 					Timestamp: time.Unix(blk.Timestamp().Unix(), 0),
 				}
 				inscriptionTokenHolderMap[toAddr.String()] = toHolder
@@ -413,7 +409,7 @@ func getInscriptionHolderByHash(inscriptionHash string, inscriptionHolderMap map
 	}
 
 	inscriptionHolder := &models.InscriptionHolder{}
-	if err := db.DB().Order("id desc").First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
+	if err := db.DB().Order("timestamp desc").First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
 		return nil, err
 	}
 	inscriptionHolderMap[inscriptionHash] = inscriptionHolder
@@ -426,7 +422,7 @@ func getInscriptionTokenByPAndTick(p, tick string, inscriptionTokenMap map[strin
 	}
 
 	token := &models.InscriptionToken{}
-	if err := db.DB().First(token, "p = ? and tick = ?", p, tick).Error; err != nil {
+	if err := db.DB().First(token, "protocol = ? and tick = ?", p, tick).Error; err != nil {
 		return nil, err
 	}
 	inscriptionTokenMap[getTokenKey(p, tick)] = token
@@ -443,7 +439,7 @@ func getTokenHolderInfoByHolder(holder string, inscriptionTokenHolderMap map[str
 	}
 
 	tokenHolder := &models.InscriptionTokenHolder{}
-	if err := db.DB().Order("id desc").First(tokenHolder, "owner = ?", holder).Error; err != nil {
+	if err := db.DB().Order("timestamp desc").First(tokenHolder, "owner = ?", holder).Error; err != nil {
 		return nil, err
 	}
 	inscriptionTokenHolderMap[holder] = tokenHolder

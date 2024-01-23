@@ -15,6 +15,10 @@ type InscriptionRaw struct {
 	RawData string `gorm:"type:text;not null;default:'';"`
 }
 
+func (InscriptionRaw) TableName() string {
+	return "inscription_raws"
+}
+
 // Inscription inscription protocol
 type Inscription struct {
 	ID               uint64 `gorm:"primary_key" sql:"type:bigint"`
@@ -25,6 +29,10 @@ type Inscription struct {
 	Parameters       string `gorm:"type:text;not null;default:'';"`
 	Extension        string `gorm:"type:text;not null;default:'';"`
 	Data             string `gorm:"type:text;not null;default:'';"`
+}
+
+func (Inscription) TableName() string {
+	return "inscriptions"
 }
 
 // InscriptionTransfer EOA transfer & Contract transfer
@@ -39,13 +47,20 @@ type InscriptionTransfer struct {
 	InscriptionHash  string    `gorm:"size:64;not null;index:,length:9"`
 }
 
+func (InscriptionTransfer) TableName() string {
+	return "inscription_transfers"
+}
+
 // InscriptionHolder inscription holder
 type InscriptionHolder struct {
-	ID              uint64 `gorm:"primary_key" sql:"type:bigint"`
-	Owner           string `gorm:"size:42;not null;index:,default:'';"`
-	InscriptionHash string `gorm:"size:64;not null;index:,length:9"`
-	//IsTransfer      bool      `gorm:"type:bool;not null;default:false"`
-	Timestamp time.Time `gorm:"type:timestamp;"`
+	ID              uint64    `gorm:"primary_key" sql:"type:bigint"`
+	Owner           string    `gorm:"size:42;not null;index:,default:'';"`
+	InscriptionHash string    `gorm:"size:64;not null;index:,length:9"`
+	Timestamp       time.Time `gorm:"type:timestamp;"`
+}
+
+func (InscriptionHolder) TableName() string {
+	return "inscription_holders"
 }
 
 // InscriptionTokenTransaction filter io-20 protocol from Inscription
@@ -58,6 +73,10 @@ type InscriptionTokenTransaction struct {
 	Recipient        string    `gorm:"size:42;not null;default:'';index:,length:9"`
 	Timestamp        time.Time `gorm:"type:timestamp;"`
 	Method           string    `gorm:"size:42;not null;default:'';"`
+}
+
+func (InscriptionTokenTransaction) TableName() string {
+	return "inscription_token_transfers"
 }
 
 // InscriptionToken token deploy
@@ -77,6 +96,10 @@ type InscriptionToken struct {
 	Timestamp   time.Time `gorm:"type:timestamp;"`
 }
 
+func (InscriptionToken) TableName() string {
+	return "inscription_tokens"
+}
+
 type InscriptionTokenHolder struct {
 	ID        uint64    `gorm:"primary_key" sql:"type:bigint"`
 	Owner     string    `gorm:"size:42;index;not null;default:'';"`
@@ -84,4 +107,8 @@ type InscriptionTokenHolder struct {
 	Tick      string    `gorm:"size:42;index;not null;default:'';"`
 	Amount    uint64    `gorm:"unsigned" sql:"type:bigint"`
 	Timestamp time.Time `gorm:"type:timestamp;"`
+}
+
+func (InscriptionTokenHolder) TableName() string {
+	return "inscription_token_holders"
 }

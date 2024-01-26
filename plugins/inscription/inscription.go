@@ -34,7 +34,7 @@ type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "inscription"
+	return "inscriptionv1"
 }
 
 func (b tokenPlugin) Type() plugin.Type {

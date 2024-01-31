@@ -123,7 +123,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			slog.L().Debug("skip action: not eth-compatible", zap.Any("hash", hex.EncodeToString(actHash[:])))
 			continue
 		}
-		ethTx, err := tx.ToEthTx()
+		ethTx, err := tx.ToEthTx(0)
 		if err != nil {
 			slog.L().Debug("skip action: to eth error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 			continue

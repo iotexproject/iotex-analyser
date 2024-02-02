@@ -251,13 +251,13 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					Verified:    true,
 					Timestamp:   time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokenMap[getTokenKey(p, tick)] = inscriptionToken
 			} else {
 				slog.L().Debug("skip action: get inscription token error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
 			// set default ID for insert
 			inscriptionToken.ID = 0
+			inscriptionTokenMap[getTokenKey(p, tick)] = inscriptionToken
 			inscriptionTokens = append(inscriptionTokens, inscriptionToken)
 		case "mint":
 			tokenHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
@@ -272,13 +272,13 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					Amount:    gjson.Get(uri.Data, "amt").Uint(),
 					Timestamp: time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokenHolderMap[fromAddr.String()] = tokenHolder
 			} else {
 				slog.L().Debug("skip action: get inscription token holder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
 			}
 			// set default ID for insert
 			tokenHolder.ID = 0
+			inscriptionTokenHolderMap[fromAddr.String()] = tokenHolder
 			inscriptionTokenHolders = append(inscriptionTokenHolders, tokenHolder)
 		case "transfer":
 			fromHolder, err := getTokenHolderInfoByHolder(fromAddr.String(), inscriptionTokenHolderMap)
@@ -307,7 +307,6 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 					Amount:    amt,
 					Timestamp: time.Unix(blk.Timestamp().Unix(), 0),
 				}
-				inscriptionTokenHolderMap[toAddr.String()] = toHolder
 			} else {
 				slog.L().Debug("skip action: get inscription toHolder error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 				continue
@@ -315,6 +314,8 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			// set default ID for insert
 			fromHolder.ID = 0
 			toHolder.ID = 0
+			inscriptionTokenHolderMap[fromAddr.String()] = fromHolder
+			inscriptionTokenHolderMap[toAddr.String()] = toHolder
 			inscriptionTokenHolders = append(inscriptionTokenHolders, fromHolder, toHolder)
 		default:
 			slog.L().Debug("skip action: not support method", zap.Any("hash", hex.EncodeToString(actHash[:])))
@@ -383,15 +384,24 @@ func getInscriptionByHash(inscriptionHash string, inscriptionMap map[string]*mod
 		return nil, errors.New("not a hex string")
 	}
 
-	if inscription, ok := inscriptionMap[inscriptionHash]; ok {
+	inscription := &models.Inscription{}
+
+	if i, ok := inscriptionMap[inscriptionHash]; ok {
+		inscription = &models.Inscription{
+			BlockHeight:      i.BlockHeight,
+			ActionHash:       i.ActionHash,
+			TransactionIndex: i.TransactionIndex,
+			MIMEType:         i.MIMEType,
+			Parameters:       i.Parameters,
+			Extension:        i.Extension,
+			Data:             i.Data,
+		}
 		return inscription, nil
 	}
 
-	inscription := &models.Inscription{}
 	if err := db.DB().First(inscription, "action_hash = ?", inscriptionHash).Error; err != nil {
 		return nil, err
 	}
-	inscriptionMap[inscriptionHash] = inscription
 	return inscription, nil
 }
 
@@ -404,28 +414,47 @@ func isHash(s string) bool {
 }
 
 func getInscriptionHolderByHash(inscriptionHash string, inscriptionHolderMap map[string]*models.InscriptionHolder) (*models.InscriptionHolder, error) {
-	if inscriptionHolder, ok := inscriptionHolderMap[inscriptionHash]; ok {
+	inscriptionHolder := &models.InscriptionHolder{}
+
+	if i, ok := inscriptionHolderMap[inscriptionHash]; ok {
+		inscriptionHolder = &models.InscriptionHolder{
+			Owner:           i.Owner,
+			InscriptionHash: i.InscriptionHash,
+			Timestamp:       i.Timestamp,
+		}
 		return inscriptionHolder, nil
 	}
 
-	inscriptionHolder := &models.InscriptionHolder{}
-	if err := db.DB().Order("timestamp desc").First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
+	if err := db.DB().Order("id desc").First(inscriptionHolder, "inscription_hash = ?", inscriptionHash).Error; err != nil {
 		return nil, err
 	}
-	inscriptionHolderMap[inscriptionHash] = inscriptionHolder
 	return inscriptionHolder, nil
 }
 
 func getInscriptionTokenByPAndTick(p, tick string, inscriptionTokenMap map[string]*models.InscriptionToken) (*models.InscriptionToken, error) {
-	if token, ok := inscriptionTokenMap[getTokenKey(p, tick)]; ok {
+	token := &models.InscriptionToken{}
+
+	if t, ok := inscriptionTokenMap[getTokenKey(p, tick)]; ok {
+		token = &models.InscriptionToken{
+			BlockHeight: t.BlockHeight,
+			ActionHash:  t.ActionHash,
+			Owner:       t.Owner,
+			Protocol:    t.Protocol,
+			Tick:        t.Tick,
+			Op:          t.Op,
+			Max:         t.Max,
+			Limit:       t.Limit,
+			Mint:        t.Mint,
+			Description: t.Description,
+			Verified:    t.Verified,
+			Timestamp:   t.Timestamp,
+		}
 		return token, nil
 	}
 
-	token := &models.InscriptionToken{}
 	if err := db.DB().First(token, "protocol = ? and tick = ?", p, tick).Error; err != nil {
 		return nil, err
 	}
-	inscriptionTokenMap[getTokenKey(p, tick)] = token
 	return token, nil
 }
 
@@ -434,14 +463,21 @@ func getTokenKey(p, tick string) string {
 }
 
 func getTokenHolderInfoByHolder(holder string, inscriptionTokenHolderMap map[string]*models.InscriptionTokenHolder) (*models.InscriptionTokenHolder, error) {
-	if tokenHolder, ok := inscriptionTokenHolderMap[holder]; ok {
+	tokenHolder := &models.InscriptionTokenHolder{}
+
+	if h, ok := inscriptionTokenHolderMap[holder]; ok {
+		tokenHolder = &models.InscriptionTokenHolder{
+			Owner:     h.Owner,
+			Protocol:  h.Protocol,
+			Tick:      h.Tick,
+			Amount:    h.Amount,
+			Timestamp: h.Timestamp,
+		}
 		return tokenHolder, nil
 	}
 
-	tokenHolder := &models.InscriptionTokenHolder{}
-	if err := db.DB().Order("timestamp desc").First(tokenHolder, "owner = ?", holder).Error; err != nil {
+	if err := db.DB().Order("id desc").First(tokenHolder, "owner = ?", holder).Error; err != nil {
 		return nil, err
 	}
-	inscriptionTokenHolderMap[holder] = tokenHolder
 	return tokenHolder, nil
 }

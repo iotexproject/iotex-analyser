@@ -2,8 +2,6 @@ package models
 
 import (
 	"github.com/iotexproject/iotex-analyser/db"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type AccountMeta struct {
@@ -43,37 +41,4 @@ func (self AccountActionCountType) String() string {
 		return "inner_count"
 	}
 	return ""
-}
-
-// AccountActionCount is the count of actions of an account.
-type AccountActionCount struct {
-	ID          uint64 `gorm:"primary_key;" sql:"type:bigint"`
-	Address     string `gorm:"size:42;not null;default:'';uniqueIndex"`
-	Erc20Count  uint64 `gorm:"type:int8;not null;default:0"` // count of erc20 token
-	Erc721Count uint64 `gorm:"type:int8;not null;default:0"` // count of erc721 token
-	ActionCount uint64 `gorm:"type:int8;not null;default:0"` // count of actions
-	InnerCount  uint64 `gorm:"type:int8;not null;default:0"` // count of inner actions
-}
-
-//AddCount adds the count of actions of an account.
-func (m *AccountActionCount) AddCount(tx *gorm.DB, count uint64, typ AccountActionCountType) error {
-	var aac AccountActionCount
-	if err := tx.Model(m).Where("address = ?", m.Address).Limit(1).Find(&aac).Error; err != nil {
-		return err
-	}
-	newCount := count
-	switch typ {
-	case AccountActionCountErc20:
-		newCount += aac.Erc20Count
-	case AccountActionCountErc721:
-		newCount += aac.Erc721Count
-	case AccountActionCountAction:
-		newCount += aac.ActionCount
-	case AccountActionCountInner:
-		newCount += aac.InnerCount
-	}
-	return tx.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "address"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{typ.String(): newCount}),
-	}).Create(m).Error
 }

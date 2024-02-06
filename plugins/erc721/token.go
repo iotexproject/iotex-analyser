@@ -75,7 +75,6 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		return errors.Wrap(err, "cannot init address")
 	}
 	if err := db.AutoMigrate(b.Name(),
-		&models.AccountActionCount{},
 		&models.Erc721Transfer{},
 		&models.Erc721Holder{},
 		&models.Erc721Approval{},
@@ -88,7 +87,6 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 
 func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		totalMap := make(map[string]int, 0)
 		for _, receipt := range blk.Receipts {
 			if receipt.Status != successStatus {
 				continue
@@ -134,8 +132,6 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						return errors.Wrap(err, errFailedInsertTable)
 					}
 					holders = []string{fromAddr.String(), toAddr.String()}
-					totalMap[fromAddr.String()]++
-					totalMap[toAddr.String()]++
 
 				//Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
 				case Approval:
@@ -211,18 +207,6 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						if err := tx.Create(&model).Error; err != nil {
 							return err
 						}
-					}
-				}
-				for addr, count := range totalMap {
-					if addr == "" {
-						continue
-					}
-					m := &models.AccountActionCount{
-						Address:     addr,
-						Erc721Count: uint64(count),
-					}
-					if err := m.AddCount(tx, uint64(count), models.AccountActionCountErc721); err != nil {
-						return err
 					}
 				}
 			}

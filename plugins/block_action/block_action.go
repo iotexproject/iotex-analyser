@@ -34,8 +34,7 @@ func (b blockActionPlugin) Type() plugin.Type {
 
 func (b blockActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
-		&models.BlockAction{},
-		&models.AccountActionCount{}); err != nil {
+		&models.BlockAction{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 	return nil

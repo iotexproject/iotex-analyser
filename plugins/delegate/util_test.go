@@ -27,6 +27,7 @@ func TestCandidateList(t *testing.T) {
 	cands, err := GetCandidateList(kernel.ChainClient(), 42213)
 	require.NoError(err)
 	for _, c := range cands {
+		//address is operator address
 		fmt.Printf("%s: %s\n", c.Address, c.Votes)
 	}
 }

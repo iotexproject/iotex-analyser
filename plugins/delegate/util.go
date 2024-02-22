@@ -218,8 +218,11 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 	if err == nil {
 		//currently some delegate votes is not correct, we directly use chainMeta data
 		for _, cand := range candidateList {
-			if _, ok := delegateMap[cand.Address]; ok {
-				delegateMap[cand.Address].VoteWeight = cand.Votes
+			for _, d := range delegateMap {
+				if strings.EqualFold(cand.Address, d.OperatorAddress) {
+					d.VoteWeight = cand.Votes
+					continue
+				}
 			}
 		}
 	}

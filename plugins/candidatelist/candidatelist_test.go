@@ -17,7 +17,7 @@ func TestCandidateList(t *testing.T) {
 	require := require.New(t)
 	_, err := initTestConfig()
 	require.NoError(err)
-	epochNum := uint64(20221)
+	epochNum := uint64(42212)
 	chainClient := kernel.ChainClient()
 	list1, err := models.GetCandidateList(epochNum)
 	require.NoError(err)
@@ -33,6 +33,7 @@ func TestCandidateList(t *testing.T) {
 		require.Equal(bucket.GetSelfStakingTokens(), list2.Candidates[i].GetSelfStakingTokens())
 		require.Equal(bucket.GetTotalWeightedVotes(), list2.Candidates[i].GetTotalWeightedVotes())
 		require.Equal(bucket.GetSelfStakeBucketIdx(), list2.Candidates[i].GetSelfStakeBucketIdx())
+		fmt.Printf("%s: %s\n", bucket.GetName(), bucket.GetTotalWeightedVotes())
 	}
 }
 

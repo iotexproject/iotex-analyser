@@ -212,7 +212,7 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		delegateMap[staking.DelegateOwnerAddress] = delegate
 	}
 
-	candidateList, err := models.GetCandidateList(epochNumber - 1)
+	candidateList, err := models.GetCandidateList(epochNumber)
 	if err == nil {
 		//currently some delegate votes is not correct, we directly use chainMeta data
 		for _, cand := range candidateList.GetCandidates() {

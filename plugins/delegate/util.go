@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/state"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -182,7 +184,7 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 
 		stakeAmount, ok := bucketAmount[staking.BucketID]
 		if !ok {
-			return delegateMap, errors.New("can not found bucketAmount with bucketID:" + string(staking.BucketID))
+			return delegateMap, errors.Errorf("can not found bucketAmount with bucketID: %d", staking.BucketID)
 		}
 		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
 		voteBucket := &VoteBucket{
@@ -212,16 +214,12 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		delegateMap[staking.DelegateOwnerAddress] = delegate
 	}
 
-	candidateList, err := models.GetCandidateList(epochNumber)
+	candidateList, err := GetCandidateList(kernel.ChainClient(), epochNumber)
 	if err == nil {
 		//currently some delegate votes is not correct, we directly use chainMeta data
-		for _, cand := range candidateList.GetCandidates() {
-			votes, ok := big.NewInt(0).SetString(cand.TotalWeightedVotes, 10)
-			if !ok {
-				continue
-			}
-			if _, ok := delegateMap[cand.OwnerAddress]; ok {
-				delegateMap[cand.OwnerAddress].VoteWeight = votes
+		for _, cand := range candidateList {
+			if _, ok := delegateMap[cand.Address]; ok {
+				delegateMap[cand.Address].VoteWeight = cand.Votes
 			}
 		}
 	}
@@ -436,4 +434,21 @@ func getAllDelegate() map[string]struct{} {
 		delegates[a.OwnerAddress] = struct{}{}
 	}
 	return delegates
+}
+
+func GetCandidateList(cli iotexapi.APIServiceClient, epochNum uint64) (state.CandidateList, error) {
+	request := &iotexapi.ReadStateRequest{
+		ProtocolID: []byte("poll"),
+		MethodName: []byte("BlockProducersByEpoch"),
+		Arguments:  [][]byte{[]byte(strconv.FormatUint(epochNum, 10))},
+	}
+	bpResponse, err := cli.ReadState(context.Background(), request)
+	if err != nil {
+		return nil, err
+	}
+	var BPs state.CandidateList
+	if err := BPs.Deserialize(bpResponse.Data); err != nil {
+		return nil, err
+	}
+	return BPs, nil
 }

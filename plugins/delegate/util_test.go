@@ -20,6 +20,17 @@ func TestGetDelegateActive(t *testing.T) {
 	getDelegateActive(15892200)
 }
 
+func TestCandidateList(t *testing.T) {
+	require := require.New(t)
+	_, err := db.LoadDBFromEnv()
+	require.NoError(err)
+	cands, err := GetCandidateList(kernel.ChainClient(), 42213)
+	require.NoError(err)
+	for _, c := range cands {
+		fmt.Printf("%s: %s\n", c.Address, c.Votes)
+	}
+}
+
 func TestVotes(t *testing.T) {
 	require := require.New(t)
 	_, err := db.LoadDBFromEnv()

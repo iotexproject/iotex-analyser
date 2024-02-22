@@ -32,8 +32,6 @@ type Delegate struct {
 	StakeAmount     *big.Int
 	VoteWeight      *big.Int
 	SelfStake       bool
-	Rank            int
-	VoteRate        int
 	Productivity    int
 }
 
@@ -213,6 +211,21 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.DelegateOwnerAddress] = delegate
 	}
+
+	candidateList, err := models.GetCandidateList(epochNumber - 1)
+	if err == nil {
+		//currently some delegate votes is not correct, we directly use chainMeta data
+		for _, cand := range candidateList.GetCandidates() {
+			votes, ok := big.NewInt(0).SetString(cand.TotalWeightedVotes, 10)
+			if !ok {
+				continue
+			}
+			if _, ok := delegateMap[cand.OwnerAddress]; ok {
+				delegateMap[cand.OwnerAddress].VoteWeight = votes
+			}
+		}
+	}
+
 	return delegateMap, nil
 }
 

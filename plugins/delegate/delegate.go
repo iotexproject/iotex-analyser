@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.3.5"
+const VERSION = "2.3.6"
 
 type delegatePlugin struct {
 	stop chan bool

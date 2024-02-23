@@ -30,7 +30,7 @@ func TestCandidateList(t *testing.T) {
 		//address is operator address
 		fmt.Printf("%s: %s\n", c.Address, c.Votes)
 	}
-	candidateListv2, err := models.GetCandidateList(42213)
+	candidateListv2, err := models.GetCandidateList(42212)
 	require.NoError(err)
 	for _, cand := range candidateListv2.GetCandidates() {
 		fmt.Printf("%s: %s\n", cand.OperatorAddress, cand.TotalWeightedVotes)

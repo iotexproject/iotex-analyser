@@ -214,18 +214,6 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		delegateMap[staking.DelegateOwnerAddress] = delegate
 	}
 
-	candidateList, err := GetProducerCandidateList(kernel.ChainClient(), epochNumber)
-	if err == nil {
-		//currently some delegate votes is not correct, we directly use chainMeta data
-		for _, cand := range candidateList {
-			for _, d := range delegateMap {
-				if strings.EqualFold(cand.Address, d.OperatorAddress) {
-					d.VoteWeight = cand.Votes
-					break
-				}
-			}
-		}
-	}
 	candidateListv2, err := models.GetCandidateList(epochNumber)
 	if err != nil {
 		return nil, err
@@ -239,6 +227,18 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 			if strings.EqualFold(cand.OperatorAddress, d.OperatorAddress) {
 				d.VoteWeight = votes
 				break
+			}
+		}
+	}
+	candidateList, err := GetProducerCandidateList(kernel.ChainClient(), epochNumber)
+	if err == nil {
+		//currently some delegate votes is not correct, we directly use chainMeta data
+		for _, cand := range candidateList {
+			for _, d := range delegateMap {
+				if strings.EqualFold(cand.Address, d.OperatorAddress) {
+					d.VoteWeight = cand.Votes
+					break
+				}
 			}
 		}
 	}

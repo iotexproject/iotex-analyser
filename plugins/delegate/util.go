@@ -214,19 +214,34 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		delegateMap[staking.DelegateOwnerAddress] = delegate
 	}
 
-	candidateList, err := GetCandidateList(kernel.ChainClient(), epochNumber)
+	candidateList, err := GetProducerCandidateList(kernel.ChainClient(), epochNumber)
 	if err == nil {
 		//currently some delegate votes is not correct, we directly use chainMeta data
 		for _, cand := range candidateList {
 			for _, d := range delegateMap {
 				if strings.EqualFold(cand.Address, d.OperatorAddress) {
 					d.VoteWeight = cand.Votes
-					continue
+					break
 				}
 			}
 		}
 	}
-
+	candidateListv2, err := models.GetCandidateList(epochNumber)
+	if err != nil {
+		return nil, err
+	}
+	for _, cand := range candidateListv2.GetCandidates() {
+		votes, ok := big.NewInt(0).SetString(cand.TotalWeightedVotes, 10)
+		if !ok {
+			continue
+		}
+		for _, d := range delegateMap {
+			if strings.EqualFold(cand.OperatorAddress, d.OperatorAddress) {
+				d.VoteWeight = votes
+				break
+			}
+		}
+	}
 	return delegateMap, nil
 }
 
@@ -439,7 +454,7 @@ func getAllDelegate() map[string]struct{} {
 	return delegates
 }
 
-func GetCandidateList(cli iotexapi.APIServiceClient, epochNum uint64) (state.CandidateList, error) {
+func GetProducerCandidateList(cli iotexapi.APIServiceClient, epochNum uint64) (state.CandidateList, error) {
 	request := &iotexapi.ReadStateRequest{
 		ProtocolID: []byte("poll"),
 		MethodName: []byte("BlockProducersByEpoch"),

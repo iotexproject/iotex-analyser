@@ -24,11 +24,16 @@ func TestCandidateList(t *testing.T) {
 	require := require.New(t)
 	_, err := db.LoadDBFromEnv()
 	require.NoError(err)
-	cands, err := GetCandidateList(kernel.ChainClient(), 42213)
+	cands, err := GetProducerCandidateList(kernel.ChainClient(), 42212)
 	require.NoError(err)
 	for _, c := range cands {
 		//address is operator address
 		fmt.Printf("%s: %s\n", c.Address, c.Votes)
+	}
+	candidateListv2, err := models.GetCandidateList(42213)
+	require.NoError(err)
+	for _, cand := range candidateListv2.GetCandidates() {
+		fmt.Printf("%s: %s\n", cand.OperatorAddress, cand.TotalWeightedVotes)
 	}
 }
 

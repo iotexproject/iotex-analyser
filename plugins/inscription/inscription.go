@@ -288,7 +288,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 				continue
 			}
 			amt := gjson.Get(uri.Data, "amt").Uint()
-			if fromHolder.Amount-amt < 0 {
+			if fromHolder.Amount < amt {
 				slog.L().Debug("skip action: the balance not enough", zap.Any("hash", hex.EncodeToString(actHash[:])))
 				// TODO insert transactions
 				continue

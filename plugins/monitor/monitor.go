@@ -74,10 +74,8 @@ func (b monitorPlugin) Start(ctx context.Context) error {
 	go func() {
 		for range time.Tick(b.cfg.Interval) {
 			stats := server.GetRunnerStats()
-			log.L().Info("runner stats", zap.Uint64("daoHeight", stats.Server.DaoHeight), zap.Uint64("tipHeight", stats.Server.TipHeight))
 			for _, stat := range stats.Runners {
 				b.monitor(stats.Server, stat)
-				log.L().Info("plugin status", zap.String("name", stat.Name), zap.Int("pluginType", int(stat.PluginType)), zap.Int("pluginStatus", int(stat.PluginStatus)), zap.Error(stat.Error))
 			}
 		}
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -47,6 +48,7 @@ var (
 		},
 		[]string{"name"},
 	)
+	_tipHeight, _daoHeight uint64
 )
 
 type Server struct {
@@ -154,6 +156,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 		return errors.Wrap(err, "failed to get chain meta")
 	}
 	tipHeight := res.ChainMeta.Height
+	atomic.StoreUint64(&_tipHeight, tipHeight)
 
 	daoHeight, err = srv.dao.Height()
 	if err != nil {
@@ -230,6 +233,7 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 			if err := srv.dao.PutBlock(ctx, blk); err != nil {
 				return errors.Wrap(err, "failed to build index for the block")
 			}
+			atomic.StoreUint64(&_daoHeight, blk.Height())
 			serverMetrics.WithLabelValues("db", "daoHeight").Set(float64(blk.Height()))
 			srv.logger.Debug("putblock to dao", zap.Uint64("blkHeight", blk.Height()))
 		}

@@ -27,7 +27,10 @@ type pluginStatus int
 const (
 	PluginStatusUnload pluginStatus = iota
 	PluginStatusLoaded
-	PluginStatusRunning
+	PluginStatusStartOK
+	PluginStatusStartError
+	PluginStatusPutOK
+	PluginStatusPutError
 )
 
 var (
@@ -44,23 +47,36 @@ type Reply struct {
 	Success bool
 }
 
+type RunnerStats struct {
+	Server  ServerStat
+	Runners []RunnerStat
+}
+
+type ServerStat struct {
+	DaoHeight uint64
+	TipHeight uint64
+}
+
+type RunnerStat struct {
+	Name         string
+	PluginType   iap.Type
+	PluginStatus pluginStatus
+	Error        error
+}
+
 type Service struct {
-	stop      chan bool
-	once      *sync.Once
-	dao       blockdao.BlockDAO
-	logger    *zap.Logger
-	pluginMap map[string]*runner
-	mu        *sync.RWMutex
+	stop   chan bool
+	once   *sync.Once
+	dao    blockdao.BlockDAO
+	logger *zap.Logger
 }
 
 func NewService(dao blockdao.BlockDAO) *Service {
 	s := &Service{
-		stop:      make(chan bool, 1),
-		once:      new(sync.Once),
-		dao:       dao,
-		logger:    log.Logger("service"),
-		pluginMap: make(map[string]*runner),
-		mu:        new(sync.RWMutex),
+		stop:   make(chan bool, 1),
+		once:   new(sync.Once),
+		dao:    dao,
+		logger: log.Logger("service"),
 	}
 	return s
 }
@@ -89,9 +105,7 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.logger.Info("stopping plugin service")
 		s.stop <- true
 	})
-	s.mu.RLock()
-	plugins := s.pluginMap
-	s.mu.RUnlock()
+	plugins := getRunners()
 	for _, plugin := range plugins {
 		if err := plugin.Stop(ctx); err != nil {
 			log.L().Error("failed to stop plugin", zap.Error(err))
@@ -101,9 +115,7 @@ func (s *Service) Stop(ctx context.Context) error {
 }
 
 func (s *Service) pluginRefresh(ctx context.Context) {
-	s.mu.RLock()
-	pluginMap := s.pluginMap
-	s.mu.RUnlock()
+	pluginMap := getRunners()
 	plugins := make(map[string]*runner)
 	cfg, err := newConfigFromCtx(ctx)
 	if err != nil {
@@ -131,20 +143,19 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 			pluginCtx = kernel.WithBlockDAOCtx(pluginCtx, s.dao)
 			if err := plugin.Start(pluginCtx); err != nil {
 				s.logger.Error(errFailedLoadPlugin, zap.String("name", name), zap.Error(err))
+				plugin.UpdateStatus(PluginStatusStartError)
+				plugin.UpdateError(err)
 			} else {
-				plugin.UpdateStatus(PluginStatusRunning)
+				plugin.UpdateStatus(PluginStatusStartOK)
+				plugin.UpdateError(nil)
 			}
 		}
 	}
-	s.mu.Lock()
-	s.pluginMap = plugins
-	s.mu.Unlock()
+	setRunners(plugins)
 }
 
 func (s *Service) registerPlugin(plug iap.Adapter) error {
-	s.mu.RLock()
-	_, found := s.pluginMap[plug.Name()]
-	s.mu.RUnlock()
+	_, found := getRunner(plug.Name())
 	if found {
 		return errors.Errorf("the plugin `%s(%s)` has been registered", plug.Name(), plug.Version())
 	}
@@ -153,16 +164,12 @@ func (s *Service) registerPlugin(plug iap.Adapter) error {
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	s.pluginMap[plug.Name()] = runner
-	s.mu.Unlock()
+	setRunner(plug.Name(), runner)
 	return nil
 }
 
 func (s *Service) deregisterPlugin(plug iap.Adapter) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	v, found := s.pluginMap[plug.Name()]
+	v, found := getRunner(plug.Name())
 	if !found {
 		return errors.Errorf("the plugin `%s(%s)` has not been registered", plug.Name(), plug.Version())
 	}
@@ -194,9 +201,7 @@ func (s *Service) UnLoad(args *Args, reply *Reply) error {
 }
 
 func (s *Service) Info(args *Args, reply *Reply) error {
-	s.mu.RLock()
-	pluginMap := s.pluginMap
-	s.mu.RUnlock()
+	pluginMap := getRunners()
 	showFields := []interface{}{
 		"Name",
 		"Version",

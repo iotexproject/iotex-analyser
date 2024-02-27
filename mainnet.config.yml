@@ -30,6 +30,10 @@ server:
       entryPoint: io1cdf8xjx7ql2erjw4vl8pnx805gp3hpn49chxcv
     inscription:
       startHeight: 26618041
+    monitor:
+      enable: true
+      interval: 600s
+      larkWebHook: "https://open.larksuite.com/open-apis/bot/v2/hook/dc465df5-0d94-439d-82cb-0efff87723c1"
 database:
   driver: postgres
   host: 127.0.0.1

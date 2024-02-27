@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
@@ -21,6 +22,54 @@ const (
 	retryBlockTime = time.Microsecond * 700
 )
 
+var (
+	activeRunners = make(map[string]*runner)
+	activeLock    = new(sync.RWMutex)
+)
+
+func setRunner(name string, r *runner) {
+	activeLock.Lock()
+	activeRunners[name] = r
+	activeLock.Unlock()
+}
+
+func getRunner(name string) (*runner, bool) {
+	activeLock.RLock()
+	r, ok := activeRunners[name]
+	activeLock.RUnlock()
+	return r, ok
+}
+
+func setRunners(r map[string]*runner) {
+	activeLock.Lock()
+	activeRunners = r
+	activeLock.Unlock()
+}
+
+func getRunners() map[string]*runner {
+	activeLock.RLock()
+	r := activeRunners
+	activeLock.RUnlock()
+	return r
+}
+
+func GetRunnerStats() RunnerStats {
+	var stats RunnerStats
+	stats.Server = ServerStat{
+		DaoHeight: atomic.LoadUint64(&_daoHeight),
+		TipHeight: atomic.LoadUint64(&_tipHeight),
+	}
+	for name, r := range getRunners() {
+		stats.Runners = append(stats.Runners, RunnerStat{
+			Name:         name,
+			PluginType:   r.plugin.Type(),
+			PluginStatus: r.Status(),
+			Error:        r.Error(),
+		})
+	}
+	return stats
+}
+
 type runner struct {
 	dao       blockdao.BlockDAO
 	plugin    plugin.Adapter
@@ -28,6 +77,8 @@ type runner struct {
 	logger    *zap.Logger
 	isRunning *kernel.AtomicBool
 	wg        *sync.WaitGroup
+	err       error
+	mu        sync.RWMutex
 }
 
 func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*runner, error) {
@@ -43,11 +94,29 @@ func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*r
 }
 
 func (r *runner) UpdateStatus(status pluginStatus) {
+	r.mu.Lock()
 	r.status = status
+	r.mu.Unlock()
 }
 
 func (r *runner) Status() pluginStatus {
-	return r.status
+	r.mu.RLock()
+	status := r.status
+	r.mu.RUnlock()
+	return status
+}
+
+func (r *runner) UpdateError(err error) {
+	r.mu.Lock()
+	r.err = err
+	r.mu.Unlock()
+}
+
+func (r *runner) Error() error {
+	r.mu.RLock()
+	err := r.err
+	r.mu.RUnlock()
+	return err
 }
 
 func (r *runner) nextHeight() (uint64, error) {
@@ -177,6 +246,8 @@ func (r *runner) Start(ctx context.Context) error {
 						break
 					}
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
+						r.UpdateStatus(PluginStatusPutError)
+						r.UpdateError(err)
 						r.logger.Error("failed to put data to plugin, retrying...",
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("height", blk.Height()),
@@ -184,6 +255,8 @@ func (r *runner) Start(ctx context.Context) error {
 						)
 						break
 					}
+					r.UpdateStatus(PluginStatusPutOK)
+					r.UpdateError(nil)
 					r.logger.Debug("putblock to plugin",
 						zap.String("pluginName", r.plugin.Name()),
 						zap.Uint64("height", blk.Height()),

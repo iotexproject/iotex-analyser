@@ -85,9 +85,9 @@ type InscriptionToken struct {
 	BlockHeight uint64    `gorm:"unsigned;index" sql:"type:bigint"`
 	ActionHash  string    `gorm:"size:64;index;not null;,length:9"`
 	Owner       string    `gorm:"size:42;index;not null;default:'';"`
-	Protocol    string    `gorm:"size:42;index;not null;default:'';"`
-	Tick        string    `gorm:"size:42;index;not null;default:'';"`
-	Op          string    `gorm:"size:42;not null;default:'';"`
+	Protocol    string    `gorm:"size:255;index;not null;default:'';"`
+	Tick        string    `gorm:"size:255;index;not null;default:'';"`
+	Op          string    `gorm:"size:255;not null;default:'';"`
 	Max         uint64    `gorm:"unsigned" sql:"type:bigint"`
 	Limit       uint64    `gorm:"unsigned" sql:"type:bigint"`
 	Mint        uint64    `gorm:"unsigned" sql:"type:bigint"`
@@ -103,8 +103,8 @@ func (InscriptionToken) TableName() string {
 type InscriptionTokenHolder struct {
 	ID        uint64    `gorm:"primary_key" sql:"type:bigint"`
 	Owner     string    `gorm:"size:42;index;not null;default:'';"`
-	Protocol  string    `gorm:"size:42;index;not null;default:'';"`
-	Tick      string    `gorm:"size:42;index;not null;default:'';"`
+	Protocol  string    `gorm:"size:255;index;not null;default:'';"`
+	Tick      string    `gorm:"size:255;index;not null;default:'';"`
 	Amount    uint64    `gorm:"unsigned" sql:"type:bigint"`
 	Timestamp time.Time `gorm:"type:timestamp;"`
 }

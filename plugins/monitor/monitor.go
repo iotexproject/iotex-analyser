@@ -136,7 +136,7 @@ func (b monitorPlugin) alert(msg string) {
 		},
 	}
 	payload, _ := json.Marshal(req)
-	response, err := kernel.DefaultHTTPClient.Post(LarkWebHook, "application/json", bytes.NewReader(payload))
+	response, err := kernel.DefaultHTTPClient.Post(b.cfg.LarkWebHook, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		log.L().Error("lark webhook post failed", zap.Error(err))
 		return

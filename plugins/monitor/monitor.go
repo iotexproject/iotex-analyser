@@ -179,4 +179,5 @@ var Plugin = monitorPlugin{
 		LarkWebHook: LarkWebHook,
 		Enable:      true,
 	},
+	stats: make(map[string]plugnStat),
 }

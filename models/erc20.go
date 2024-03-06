@@ -45,3 +45,15 @@ type Erc20Holder struct {
 func (Erc20Holder) TableName() string {
 	return "erc20_holders"
 }
+
+type Erc20Meta struct {
+	ID              uint64 `gorm:"primary_key;" sql:"type:bigint"`
+	ContractAddress string `gorm:"size:42;not null;default:'';index:,length:9"`
+	Name            string `gorm:"size:255;not null;default:'';"`
+	Symbol          string `gorm:"size:255;not null;default:'';"`
+	Decimals        int    `gorm:"not null;default:0;"`
+}
+
+func (Erc20Meta) TableName() string {
+	return "erc20_metas"
+}

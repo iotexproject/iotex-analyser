@@ -84,8 +84,8 @@ func (b monitorPlugin) Start(ctx context.Context) error {
 }
 
 func (b monitorPlugin) monitor(ss server.ServerStat, rs server.RunnerStat) {
-	//skip non-standard plugin
-	if rs.PluginType != plugin.TypeStandard {
+	//skip non-standard plugin or non-started plugin
+	if rs.PluginType != plugin.TypeStandard || rs.PluginStatus == server.PluginStatusLoaded {
 		return
 	}
 	plugHeight, err := db.GetIndexHeight(rs.Name)

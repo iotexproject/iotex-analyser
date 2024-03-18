@@ -21,6 +21,7 @@ import (
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
+	"github.com/iotexproject/iotex-core/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -80,14 +81,16 @@ func openDAO(c *cli.Context) (blockdao.BlockDAO, error) {
 			Tip: tip,
 		},
 	)
-	var indexers []blockdao.BlockIndexer
+	var err error
 	var dao blockdao.BlockDAO
 	deser := block.NewDeserializer(config.EVMNetworkID())
 	blockDB := config.Default.BlockDB
 	blockDB.ReadOnly = true
-	dao = blockdao.NewBlockDAO(indexers, blockDB, deser)
-
-	if err := dao.Start(ctxDao); err != nil {
+	dao, err = filedao.NewFileDAO(blockDB, deser)
+	if err != nil {
+		return nil, err
+	}
+	if err = dao.Start(ctxDao); err != nil {
 		return nil, err
 	}
 

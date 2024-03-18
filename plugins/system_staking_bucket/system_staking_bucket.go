@@ -101,7 +101,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 	}
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		var stakingBucket models.SystemStakingBucket
-		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
+		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
 			actionHash, _ := selp.Hash()
 			actions[actionHash] = selp

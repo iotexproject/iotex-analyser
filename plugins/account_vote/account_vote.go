@@ -45,7 +45,7 @@ func (b accountVotePlugin) Start(ctx context.Context) error {
 func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		var accountVote AccountVote
-		actions := make(map[hash.Hash256]action.SealedEnvelope, len(blk.Actions))
+		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
 			actionHash, _ := selp.Hash()
 			actions[actionHash] = selp

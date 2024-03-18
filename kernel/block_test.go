@@ -11,7 +11,7 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/blockdao"
+	"github.com/iotexproject/iotex-core/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	corecfg "github.com/iotexproject/iotex-core/config"
 	"github.com/iotexproject/iotex-core/test/identityset"
@@ -35,13 +35,12 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 			Tip: tip,
 		},
 	)
-	var indexers []blockdao.BlockIndexer
-	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = testPath
 	cfg.ReadOnly = true
 	deser := block.NewDeserializer(config.EVMNetworkID())
-	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
+	dao, err := filedao.NewFileDAO(cfg, deser)
+	require.NoError(err)
 	require.NoError(dao.Start(ctx))
 	defer func() {
 		require.NoError(dao.Stop(ctx))
@@ -93,12 +92,10 @@ func TestGetBlockByHeight(t *testing.T) {
 			Tip: tip,
 		},
 	)
-	var indexers []blockdao.BlockIndexer
-	var dao blockdao.BlockDAO
 	cfg := corecfg.Default.DB
 	cfg.DbPath = "/tmp/chain.db"
 	deser := block.NewDeserializer(config.EVMNetworkID())
-	dao = blockdao.NewBlockDAO(indexers, cfg, deser)
+	dao, err := filedao.NewFileDAO(cfg, deser)
 	require.NoError(dao.Start(ctx))
 	defer func() {
 		require.NoError(dao.Stop(ctx))

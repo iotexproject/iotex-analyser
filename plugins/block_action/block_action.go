@@ -75,7 +75,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	return amount, payload
 }
 
-func getAccount(selp action.SealedEnvelope, receipt *action.Receipt) (address.Address, string, error) {
+func getAccount(selp *action.SealedEnvelope, receipt *action.Receipt) (address.Address, string, error) {
 	sender, err := address.FromBytes(selp.SrcPubkey().Hash())
 	if err != nil {
 		return nil, "", err

@@ -23,6 +23,7 @@ import (
 	"github.com/iotexproject/iotex-core/action/protocol"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
+	"github.com/iotexproject/iotex-core/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
@@ -265,14 +266,17 @@ func (srv *Server) startDaoService() error {
 			Tip: tip,
 		},
 	)
-	var indexers []blockdao.BlockIndexer
 	var dao blockdao.BlockDAO
+	var err error
 	if config.Default.Iotex.CatchUpMode {
 		srv.logger.Warn("currently in catch-up mode, it will be rebuild dao service in momery")
 		dao = kernel.NewVirtualDao()
 	} else {
 		deser := block.NewDeserializer(config.EVMNetworkID())
-		dao = blockdao.NewBlockDAO(indexers, config.Default.BlockDB, deser)
+		dao, err = filedao.NewFileDAO(config.Default.BlockDB, deser)
+		if err != nil {
+			return err
+		}
 	}
 	if err := dao.Start(ctxDao); err != nil {
 		return err

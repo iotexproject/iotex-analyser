@@ -228,6 +228,9 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if err := tx.Create(&stakingAction).Error; err != nil {
 					return err
 				}
+				//TODO: candidate update has no bucketID
+			case *action.CandidateUpdate:
+				continue
 			case *action.DepositToStake:
 				bucketID := a.BucketIndex()
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)

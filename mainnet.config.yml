@@ -24,6 +24,7 @@ server:
     - reward_history.so
     - staking_actions.so
     - staking_bucket.so
+    - clickhouse.so
   pluginConfigs:
     account_abstraction:
       startHeight: 25049696
@@ -34,6 +35,8 @@ server:
       enable: true
       interval: 600s
       larkWebHook: "https://open.larksuite.com/open-apis/bot/v2/hook/dc465df5-0d94-439d-82cb-0efff87723c1"
+    clickhouse:
+      dsn: clickhouse://127.0.0.1:9000/maindev?dial_timeout=6s&max_execution_time=60      
 database:
   driver: postgres
   host: 127.0.0.1

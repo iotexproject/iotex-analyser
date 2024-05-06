@@ -24,6 +24,8 @@ import (
 
 const VERSION = "2.0.0"
 
+var preDelete bool
+
 type clickhousePlugin struct {
 }
 
@@ -70,6 +72,7 @@ func (b clickhousePlugin) Start(ctx context.Context) error {
 			}
 		}
 	}
+	preDelete = cfg.PreDelete
 	return nil
 }
 
@@ -158,9 +161,12 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 			Payload:            payload,
 		})
 	}
-	if err := chDB.Where("block_height = ?", blk.Height()).Delete(&Action{}).Error; err != nil {
-		return err
+	if preDelete {
+		if err := chDB.Where("block_height = ?", blk.Height()).Delete(&Action{}).Error; err != nil {
+			return err
+		}
 	}
+
 	if err := chDB.Model(&Action{}).CreateInBatches(acts, 200).Error; err != nil {
 		return err
 	}
@@ -223,21 +229,30 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 			}
 		}
 	}
-	if err := chDB.Where("block_height = ?", blk.Height()).Delete(&Log{}).Error; err != nil {
-		return err
+	if preDelete {
+		if err := chDB.Where("block_height = ?", blk.Height()).Delete(&Log{}).Error; err != nil {
+			return err
+		}
 	}
-	if err := chDB.Model(&Log{}).CreateInBatches(logs, 200).Error; err != nil {
-		return err
+	if len(logs) > 0 {
+		if err := chDB.Model(&Log{}).CreateInBatches(logs, 200).Error; err != nil {
+			return err
+		}
 	}
-
-	if err := chDB.Where("block_height = ?", blk.Height()).Delete(&TransactionLog{}).Error; err != nil {
-		return err
+	if preDelete {
+		if err := chDB.Where("block_height = ?", blk.Height()).Delete(&TransactionLog{}).Error; err != nil {
+			return err
+		}
 	}
-	if err := chDB.Model(&TransactionLog{}).CreateInBatches(transactionLogs, 200).Error; err != nil {
-		return err
+	if len(transactionLogs) > 0 {
+		if err := chDB.Model(&TransactionLog{}).CreateInBatches(transactionLogs, 200).Error; err != nil {
+			return err
+		}
 	}
-	if err := chDB.Where("block_height = ?", blk.Height()).Delete(&AccountIncome{}).Error; err != nil {
-		return err
+	if preDelete {
+		if err := chDB.Where("block_height = ?", blk.Height()).Delete(&AccountIncome{}).Error; err != nil {
+			return err
+		}
 	}
 	for accountAddress, accountIncome := range incomes {
 		inFlow := decimal.NewFromBigInt(accountIncome.inFlow, 0)

@@ -10,7 +10,8 @@ import (
 
 // Config defines the config for plugin clickhouse
 type Config struct {
-	DSN string `yaml:"dsn"`
+	DSN       string `yaml:"dsn"`
+	PreDelete bool   `yaml:"preDelete"`
 }
 
 var chDB *gorm.DB

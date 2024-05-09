@@ -111,8 +111,10 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 		Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 		EpochNumber:     epochNum,
 	}
-	if err := chDB.Where("block_height = ?", blk.Height()).Delete(&Block{}).Error; err != nil {
-		return err
+	if preDelete {
+		if err := chDB.Where("block_height = ?", blk.Height()).Delete(&Block{}).Error; err != nil {
+			return err
+		}
 	}
 	if err := chDB.Create(block).Error; err != nil {
 		return err

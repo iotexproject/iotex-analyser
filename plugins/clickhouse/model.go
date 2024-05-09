@@ -8,8 +8,28 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+/*
+CREATE TABLE blocks
+(
+
+	`block_height` UInt64,
+	`block_hash` String,
+	`version` UInt32,
+	`prev_block_hash` String,
+	`tx_root` String,
+	`gas_consumed` UInt64,
+	`producer_address` String,
+	`num_actions` Int64,
+	`block_reward` String,
+	`epoch_reward` String,
+	`foundation_bonus` String,
+	`epoch_number` UInt64,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY block_height
+*/
 type Block struct {
-	BlockHeight     uint64
+	BlockHeight     uint64 // order by
 	BlockHash       string
 	Version         uint32
 	PrevBlockHash   string
@@ -24,9 +44,34 @@ type Block struct {
 	Timestamp       time.Time
 }
 
+/*
+CREATE TABLE actions
+(
+
+	`block_height` UInt64,
+	`action_hash` String,
+	`action_type` String,
+	`sender` String,
+	`recipient` String,
+	`gas_price` String,
+	`gas_limit` UInt64,
+	`nonce` UInt64,
+	`amount` String,
+	`gas_consumed` UInt64,
+	`contract_address` String,
+	`status` UInt64,
+	`execution_revert_msg` String,
+	`payload` String,
+	`timestamp` DateTime64(3),
+	`chain_id` UInt32,
+	`encoding` UInt32,
+	`version` UInt32
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, action_hash)
+*/
 type Action struct {
-	BlockHeight        uint64
-	ActionHash         string
+	BlockHeight        uint64 // order by
+	ActionHash         string // order by
 	ActionType         string `ch:",lc"`
 	Sender             string
 	Recipient          string
@@ -45,20 +90,53 @@ type Action struct {
 	Version            uint32
 }
 
+/*
+CREATE TABLE logs
+(
+
+	`block_height` UInt64,
+	`action_hash` String,
+	`contract_address` String,
+	`topic0` String,
+	`topic1` String,
+	`topic2` String,
+	`topic3` String,
+	`data` String,
+	`index` UInt64,
+	`tx_index` UInt64,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, action_hash, index, tx_index)
+*/
 type Log struct {
-	BlockHeight     uint64
-	ActionHash      string
+	BlockHeight     uint64 // order by
+	ActionHash      string // order by
 	ContractAddress string
 	Topic0          string
 	Topic1          string
 	Topic2          string
 	Topic3          string
 	Data            []byte
-	Index           uint
-	TxIndex         uint
+	Index           uint // order by
+	TxIndex         uint // order by
 	Timestamp       time.Time
 }
 
+/*
+CREATE TABLE transaction_logs
+(
+
+	`block_height` UInt64,
+	`action_hash` String,
+	`type` String,
+	`internal` UInt8,
+	`amount` String,
+	`sender` String,
+	`recipient` String,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, action_hash, type, internal, amount, sender, recipient, timestamp)
+*/
 type TransactionLog struct {
 	BlockHeight uint64
 	ActionHash  string
@@ -70,6 +148,20 @@ type TransactionLog struct {
 	Timestamp   time.Time
 }
 
+/*
+CREATE TABLE account_incomes
+(
+
+	`block_height` UInt64,
+	`address` String,
+	`in_flow` String,
+	`in_num_actions` Int64,
+	`out_flow` String,
+	`out_num_actions` Int64,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, address, in_flow, in_num_actions, out_flow, out_num_actions, timestamp)
+*/
 type AccountIncome struct {
 	BlockHeight   uint64
 	Address       string
@@ -93,12 +185,13 @@ func AutoMigrate(index string, dst ...interface{}) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if height == 0 {
-		err = chDB.Migrator().DropTable(dst...)
-		if err != nil {
-			return 0, err
-		}
-		return 0, chDB.Migrator().CreateTable(dst...)
-	}
+	// TODO
+	//if height == 0 {
+	//	err = chDB.Migrator().DropTable(dst...)
+	//	if err != nil {
+	//		return 0, err
+	//	}
+	//	return 0, chDB.Migrator().CreateTable(dst...)
+	//}
 	return height, nil
 }

@@ -230,9 +230,31 @@ func (r *runner) Start(ctx context.Context) error {
 					if !r.isRunning.Get() {
 						break
 					}
+
+					blks := make([]*block.Block, 0, 5000)
+
 					timeStart := time.Now()
 					if !config.Default.Iotex.CatchUpMode {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
+
+						if _, ok := r.plugin.(plugin.BatchAdapter); ok {
+							for ; nextHeight <= tipHeight; nextHeight++ {
+								blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
+								if err != nil {
+									r.logger.Error("failed to read block from dao",
+										zap.Error(err),
+										zap.String("pluginName", r.plugin.Name()),
+										zap.Uint64("height", nextHeight),
+										zap.Uint64("tipHeight", tipHeight),
+									)
+									break
+								}
+								blks = append(blks, blk)
+								if nextHeight%5000 == 0 || nextHeight == tipHeight {
+									break
+								}
+							}
+						}
 					} else {
 						blk, err = kernel.GetBlockByHeightFromChain(ctx, nextHeight)
 					}
@@ -245,6 +267,34 @@ func (r *runner) Start(ctx context.Context) error {
 						)
 						break
 					}
+
+					if batchPlugin, ok := r.plugin.(plugin.BatchAdapter); ok {
+						if err := batchPlugin.PutBlocks(ctx, blks); err != nil {
+							r.UpdateStatus(PluginStatusPutError)
+							r.UpdateError(err)
+							r.logger.Error("failed to put blocks to plugin, retrying...",
+								zap.String("pluginName", r.plugin.Name()),
+								zap.Uint64("height", nextHeight),
+								zap.Int("batchSize", len(blks)),
+								zap.Error(err),
+							)
+							break
+						}
+						r.UpdateStatus(PluginStatusPutOK)
+						r.UpdateError(nil)
+						r.logger.Debug("putBlocks to plugin",
+							zap.String("pluginName", r.plugin.Name()),
+							zap.Uint64("height", nextHeight),
+							zap.Int("batchSize", len(blks)),
+						)
+						serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
+						pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+
+						blks = blks[:0]
+						nextHeight++
+						continue
+					}
+
 					if err := r.plugin.PutBlock(ctx, blk); err != nil {
 						r.UpdateStatus(PluginStatusPutError)
 						r.UpdateError(err)

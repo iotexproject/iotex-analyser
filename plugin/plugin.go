@@ -22,6 +22,11 @@ type Adapter interface {
 	PutBlock(context.Context, *block.Block) error
 }
 
+type BatchAdapter interface {
+	Adapter
+	PutBlocks(ctx context.Context, blks []*block.Block) error
+}
+
 type DependentAdapter interface {
 	DependentPlugins() []string
 }

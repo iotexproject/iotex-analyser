@@ -3,23 +3,25 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"github.com/iotexproject/iotex-analyser/db"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
+
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	slog "github.com/iotexproject/iotex-core/pkg/log"
-	"github.com/pkg/errors"
-	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 const VERSION = "2.0.0"
@@ -27,6 +29,7 @@ const VERSION = "2.0.0"
 var preDelete bool
 
 type clickhouseV1Plugin struct {
+	batchSize       int
 	tipHeight       uint64
 	blocks          []*BlockV1
 	actions         []*ActionV1
@@ -43,7 +46,11 @@ func (b clickhouseV1Plugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b clickhouseV1Plugin) Start(ctx context.Context) error {
+func (b clickhouseV1Plugin) BatchSize() uint64 {
+	return uint64(b.batchSize)
+}
+
+func (b *clickhouseV1Plugin) Start(ctx context.Context) error {
 	var err error
 	cfg := &Config{
 		DSN: "tcp://127.0.0.1:8321",
@@ -79,6 +86,7 @@ func (b clickhouseV1Plugin) Start(ctx context.Context) error {
 		}
 	}
 	preDelete = cfg.PreDelete
+	b.batchSize = cfg.BatchSize
 	return nil
 }
 
@@ -250,28 +258,30 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 }
 
 func (b *clickhouseV1Plugin) commit() error {
+	fmt.Println("b.BatchSize()")
+	fmt.Println(b.BatchSize())
 	if len(b.blocks) > 0 {
-		if err := chDB.Model(&BlockV1{}).CreateInBatches(b.blocks, 10000).Error; err != nil {
+		if err := chDB.Model(&BlockV1{}).CreateInBatches(b.blocks, b.batchSize*2).Error; err != nil {
 			return err
 		}
 	}
 	if len(b.actions) > 0 {
-		if err := chDB.Model(&ActionV1{}).CreateInBatches(b.actions, 10000).Error; err != nil {
+		if err := chDB.Model(&ActionV1{}).CreateInBatches(b.actions, b.batchSize*2).Error; err != nil {
 			return err
 		}
 	}
 	if len(b.logs) > 0 {
-		if err := chDB.Model(&LogV1{}).CreateInBatches(b.logs, 10000).Error; err != nil {
+		if err := chDB.Model(&LogV1{}).CreateInBatches(b.logs, b.batchSize*2).Error; err != nil {
 			return err
 		}
 	}
 	if len(b.transactionLogs) > 0 {
-		if err := chDB.Model(&TransactionLogV1{}).CreateInBatches(b.transactionLogs, 10000).Error; err != nil {
+		if err := chDB.Model(&TransactionLogV1{}).CreateInBatches(b.transactionLogs, b.batchSize*2).Error; err != nil {
 			return err
 		}
 	}
 	if len(b.actions) > 0 {
-		if err := chDB.Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, 10000).Error; err != nil {
+		if err := chDB.Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, b.batchSize*2).Error; err != nil {
 			return err
 		}
 	}

@@ -237,7 +237,7 @@ func (r *runner) Start(ctx context.Context) error {
 					if !config.Default.Iotex.CatchUpMode {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 
-						if _, ok := r.plugin.(plugin.BatchAdapter); ok {
+						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
 							for ; nextHeight <= tipHeight; nextHeight++ {
 								blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 								if err != nil {
@@ -250,7 +250,7 @@ func (r *runner) Start(ctx context.Context) error {
 									break
 								}
 								blks = append(blks, blk)
-								if nextHeight%5000 == 0 || nextHeight == tipHeight {
+								if nextHeight%p.BatchSize() == 0 || nextHeight == tipHeight {
 									break
 								}
 							}

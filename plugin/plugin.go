@@ -25,6 +25,7 @@ type Adapter interface {
 type BatchAdapter interface {
 	Adapter
 	PutBlocks(ctx context.Context, blks []*block.Block) error
+	BatchSize() uint64
 }
 
 type DependentAdapter interface {

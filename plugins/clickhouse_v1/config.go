@@ -12,6 +12,7 @@ import (
 type Config struct {
 	DSN       string `yaml:"dsn"`
 	PreDelete bool   `yaml:"preDelete"`
+	BatchSize int    `yaml:"batchSize"`
 }
 
 var chDB *gorm.DB

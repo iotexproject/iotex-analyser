@@ -258,32 +258,32 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 
 func (b *clickhouseV1Plugin) commit() error {
 	if len(b.blocks) > 0 {
-		slog.L().Info("put blocks ", zap.String("plugin", b.Name()), zap.Int("size", len(b.blocks)))
 		if err := chDB.Model(&BlockV1{}).CreateInBatches(b.blocks, len(b.blocks)+1).Error; err != nil {
+			slog.L().Error("put blocks ", zap.String("plugin", b.Name()), zap.Int("size", len(b.blocks)))
 			return err
 		}
 	}
 	if len(b.actions) > 0 {
-		slog.L().Info("put actions ", zap.String("plugin", b.Name()), zap.Int("actions", len(b.actions)))
 		if err := chDB.Model(&ActionV1{}).CreateInBatches(b.actions, len(b.actions)+1).Error; err != nil {
+			slog.L().Error("put actions ", zap.String("plugin", b.Name()), zap.Int("actions", len(b.actions)))
 			return err
 		}
 	}
 	if len(b.logs) > 0 {
-		slog.L().Info("put logs ", zap.String("plugin", b.Name()), zap.Int("logs", len(b.logs)))
 		if err := chDB.Model(&LogV1{}).CreateInBatches(b.logs, len(b.logs)+1).Error; err != nil {
+			slog.L().Error("put logs ", zap.String("plugin", b.Name()), zap.Int("logs", len(b.logs)))
 			return err
 		}
 	}
 	if len(b.transactionLogs) > 0 {
-		slog.L().Info("put transactionsLogs ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
 		if err := chDB.Model(&TransactionLogV1{}).CreateInBatches(b.transactionLogs, len(b.transactionLogs)+1).Error; err != nil {
+			slog.L().Error("put transactionsLogs ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
 			return err
 		}
 	}
 	if len(b.accountIncome) > 0 {
-		slog.L().Info("put accountIncome ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
 		if err := chDB.Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, len(b.accountIncome)+1).Error; err != nil {
+			slog.L().Error("put accountIncome ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
 			return err
 		}
 	}

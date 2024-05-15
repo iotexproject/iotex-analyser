@@ -169,7 +169,7 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 		}
 	}
 	slog.L().Info("put clickhouse actions ", zap.String("plugin", b.Name()), zap.Int("actions", len(acts)))
-	if err := chDB.Model(&Action{}).CreateInBatches(acts, 200).Error; err != nil {
+	if err := chDB.Model(&Action{}).CreateInBatches(acts, len(acts)+1).Error; err != nil {
 		return err
 	}
 
@@ -238,7 +238,7 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 	}
 	slog.L().Info("put clickhouse logs ", zap.String("plugin", b.Name()), zap.Int("logs", len(logs)))
 	if len(logs) > 0 {
-		if err := chDB.Model(&Log{}).CreateInBatches(logs, 200).Error; err != nil {
+		if err := chDB.Model(&Log{}).CreateInBatches(logs, len(logs)+1).Error; err != nil {
 			return err
 		}
 	}
@@ -249,7 +249,7 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 	}
 	slog.L().Info("put clickhouse transactionLogs ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(transactionLogs)))
 	if len(transactionLogs) > 0 {
-		if err := chDB.Model(&TransactionLog{}).CreateInBatches(transactionLogs, 200).Error; err != nil {
+		if err := chDB.Model(&TransactionLog{}).CreateInBatches(transactionLogs, len(transactionLogs)+1).Error; err != nil {
 			return err
 		}
 	}

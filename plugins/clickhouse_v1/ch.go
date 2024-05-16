@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"github.com/iotexproject/iotex-analyser/server"
 	"math/big"
 	"strings"
 	"time"
@@ -90,11 +91,19 @@ func (b *clickhouseV1Plugin) Start(ctx context.Context) error {
 }
 
 func (b clickhouseV1Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	startTime := float64(time.Now().UnixNano()) / 1e9
 	for _, blk := range blks {
+		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Uint64("height", blk.Height()))
+		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("block", len(b.blocks)))
+		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("action", len(b.actions)))
+		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("log", len(b.logs)))
+		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
+		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
 		if err := b.putBlock(ctx, blk); err != nil {
 			return err
 		}
 	}
+	server.OpDurationMtc.WithLabelValues("clickhouse_v1", "putBlocks").Set(float64(time.Now().UnixNano())/1e9 - startTime)
 	b.tipHeight = blks[0].Height() + uint64(len(blks))
 	return b.commit()
 }
@@ -257,9 +266,11 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 }
 
 func (b *clickhouseV1Plugin) commit() error {
+	startTime := float64(time.Now().UnixNano()) / 1e9
 	if len(b.blocks) > 0 {
 		if err := chDB.Model(&BlockV1{}).CreateInBatches(b.blocks, len(b.blocks)+1).Error; err != nil {
 			slog.L().Error("put blocks ", zap.String("plugin", b.Name()), zap.Int("size", len(b.blocks)))
+			b.blocks = b.blocks[:0]
 			return err
 		}
 		b.blocks = b.blocks[:0]
@@ -267,6 +278,7 @@ func (b *clickhouseV1Plugin) commit() error {
 	if len(b.actions) > 0 {
 		if err := chDB.Model(&ActionV1{}).CreateInBatches(b.actions, len(b.actions)+1).Error; err != nil {
 			slog.L().Error("put actions ", zap.String("plugin", b.Name()), zap.Int("actions", len(b.actions)))
+			b.actions = b.actions[:0]
 			return err
 		}
 		b.actions = b.actions[:0]
@@ -274,6 +286,7 @@ func (b *clickhouseV1Plugin) commit() error {
 	if len(b.logs) > 0 {
 		if err := chDB.Model(&LogV1{}).CreateInBatches(b.logs, len(b.logs)+1).Error; err != nil {
 			slog.L().Error("put logs ", zap.String("plugin", b.Name()), zap.Int("logs", len(b.logs)))
+			b.logs = b.logs[:0]
 			return err
 		}
 		b.logs = b.logs[:0]
@@ -281,6 +294,7 @@ func (b *clickhouseV1Plugin) commit() error {
 	if len(b.transactionLogs) > 0 {
 		if err := chDB.Model(&TransactionLogV1{}).CreateInBatches(b.transactionLogs, len(b.transactionLogs)+1).Error; err != nil {
 			slog.L().Error("put transactionsLogs ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
+			b.transactionLogs = b.transactionLogs[:0]
 			return err
 		}
 		b.transactionLogs = b.transactionLogs[:0]
@@ -288,10 +302,12 @@ func (b *clickhouseV1Plugin) commit() error {
 	if len(b.accountIncome) > 0 {
 		if err := chDB.Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, len(b.accountIncome)+1).Error; err != nil {
 			slog.L().Error("put accountIncome ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
+			b.accountIncome = b.accountIncome[:0]
 			return err
 		}
 		b.accountIncome = b.accountIncome[:0]
 	}
+	server.OpDurationMtc.WithLabelValues("clickhouse_v1", "commit").Set(float64(time.Now().UnixNano())/1e9 - startTime)
 	return db.UpdateIndexHeight(b.Name(), b.tipHeight)
 }
 

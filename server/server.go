@@ -34,6 +34,11 @@ import (
 )
 
 var (
+	OpDurationMtc = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "plugin_putBlocks_metrics",
+		Help: "plugin putBlocks metrics.",
+	}, []string{"plugin", "op"})
+
 	serverMetrics = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "iotex_analyser_status",
@@ -70,6 +75,8 @@ func New() *Server {
 
 // Start start the server
 func (srv *Server) Start(ctx context.Context) error {
+	prometheus.MustRegister(OpDurationMtc)
+
 	prometheus.MustRegister(serverMetrics)
 	prometheus.MustRegister(pluginProcessingSecondsPerBlockMetrics)
 

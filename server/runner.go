@@ -239,6 +239,11 @@ func (r *runner) Start(ctx context.Context) error {
 
 						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
 							for ; nextHeight <= tipHeight; nextHeight++ {
+								r.logger.Debug("fetch block start",
+									zap.String("pluginName", r.plugin.Name()),
+									zap.Uint64("daoHeight", tipHeight),
+									zap.Uint64("nextHeight", nextHeight),
+								)
 								blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 								if err != nil {
 									r.logger.Error("failed to read block from dao",
@@ -254,6 +259,11 @@ func (r *runner) Start(ctx context.Context) error {
 									break
 								}
 							}
+							r.logger.Debug("fetch block end",
+								zap.String("pluginName", r.plugin.Name()),
+								zap.Uint64("daoHeight", tipHeight),
+								zap.Uint64("nextHeight", nextHeight),
+							)
 						}
 					} else {
 						blk, err = kernel.GetBlockByHeightFromChain(ctx, nextHeight)
@@ -269,6 +279,11 @@ func (r *runner) Start(ctx context.Context) error {
 					}
 
 					if batchPlugin, ok := r.plugin.(plugin.BatchAdapter); ok {
+						r.logger.Debug("PubBlocks start",
+							zap.String("pluginName", r.plugin.Name()),
+							zap.Uint64("daoHeight", tipHeight),
+							zap.Uint64("nextHeight", nextHeight),
+						)
 						if err := batchPlugin.PutBlocks(ctx, blks); err != nil {
 							r.UpdateStatus(PluginStatusPutError)
 							r.UpdateError(err)

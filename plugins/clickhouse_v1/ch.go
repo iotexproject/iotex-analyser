@@ -90,15 +90,12 @@ func (b *clickhouseV1Plugin) Start(ctx context.Context) error {
 }
 
 func (b clickhouseV1Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
-	slog.L().Debug("PutBlocks ", zap.String("plugin", b.Name()), zap.Int("len", len(blks)))
 	for _, blk := range blks {
-		slog.L().Debug("putBlock ", zap.String("plugin", b.Name()), zap.Uint64("height", blk.Height()))
 		if err := b.putBlock(ctx, blk); err != nil {
 			return err
 		}
 	}
 	b.tipHeight = blks[0].Height() + uint64(len(blks))
-	slog.L().Debug("commit start ", zap.String("plugin", b.Name()), zap.Uint64("tipHeight", b.tipHeight))
 	return b.commit()
 }
 
@@ -260,40 +257,40 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 }
 
 func (b *clickhouseV1Plugin) commit() error {
-	slog.L().Debug("put blocks ", zap.String("plugin", b.Name()), zap.Int("size", len(b.blocks)))
 	if len(b.blocks) > 0 {
 		if err := chDB.Model(&BlockV1{}).CreateInBatches(b.blocks, len(b.blocks)+1).Error; err != nil {
 			slog.L().Error("put blocks ", zap.String("plugin", b.Name()), zap.Int("size", len(b.blocks)))
 			return err
 		}
+		b.blocks = b.blocks[:0]
 	}
-	slog.L().Debug("put actions ", zap.String("plugin", b.Name()), zap.Int("actions", len(b.actions)))
 	if len(b.actions) > 0 {
 		if err := chDB.Model(&ActionV1{}).CreateInBatches(b.actions, len(b.actions)+1).Error; err != nil {
 			slog.L().Error("put actions ", zap.String("plugin", b.Name()), zap.Int("actions", len(b.actions)))
 			return err
 		}
+		b.actions = b.actions[:0]
 	}
-	slog.L().Debug("put logs ", zap.String("plugin", b.Name()), zap.Int("logs", len(b.logs)))
 	if len(b.logs) > 0 {
 		if err := chDB.Model(&LogV1{}).CreateInBatches(b.logs, len(b.logs)+1).Error; err != nil {
 			slog.L().Error("put logs ", zap.String("plugin", b.Name()), zap.Int("logs", len(b.logs)))
 			return err
 		}
+		b.logs = b.logs[:0]
 	}
-	slog.L().Debug("put transactionsLogs ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
 	if len(b.transactionLogs) > 0 {
 		if err := chDB.Model(&TransactionLogV1{}).CreateInBatches(b.transactionLogs, len(b.transactionLogs)+1).Error; err != nil {
 			slog.L().Error("put transactionsLogs ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
 			return err
 		}
+		b.transactionLogs = b.transactionLogs[:0]
 	}
-	slog.L().Debug("put accountIncome ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
 	if len(b.accountIncome) > 0 {
 		if err := chDB.Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, len(b.accountIncome)+1).Error; err != nil {
 			slog.L().Error("put accountIncome ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
 			return err
 		}
+		b.accountIncome = b.accountIncome[:0]
 	}
 	return db.UpdateIndexHeight(b.Name(), b.tipHeight)
 }

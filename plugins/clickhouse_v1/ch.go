@@ -93,12 +93,6 @@ func (b *clickhouseV1Plugin) Start(ctx context.Context) error {
 func (b clickhouseV1Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	startTime := float64(time.Now().UnixNano()) / 1e9
 	for _, blk := range blks {
-		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Uint64("height", blk.Height()))
-		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("block", len(b.blocks)))
-		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("action", len(b.actions)))
-		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("log", len(b.logs)))
-		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("transactionLogs", len(b.transactionLogs)))
-		slog.L().Info("putBlock ", zap.String("plugin", b.Name()), zap.Int("accountIncome", len(b.accountIncome)))
 		if err := b.putBlock(ctx, blk); err != nil {
 			return err
 		}

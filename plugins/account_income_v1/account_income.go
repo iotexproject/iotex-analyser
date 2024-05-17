@@ -158,20 +158,16 @@ func getIncomes(blk *block.Block) (map[string]income, error) {
 }
 
 func (b *accountIncomeV1Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
-	slog.L().Info("PutBlocks ", zap.String("plugin", b.Name()), zap.Int("blocks", len(b.accountIncome)))
-	slog.L().Info("PutBlocks ", zap.String("plugin", b.Name()), zap.Int("actions", len(b.accountIncomeCountMap)))
 	startTime := float64(time.Now().UnixNano()) / 1e9
 	for _, blk := range blks {
 		if err := b.putBlock(ctx, blk); err != nil {
 			return err
 		}
 	}
-	slog.L().Info("PutBlocks end", zap.String("plugin", b.Name()), zap.Int("actions", len(b.accountIncomeCountMap)))
 
 	server.OpDurationMtc.WithLabelValues("account_income_v1", "putBlocks").Set(float64(time.Now().UnixNano())/1e9 - startTime)
 	b.tipHeight = blks[0].Height() + uint64(len(blks))
 	err := b.commit()
-	slog.L().Info("PutBlocks end commit", zap.String("plugin", b.Name()), zap.Int("actions", len(b.accountIncomeCountMap)))
 	return err
 }
 

@@ -46,8 +46,8 @@ func (b clickhouseV1Plugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b clickhouseV1Plugin) BatchSize() uint64 {
-	return uint64(b.batchSize)
+func (b clickhouseV1Plugin) BatchSize() int {
+	return b.batchSize
 }
 
 func (b *clickhouseV1Plugin) Start(ctx context.Context) error {

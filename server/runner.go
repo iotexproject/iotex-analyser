@@ -238,6 +238,7 @@ func (r *runner) Start(ctx context.Context) error {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 
 						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
+							actionNum := 0
 							for ; nextHeight <= tipHeight; nextHeight++ {
 								blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 								if err != nil {
@@ -249,8 +250,9 @@ func (r *runner) Start(ctx context.Context) error {
 									)
 									break
 								}
+								actionNum += len(blk.Actions)
 								blks = append(blks, blk)
-								if nextHeight%p.BatchSize() == 0 || nextHeight == tipHeight {
+								if actionNum >= p.BatchSize() || nextHeight == tipHeight {
 									break
 								}
 							}

@@ -35,8 +35,8 @@ import (
 
 var (
 	OpDurationMtc = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "plugin_putBlocks_metrics",
-		Help: "plugin putBlocks metrics.",
+		Name: "plugin_op_metrics",
+		Help: "plugin op metrics.",
 	}, []string{"plugin", "op"})
 
 	serverMetrics = prometheus.NewGaugeVec(

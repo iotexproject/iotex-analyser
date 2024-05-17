@@ -215,7 +215,7 @@ func (b *accountIncomeV1Plugin) commit() error {
 	startTime := float64(time.Now().UnixNano()) / 1e9
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		if len(b.accountIncome) > 0 {
-			if err := db.DB().Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, len(b.accountIncome)+1).Error; err != nil {
+			if err := db.DB().Model(&AccountIncomeV1{}).CreateInBatches(b.accountIncome, 2000).Error; err != nil {
 				slog.L().Error("put accountIncome ", zap.String("plugin", b.Name()), zap.Int("size", len(b.accountIncome)))
 				b.accountIncome = b.accountIncome[:0]
 				return err
@@ -230,7 +230,7 @@ func (b *accountIncomeV1Plugin) commit() error {
 			if err := db.DB().Model(&AccountIncomeCountV1{}).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "id"}},
 				DoUpdates: clause.AssignmentColumns([]string{"address", "in_flow", "in_num_actions", "out_flow", "out_num_actions"}),
-			}).CreateInBatches(accountIncomeCounts, len(accountIncomeCounts)+1).Error; err != nil {
+			}).CreateInBatches(accountIncomeCounts, 2000).Error; err != nil {
 				slog.L().Error("put accountIncomeCounts ", zap.String("plugin", b.Name()), zap.Int("size", len(accountIncomeCounts)))
 				b.accountIncomeCountMap = make(map[string]*AccountIncomeCountV1)
 				return err

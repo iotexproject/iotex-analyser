@@ -9,7 +9,7 @@ import (
 )
 
 /*
-CREATE TABLE blocks_v1
+CREATE TABLE blocks
 (
 
 	`block_height` UInt64,
@@ -45,11 +45,11 @@ type BlockV1 struct {
 }
 
 func (BlockV1) TableName() string {
-	return "blocks_v1"
+	return "blocks"
 }
 
 /*
-CREATE TABLE actions_v1
+CREATE TABLE actions
 (
 
 	`block_height` UInt64,
@@ -95,11 +95,11 @@ type ActionV1 struct {
 }
 
 func (ActionV1) TableName() string {
-	return "actions_v1"
+	return "actions"
 }
 
 /*
-CREATE TABLE logs_v1
+CREATE TABLE logs
 (
 
 	`block_height` UInt64,
@@ -131,11 +131,11 @@ type LogV1 struct {
 }
 
 func (LogV1) TableName() string {
-	return "logs_v1"
+	return "logs"
 }
 
 /*
-CREATE TABLE transaction_logs_v1
+CREATE TABLE transaction_logs
 (
 
 	`block_height` UInt64,
@@ -161,11 +161,11 @@ type TransactionLogV1 struct {
 }
 
 func (TransactionLogV1) TableName() string {
-	return "transaction_logs_v1"
+	return "transaction_logs"
 }
 
 /*
-CREATE TABLE account_incomes_v1
+CREATE TABLE account_incomes
 (
 
 	`block_height` UInt64,
@@ -189,7 +189,7 @@ type AccountIncomeV1 struct {
 }
 
 func (AccountIncomeV1) TableName() string {
-	return "account_incomes_v1"
+	return "account_incomes"
 }
 
 func isContractAddress(addr string) bool {

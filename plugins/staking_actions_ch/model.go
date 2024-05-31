@@ -7,7 +7,7 @@ import (
 )
 
 /*
-CREATE TABLE testnet.staking_actions
+CREATE TABLE staking_actions
 (
 
 	`block_height` UInt64,

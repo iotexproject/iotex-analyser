@@ -100,7 +100,7 @@ func (b stakingActionChPlugin) getBucketInfoAddressFromCacheByBucketID(bucketID 
 		}
 	}
 
-	if err := chDB.Model(&StakingActions{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=? and toDecimal128(amount, 10) > 0", bucketID).Order("block_height, index desc").Limit(1).Scan(&bi).Error; err != nil {
+	if err := chDB.Model(&StakingActions{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=? and toDecimal128(amount, 10) > 0", bucketID).Order("block_height desc, index desc").Limit(1).Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil

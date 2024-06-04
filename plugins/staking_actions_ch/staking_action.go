@@ -112,14 +112,14 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 		act := selp.Action()
 		actionHash, _ := selp.Hash()
 		actHash := hex.EncodeToString(actionHash[:])
-		cmpNum := big.NewInt(100000000)
+		//cmpNum := big.NewInt(100000000)
 		for _, log := range receipt.Logs() {
 			if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
 				bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
 
-				if bucketIndex.Cmp(cmpNum) > 0 {
-					continue
-				}
+				//if bucketIndex.Cmp(cmpNum) > 0 {
+				//	continue
+				//}
 				bucketMap[actHash] = bucketIndex.Uint64()
 			}
 		}

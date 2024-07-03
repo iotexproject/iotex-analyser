@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"github.com/iotexproject/iotex-analyser/server"
 	"math/big"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
@@ -98,7 +98,7 @@ func (b clickhouseV1Plugin) PutBlocks(ctx context.Context, blks []*block.Block) 
 		}
 	}
 	server.OpDurationMtc.WithLabelValues("clickhouse_v1", "putBlocks").Set(float64(time.Now().UnixNano())/1e9 - startTime)
-	b.tipHeight = blks[0].Height() + uint64(len(blks))
+	b.tipHeight = blks[0].Height() + uint64(len(blks)) - 1
 	return b.commit()
 }
 

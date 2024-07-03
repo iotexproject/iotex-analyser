@@ -79,7 +79,7 @@ func (b stakingActionChPlugin) PutBlocks(ctx context.Context, blks []*block.Bloc
 			return err
 		}
 	}
-	b.tipHeight = blks[0].Height() + uint64(len(blks))
+	b.tipHeight = blks[0].Height() + uint64(len(blks)) - 1
 	return b.commit()
 }
 

@@ -166,7 +166,7 @@ func (b *accountIncomeV1Plugin) PutBlocks(ctx context.Context, blks []*block.Blo
 	}
 
 	server.OpDurationMtc.WithLabelValues("account_income_v1", "putBlocks").Set(float64(time.Now().UnixNano())/1e9 - startTime)
-	b.tipHeight = blks[0].Height() + uint64(len(blks))
+	b.tipHeight = blks[0].Height() + uint64(len(blks)) - 1
 	err := b.commit()
 	return err
 }

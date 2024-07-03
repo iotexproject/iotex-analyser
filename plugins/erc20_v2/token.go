@@ -127,7 +127,7 @@ func (b *tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error 
 		}
 	}
 
-	b.tipHeight = blks[0].Height() + uint64(len(blks))
+	b.tipHeight = blks[0].Height() + uint64(len(blks)) - 1
 	err := b.commit()
 	return err
 }

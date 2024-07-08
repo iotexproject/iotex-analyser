@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
@@ -45,6 +46,7 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
 			OwnerAddress:    a.OwnerAddress().String(),
+			CandidateID: 	 a.OwnerAddress().String(),
 			RewardAddress:   a.RewardAddress().String(),
 			Amount:          decimal.NewFromBigInt(a.Amount(), 0),
 			ActType:         "CandidateRegister",
@@ -60,13 +62,76 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 		if a.RewardAddress() != nil {
 			rewardAddress = a.RewardAddress().String()
 		}
+
+		candidate := &models.Candidate{}	
+		if err := candidate.FetchByNameWithHeight(a.Name(), blkHeight); err != nil {
+			return err
+		}
+
 		createData := models.Candidate{
 			BlockHeight:     blkHeight,
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
 			OwnerAddress:    sender.String(),
 			RewardAddress:   rewardAddress,
+			CandidateID: candidate.CandidateID,
 			ActType:         "CandidateUpdate",
+		}
+		if err := tx.Create(&createData).Error; err != nil {
+			return err
+		}
+	case *action.CandidateTransferOwnership:
+		newOwner := ""
+		if a.NewOwner() != nil {
+			newOwner = a.NewOwner().String()
+		}
+
+		candidate := &models.Candidate{}	
+		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
+			return err
+		}
+
+		createData := models.Candidate{
+			BlockHeight:     blkHeight,
+			Name:            candidate.Name,
+			OperatorAddress: candidate.OperatorAddress,
+			RewardAddress: candidate.RewardAddress,
+			OwnerAddress:    newOwner,
+			CandidateID: candidate.CandidateID,
+			ActType:         "CandidateTransferOwnership",
+		}
+		if err := tx.Create(&createData).Error; err != nil {
+			return err
+		}
+	// navtive bucket
+	case *action.CandidateActivate:
+		bucketID := a.BucketID()
+		bucket, err := GetStakingBucketByID(bucketID, blkHeight)
+		if err != nil {
+			return err
+		}
+
+		candidate := &models.Candidate{}	
+		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight); err != nil {
+			return err
+		}
+
+		amount, ok := new(big.Int).SetString(bucket.StakedAmount, 10)
+		if !ok {
+			return errors.New("failed to parse bucket staked amount")
+		}
+		createData := models.Candidate{
+			BlockHeight:     blkHeight,
+			Name:            candidate.Name,
+			OperatorAddress: candidate.OperatorAddress,
+			OwnerAddress:    candidate.OwnerAddress,
+			CandidateID: candidate.CandidateID,
+			RewardAddress:   candidate.RewardAddress,
+			Amount:          decimal.NewFromBigInt(amount, 0),
+			ActType:         "CandidateActivate",
+			AutoStake:       bucket.AutoStake,
+			Duration:        bucket.StakedDuration,
+			Payload:         candidate.Payload,
 		}
 		if err := tx.Create(&createData).Error; err != nil {
 			return err

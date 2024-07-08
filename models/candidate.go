@@ -14,6 +14,7 @@ type Candidate struct {
 	OperatorAddress string          `gorm:"size:42;not null;default:'';"`
 	RewardAddress   string          `gorm:"size:42;not null;default:'';"`
 	OwnerAddress    string          `gorm:"size:42;not null;default:'';"`
+	CandidateID string `gorm:"size:42;not null;default:'';"`
 	Amount          decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	Duration        uint32          `gorm:"not null;" sql:"type:bigint"`
 	ActType         string
@@ -35,6 +36,20 @@ func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 		return nil, err
 	}
 	return m, err
+}
+
+func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64) error {
+	var err error
+	db := db.DB()
+	err = db.Model(m).Where("block_height <=? and owner_address = ?", height, owner).Order("block_height desc,id desc").Take(&m).Error
+	return err
+}
+
+func (m *Candidate) FetchByCandidateIDWithHeight(candidateID string, height uint64) error {
+	var err error
+	db := db.DB()
+	err = db.Model(m).Where("block_height <=? and candidate_id = ?", height, candidateID).Order("block_height desc,id desc").Take(&m).Error
+	return err
 }
 
 func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {

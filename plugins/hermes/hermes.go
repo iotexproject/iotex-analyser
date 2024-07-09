@@ -231,7 +231,7 @@ func (b hermesPlugin) updateStakingResult(tx *gorm.DB, candidates *iotextypes.Ca
 			DelegateName:              encodedName,
 			OperatorAddress:           candidate.OperatorAddress,
 			RewardAddress:             candidate.RewardAddress,
-			StakingAddress:            candidate.OwnerAddress,
+			StakingAddress:            candidate.Id,
 			TotalWeightedVotes:        totalWeightedVotes,
 			SelfStaking:               selfStakingTokens,
 			BlockRewardPercentage:     decimal.NewFromFloat(blockRewardPortion),

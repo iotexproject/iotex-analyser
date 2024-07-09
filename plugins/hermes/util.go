@@ -576,7 +576,7 @@ func getLog(contractAddress string, from, count uint64, chainClient iotexapi.API
 func ownerAddressToNameMap(candidates *iotextypes.CandidateListV2) (ret map[string]string, err error) {
 	ret = make(map[string]string)
 	for _, can := range candidates.Candidates {
-		ret[can.OwnerAddress] = can.Name
+		ret[can.Id] = can.Name
 	}
 	return
 }
@@ -622,7 +622,7 @@ func stakingProbationListToMap(candidateList *iotextypes.CandidateListV2, probat
 			for _, pb := range probationList {
 				intensityRate = float64(uint64(100)-pb.IntensityRate) / float64(100)
 				if pb.Address == can.OperatorAddress {
-					probationMap[can.OwnerAddress] = pb.Count
+					probationMap[can.Id] = pb.Count
 				}
 			}
 		}

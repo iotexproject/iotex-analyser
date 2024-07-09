@@ -6,43 +6,52 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 )
 
 const VERSION = "2.0.7"
 
 type candidatePlugin struct {
+	batchSize             int
+	tipHeight             uint64
+	candidateDatas []*Candidate
 }
 
 func (b candidatePlugin) Name() string {
-	return "candidate"
+	return "candidate_v1"
 }
 
 func (b candidatePlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b candidatePlugin) Start(ctx context.Context) error {
-	if err := db.AutoMigrate(b.Name(), &models.Candidate{}); err != nil {
+func (b candidatePlugin) BatchSize() int {
+	return b.batchSize
+}
+
+
+func (b *candidatePlugin) Start(ctx context.Context) error {
+	if err := db.AutoMigrate(b.Name(), &Candidate{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
 	return nil
 }
 
-func handleAction(act action.Action, blkHeight uint64, sender address.Address, tx *gorm.DB) error {
+func (b *candidatePlugin) handleAction(act action.Action, blkHeight uint64, sender address.Address) error {
 	switch a := act.(type) {
 	case *action.CandidateRegister:
-		createData := models.Candidate{
+		createData := &Candidate{
 			BlockHeight:     blkHeight,
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
@@ -55,21 +64,19 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			Duration:        a.Duration(),
 			Payload:         a.Payload(),
 		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
-		}
+		b.candidateDatas = append(b.candidateDatas, createData)
 	case *action.CandidateUpdate:
 		rewardAddress := ""
 		if a.RewardAddress() != nil {
 			rewardAddress = a.RewardAddress().String()
 		}
 
-		candidate := &models.Candidate{}
-		if err := candidate.FetchByNameWithHeight(a.Name(), blkHeight); err != nil {
+		candidate := &Candidate{}
+		if err := candidate.FetchByNameWithHeight(a.Name(), blkHeight, b.candidateDatas); err != nil {
 			return err
 		}
 
-		createData := models.Candidate{
+		createData := &Candidate{
 			BlockHeight:     blkHeight,
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
@@ -78,21 +85,19 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			CandidateID:     candidate.CandidateID,
 			ActType:         "CandidateUpdate",
 		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
-		}
+		b.candidateDatas = append(b.candidateDatas, createData)
 	case *action.CandidateTransferOwnership:
 		newOwner := ""
 		if a.NewOwner() != nil {
 			newOwner = a.NewOwner().String()
 		}
 
-		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
+		candidate := &Candidate{}
+		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight, b.candidateDatas); err != nil {
 			return err
 		}
 
-		createData := models.Candidate{
+		createData := &Candidate{
 			BlockHeight:     blkHeight,
 			Name:            candidate.Name,
 			OperatorAddress: candidate.OperatorAddress,
@@ -101,9 +106,7 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			CandidateID:     candidate.CandidateID,
 			ActType:         "CandidateTransferOwnership",
 		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
-		}
+		b.candidateDatas = append(b.candidateDatas, createData)
 	// navtive bucket
 	case *action.CandidateActivate:
 		bucketID := a.BucketID()
@@ -112,8 +115,8 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			return err
 		}
 
-		candidate := &models.Candidate{}
-		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight); err != nil {
+		candidate := &Candidate{}
+		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight, b.candidateDatas); err != nil {
 			return err
 		}
 
@@ -122,7 +125,7 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 		if !ok {
 			return errors.New("failed to parse bucket staked amount")
 		}
-		createData := models.Candidate{
+		createData := &Candidate{
 			BlockHeight:     blkHeight,
 			Name:            candidate.Name,
 			OperatorAddress: candidate.OperatorAddress,
@@ -135,15 +138,32 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			Duration:        bucket.StakedDuration,
 			Payload:         candidate.Payload,
 		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
-		}
+		b.candidateDatas = append(b.candidateDatas, createData)
 	}
 	return nil
 }
+
+func (b *candidatePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+
+	b.tipHeight = blks[0].Height() + uint64(len(blks)) - 1
+	return b.commit()
+}
+
 func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *candidatePlugin) putBlock(ctx context.Context, blk *block.Block) error {
+	actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
 			actionHash, _ := selp.Hash()
 			actions[actionHash] = selp
@@ -158,11 +178,23 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				continue
 			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			if err := handleAction(selp.Action(), blk.Height(), sender, tx); err != nil {
+			b.handleAction(selp.Action(), blk.Height(), sender)
+		}
+
+	return nil
+}
+
+func (b *candidatePlugin) commit() error {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		if len(b.candidateDatas) > 0 {
+			if err := db.DB().Model(&Candidate{}).CreateInBatches(b.candidateDatas, 2000).Error; err != nil {
+				slog.L().Error("put candidateDatas ", zap.String("plugin", b.Name()), zap.Int("size", len(b.candidateDatas)))
+				b.candidateDatas = b.candidateDatas[:0]
 				return err
 			}
+			b.candidateDatas = b.candidateDatas[:0]
 		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), b.tipHeight)
 	})
 	return err
 }

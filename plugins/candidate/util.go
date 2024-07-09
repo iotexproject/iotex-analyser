@@ -65,7 +65,7 @@ func getStakingBuckets(chainClient iotexapi.APIServiceClient, offset, limit uint
 		Arguments:  [][]byte{argumentsBytes},
 		Height:     fmt.Sprintf("%d", height),
 	}
-	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_COMPOSITE_BUCKETS)
+	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_BUCKETS)
 	readStateRes, err := chainClient.ReadState(ctx, readStateRequest)
 	if err != nil {
 		return

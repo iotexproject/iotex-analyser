@@ -4,6 +4,10 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+	
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
@@ -12,9 +16,6 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
-	"github.com/pkg/errors"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 )
 
 const VERSION = "2.0.7"
@@ -116,6 +117,7 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 			return err
 		}
 
+		// TODO amount is the staked amount at the epoch height not block height 
 		amount, ok := new(big.Int).SetString(bucket.StakedAmount, 10)
 		if !ok {
 			return errors.New("failed to parse bucket staked amount")

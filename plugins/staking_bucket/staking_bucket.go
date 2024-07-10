@@ -27,6 +27,8 @@ const (
 	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
 )
 
+var unSelfStake *big.Int
+
 type stakingBucketPlugin struct {
 	fixingStakeAmount bool
 }
@@ -47,6 +49,13 @@ func (b stakingBucketPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.StakingBucket{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
+
+	var ok bool
+	unSelfStake, ok = new(big.Int).SetString("000000000000000000000000000000000000000000000000ffffffffffffffff", 16) 
+	if !ok {
+		return errors.New("can not convert string to bigint with plugin %s:" + b.Name())
+	}
+
 	return nil
 }
 
@@ -118,14 +127,14 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			act := selp.Action()
 			actionHash, _ := selp.Hash()
 			actHash := hex.EncodeToString(actionHash[:])
-			cmpNum := big.NewInt(100000000)
+			// cmpNum := big.NewInt(100000000)
 			for _, log := range receipt.Logs() {
 				if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
 					bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
 
-					if bucketIndex.Cmp(cmpNum) > 0 {
-						continue
-					}
+					// if bucketIndex.Cmp(cmpNum) > 0 {
+					// 	continue
+					// }
 					bucketMap[actHash] = bucketIndex.Uint64()
 				}
 			}
@@ -368,27 +377,30 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if !ok {
 					return errors.New("can not found bucketID with actHash:" + actHash)
 				}
-				stakedAmount := decimal.NewFromBigInt(a.Amount(), 0)
-				voteWeight := getVoteWeight(a.Duration(), a.Amount(), a.AutoStake(), true)
 
-				stakingBucket = models.StakingBucket{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					CreateTime:   blk.Timestamp().Unix(),
-					StakedAmount: stakedAmount,
-					VotingPower:  decimal.NewFromBigInt(voteWeight, 0),
-					Sender:       sender.String(),
-					OwnerAddress: a.OwnerAddress().String(),
-					ActionHash:   actHash,
-					Candidate:    a.OwnerAddress().String(),
-					Amount:       decimal.NewFromBigInt(a.Amount(), 0),
-					ActType:      "CandidateRegister",
-					AutoStake:    a.AutoStake(),
-					Duration:     a.Duration(),
-					Timestamp:    blk.Timestamp().Unix(),
-				}
-				if err := tx.Create(&stakingBucket).Error; err != nil {
-					return err
+				if bucketID != unSelfStake.Uint64() {
+					stakedAmount := decimal.NewFromBigInt(a.Amount(), 0)
+					voteWeight := getVoteWeight(a.Duration(), a.Amount(), a.AutoStake(), true)
+
+					stakingBucket = models.StakingBucket{
+						BlockHeight:  blk.Height(),
+						BucketID:     bucketID,
+						CreateTime:   blk.Timestamp().Unix(),
+						StakedAmount: stakedAmount,
+						VotingPower:  decimal.NewFromBigInt(voteWeight, 0),
+						Sender:       sender.String(),
+						OwnerAddress: a.OwnerAddress().String(),
+						ActionHash:   actHash,
+						Candidate:    a.OwnerAddress().String(),
+						Amount:       decimal.NewFromBigInt(a.Amount(), 0),
+						ActType:      "CandidateRegister",
+						AutoStake:    a.AutoStake(),
+						Duration:     a.Duration(),
+						Timestamp:    blk.Timestamp().Unix(),
+					}
+					if err := tx.Create(&stakingBucket).Error; err != nil {
+						return err
+					}
 				}
 			}
 		}

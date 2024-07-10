@@ -32,6 +32,8 @@ const (
 	errBucketInfoAddressByBucketID = "getBucketInfoAddressByBucketID error"
 )
 
+var unSelfStake *big.Int
+
 type stakingActionPlugin struct {
 }
 
@@ -51,6 +53,13 @@ func (b stakingActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.StakingActions{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
+
+	var ok bool
+	unSelfStake, ok = new(big.Int).SetString("000000000000000000000000000000000000000000000000ffffffffffffffff", 16) 
+	if !ok {
+		return errors.New("can not convert string to bigint with plugin %s:" + b.Name())
+	}
+
 	return nil
 }
 
@@ -78,14 +87,14 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			act := selp.Action()
 			actionHash, _ := selp.Hash()
 			actHash := hex.EncodeToString(actionHash[:])
-			cmpNum := big.NewInt(100000000)
+			// cmpNum := big.NewInt(100000000)
 			for _, log := range receipt.Logs() {
 				if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
 					bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
 
-					if bucketIndex.Cmp(cmpNum) > 0 {
-						continue
-					}
+					// if bucketIndex.Cmp(cmpNum) > 0 {
+					// 	continue
+					// }
 					bucketMap[actHash] = bucketIndex.Uint64()
 				}
 			}
@@ -282,20 +291,23 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				if !ok {
 					return errors.New("can not found bucketID with actHash:" + actHash)
 				}
-				stakingAction = models.StakingActions{
-					BlockHeight:  blk.Height(),
-					BucketID:     bucketID,
-					Sender:       sender.String(),
-					OwnerAddress: a.OwnerAddress().String(),
-					ActHash:      actHash,
-					Candidate:    a.OwnerAddress().String(),
-					Amount:       decimal.NewFromBigInt(a.Amount(), 0),
-					ActType:      "CandidateRegister",
-					AutoStake:    a.AutoStake(),
-					Duration:     a.Duration(),
-				}
-				if err := tx.Create(&stakingAction).Error; err != nil {
-					return err
+
+				if bucketID != unSelfStake.Uint64() {
+					stakingAction = models.StakingActions{
+						BlockHeight:  blk.Height(),
+						BucketID:     bucketID,
+						Sender:       sender.String(),
+						OwnerAddress: a.OwnerAddress().String(),
+						ActHash:      actHash,
+						Candidate:    a.OwnerAddress().String(),
+						Amount:       decimal.NewFromBigInt(a.Amount(), 0),
+						ActType:      "CandidateRegister",
+						AutoStake:    a.AutoStake(),
+						Duration:     a.Duration(),
+					}
+					if err := tx.Create(&stakingAction).Error; err != nil {
+						return err
+					}
 				}
 			}
 		}

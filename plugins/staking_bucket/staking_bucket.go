@@ -402,6 +402,66 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 						return err
 					}
 				}
+			case *action.MigrateStake:
+				bucketID := a.BucketIndex()
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decimal.NewFromInt(0),
+					VotingPower:      decimal.NewFromInt(0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        false,
+					ActType:          "MigrateStake",
+					Duration:         0,
+					Amount:           decimal.NewFromInt(0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
+			case *action.CandidateEndorsement:
+				bucketID := a.BucketIndex()
+				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				bucket, err := GetStakingBucketByID(bucketID, blk.Height())
+				if err != nil {
+					return err
+				}
+
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     decimal.NewFromInt(0),
+					VotingPower:      decimal.NewFromInt(0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        false,
+					ActType:          "MigrateStake",
+					EndorsementExpireHeight: bucket.EndorsementExpireBlockHeight,
+					Duration:         0,
+					Amount:           decimal.NewFromInt(0),
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(&stakingBucket).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

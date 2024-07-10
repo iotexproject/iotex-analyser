@@ -21,6 +21,8 @@ import (
 
 const VERSION = "2.0.7"
 
+var CandidateEndorsementOpRevokeHash256 hash.Hash256
+
 type candidatePlugin struct {
 	batchSize             int
 	tipHeight             uint64
@@ -45,10 +47,12 @@ func (b *candidatePlugin) Start(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
+	CandidateEndorsementOpRevokeHash256 = hash.BytesToHash256([]byte("candidateEndorsementWithOp"))
+
 	return nil
 }
 
-func (b *candidatePlugin) handleAction(act action.Action, blkHeight uint64, sender address.Address) error {
+func (b *candidatePlugin) handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sender address.Address) error {
 	switch a := act.(type) {
 	case *action.CandidateRegister:
 		createData := &Candidate{
@@ -139,6 +143,35 @@ func (b *candidatePlugin) handleAction(act action.Action, blkHeight uint64, send
 			Payload:         candidate.Payload,
 		}
 		b.candidateDatas = append(b.candidateDatas, createData)
+	case *action.CandidateEndorsement:
+		switch a.Op() {
+		case action.CandidateEndorsementOpRevoke:
+			var candidateID address.Address
+			for _, log := range logs {
+				if log.Address == "" || len(log.Topics) < 2 {
+					continue
+				}
+				// candidateEndorsementWithOp(uint64, address, uint32)
+				if log.Topics[0] == CandidateEndorsementOpRevokeHash256 {
+					// candidateID = common.BytesToAddress(log.Topics[2][:])
+					candidateID, _ = address.FromBytes(log.Topics[2][:])
+					candidate := &Candidate{}
+					if err := candidate.FetchByCandidateIDWithHeight(candidateID.String(), blkHeight, b.candidateDatas); err != nil {
+						return err
+					}
+					createData := &Candidate{
+						BlockHeight:     blkHeight,
+						Name:            candidate.Name,
+						OperatorAddress: candidate.OperatorAddress,
+						RewardAddress:   candidate.RewardAddress,
+						OwnerAddress:    candidate.OwnerAddress,
+						CandidateID:     candidate.CandidateID,
+						ActType:         "CandidateEndorsement-CandidateEndorsementOpRevoke",
+					}
+					b.candidateDatas = append(b.candidateDatas, createData)
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -178,7 +211,7 @@ func (b *candidatePlugin) putBlock(ctx context.Context, blk *block.Block) error 
 				continue
 			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			b.handleAction(selp.Action(), blk.Height(), sender)
+			b.handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender)
 		}
 
 	return nil

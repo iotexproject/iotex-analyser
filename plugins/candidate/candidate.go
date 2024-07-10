@@ -20,6 +20,8 @@ import (
 
 const VERSION = "2.0.7"
 
+var CandidateEndorsementOpRevokeHash256 hash.Hash256
+
 type candidatePlugin struct {
 }
 
@@ -36,10 +38,12 @@ func (b candidatePlugin) Start(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
+	CandidateEndorsementOpRevokeHash256 = hash.BytesToHash256([]byte("candidateEndorsementWithOp"))
+
 	return nil
 }
 
-func handleAction(act action.Action, blkHeight uint64, sender address.Address, tx *gorm.DB) error {
+func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sender address.Address, tx *gorm.DB) error {
 	switch a := act.(type) {
 	case *action.CandidateRegister:
 		createData := models.Candidate{
@@ -138,6 +142,37 @@ func handleAction(act action.Action, blkHeight uint64, sender address.Address, t
 		if err := tx.Create(&createData).Error; err != nil {
 			return err
 		}
+	case *action.CandidateEndorsement:
+		switch a.Op() {
+		case action.CandidateEndorsementOpRevoke:
+			var candidateID address.Address
+			for _, log := range logs {
+				if log.Address == "" || len(log.Topics) < 2 {
+					continue
+				}
+				// candidateEndorsementWithOp(uint64, address, uint32)
+				if log.Topics[0] == CandidateEndorsementOpRevokeHash256 {
+					// candidateID = common.BytesToAddress(log.Topics[2][:])
+					candidateID, _ = address.FromBytes(log.Topics[2][:])
+					candidate := &models.Candidate{}
+					if err := candidate.FetchByCandidateIDWithHeight(candidateID.String(), blkHeight); err != nil {
+						return err
+					}
+					createData := models.Candidate{
+						BlockHeight:     blkHeight,
+						Name:            candidate.Name,
+						OperatorAddress: candidate.OperatorAddress,
+						RewardAddress:   candidate.RewardAddress,
+						OwnerAddress:    candidate.OwnerAddress,
+						CandidateID:     candidate.CandidateID,
+						ActType:         "CandidateEndorsement-CandidateEndorsementOpRevoke",
+					}
+					if err := tx.Create(&createData).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -158,7 +193,7 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 				continue
 			}
 			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			if err := handleAction(selp.Action(), blk.Height(), sender, tx); err != nil {
+			if err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, tx); err != nil {
 				return err
 			}
 		}

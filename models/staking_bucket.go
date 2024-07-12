@@ -30,7 +30,6 @@ func (StakingBucket) TableName() string {
 type SystemStakingBucket struct {
 	ID                   uint64          `gorm:"primary_key;" sql:"type:bigint"`
 	BlockHeight          uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ContractAddress      string          `gorm:"size:42;not null;default:'';index:,length:9"`
 	BucketID             uint64          `gorm:"unsigned;index"`
 	CreateTime           int64           `gorm:"type:int4;unsigned;not null;default:0"`
 	StakeStartTime       int64           `gorm:"type:int4;unsigned;not null;default:0"`
@@ -51,4 +50,29 @@ type SystemStakingBucket struct {
 
 func (SystemStakingBucket) TableName() string {
 	return "system_staking_buckets"
+}
+
+type SystemStakingBucketV2 struct {
+	ID                   uint64          `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight          uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+	BucketID             uint64          `gorm:"unsigned;index"`
+	CreateTime           int64           `gorm:"type:int4;unsigned;not null;default:0"`
+	StakeStartTime       int64           `gorm:"type:int4;unsigned;not null;default:0"`
+	UnstakeStartTime     int64           `gorm:"type:int4;unsigned;not null;default:0"`
+	StakedAmount         decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	VotingPower          decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	OwnerAddress         string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	DelegateOwnerAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Amount               decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	EventType            string          `gorm:"size:42;not null;default:'';index"`
+	Sender               string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Recipient            string          `gorm:"size:42;not null;default:'';index:,length:9"`
+	Timestamp            int64           `gorm:"type:int4;unsigned;not null;default:0"`
+	ActHash              string
+	AutoStake            bool
+	Duration             uint32 //means block number
+}
+
+func (SystemStakingBucketV2) TableName() string {
+	return "system_staking_buckets_v2"
 }

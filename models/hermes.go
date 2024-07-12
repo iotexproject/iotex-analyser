@@ -51,6 +51,20 @@ func (HermesAggregateVoting) TableName() string {
 	return "hermes_aggregate_votings"
 }
 
+type HermesBucketVoting struct {
+	ID             uint64          `gorm:"primary_key;" sql:"type:bigint"`
+	EpochNumber    uint64          `gorm:"unsigned;index" sql:"type:bigint"`
+	CandidateName  string          `gorm:"size:42;index;not null"`
+	VoterAddress   string          `gorm:"size:42;index;not null"`
+	NativeFlag     bool            `gorm:"type:bool;not null;default:false"`
+	BucketID uint64 `gorm:"unsigned;index"`
+	Votes decimal.Decimal `gorm:"type:decimal(60,0);not null"`
+}
+
+func (HermesBucketVoting) TableName() string {
+	return "hermes_bucket_votings"
+}
+
 type HermesAccountReward struct {
 	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
 	EpochNumber     uint64          `gorm:"unsigned;index" sql:"type:bigint"`

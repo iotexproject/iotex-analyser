@@ -200,6 +200,16 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					return err
 				}
 			}
+			err = tx.Model(&models.HermesBucketVoting{}).Where("epoch_number = ?", epochNum).Count(&count).Error
+			if err != nil {
+				return err
+			}
+			if count == 0 {
+				// update bucket_voting and voting_meta table
+				if err = b.updateBucketStaking(blkHeight, tx, voteBucketList, candidateList, epochNum, probationList); err != nil {
+					return err
+				}
+			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
@@ -371,6 +381,97 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 	}
 	return tx.CreateInBatches(batches, 100).Error
 }
+
+func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *iotextypes.VoteBucketList, delegates *iotextypes.CandidateListV2, epochNumber uint64, probationList *iotextypes.ProbationCandidateList) (err error) {
+	nameMap, err := ownerAddressToNameMap(delegates)
+	if err != nil {
+		return errors.Wrap(err, "owner address to name map error")
+	}
+	pb := convertProbationListToLocal(probationList)
+	intensityRate, probationMap := stakingProbationListToMap(delegates, pb)
+	selfStakeIndex := selfStakeIndexMap(delegates)
+	lsdBuckets := make([]*iotextypes.VoteBucket, 0)
+	bucketBatches := make([]models.HermesBucketVoting, 0)
+	for _, vote := range votes.Buckets {
+		if _, ok := nameMap[vote.CandidateAddress]; !ok {
+			// the candidate is no longer active (and non-eligible for reward)
+			// vote is not counted
+			continue
+		}
+		//lsd buckets
+		if vote.ContractAddress != "" {
+			lsdBuckets = append(lsdBuckets, vote)
+			continue
+		}
+		//for sumOfWeightedVotes
+		key := aggregateKey{
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      true,
+		}
+		selfStake := false
+		if _, ok := selfStakeIndex[vote.Index]; ok {
+			selfStake = true
+		}
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+		if err != nil {
+			return errors.Wrap(err, "failed to calculate vote weight")
+		}
+
+		if _, ok := probationMap[key.candidateName]; ok {
+			// filter based on probation
+			votingPower := new(big.Float).SetInt(weightedAmount)
+			weightedAmount, _ = votingPower.Mul(votingPower, big.NewFloat(intensityRate)).Int(nil)
+		}
+		bucketBatches = append(bucketBatches, models.HermesBucketVoting{
+			EpochNumber:   key.epochNumber,
+			CandidateName: nameMap[key.candidateName],
+			VoterAddress:  key.voterAddress,
+			NativeFlag:    key.isNative,
+			BucketID:      vote.Index,
+			Votes:         decimal.NewFromBigInt(weightedAmount, 0),
+		})
+	}
+	for _, vote := range lsdBuckets {
+		key := aggregateKey{
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      false,
+		}
+		selfStake := false
+
+		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
+		if !ok {
+			return errors.New("failed to convert string to big int")
+		}
+		weightedAmount := stakeAmount
+		if blkHeight >= config.Default.Genesis.RedseaBlockHeight {
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+			if err != nil {
+				return errors.Wrap(err, "failed to calculate vote weight")
+			}
+		}
+
+		if _, ok := probationMap[key.candidateName]; ok {
+			// filter based on probation
+			votingPower := new(big.Float).SetInt(weightedAmount)
+			weightedAmount, _ = votingPower.Mul(votingPower, big.NewFloat(intensityRate)).Int(nil)
+		}
+		bucketBatches = append(bucketBatches, models.HermesBucketVoting{
+			EpochNumber:   key.epochNumber,
+			CandidateName: nameMap[key.candidateName],
+			VoterAddress:  key.voterAddress,
+			NativeFlag:    key.isNative,
+			BucketID:      vote.Index,
+			Votes:         decimal.NewFromBigInt(weightedAmount, 0),
+		})
+	}
+	
+	return tx.CreateInBatches(bucketBatches, 100).Error
+}
+
 func (b hermesPlugin) Stop(ctx context.Context) error {
 	return nil
 }

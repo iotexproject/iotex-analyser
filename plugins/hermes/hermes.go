@@ -81,6 +81,7 @@ func (b hermesPlugin) Start(ctx context.Context) error {
 		&models.HermesVotingResult{},
 		&models.HermesAccountReward{},
 		&models.HermesVotingMeta{},
+		&models.HermesBucketVoting{},
 	); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}

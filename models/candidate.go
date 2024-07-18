@@ -62,13 +62,22 @@ func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {
 func GetAllCandidates() (Candidates, error) {
 	var candidates Candidates
 	db := db.DB()
-	result := db.Model(&Candidate{}).Where("id in (select max(id) from candidate group by owner_address)").Find(&candidates)
+	result := db.Model(&Candidate{}).Where("id in (select max(id) from candidate group by candidate_id)").Find(&candidates)
 	return candidates, result.Error
 }
 
 func (m Candidates) ByOwnerAddress(addr string) (Candidate, error) {
 	for _, cand := range m {
 		if cand.OwnerAddress == addr {
+			return cand, nil
+		}
+	}
+	return Candidate{}, errors.New("not found: " + addr)
+}
+
+func (m Candidates) ByCandidateID(addr string) (Candidate, error) {
+	for _, cand := range m {
+		if cand.CandidateID == addr {
 			return cand, nil
 		}
 	}

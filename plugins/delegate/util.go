@@ -157,7 +157,7 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 	for _, staking := range stakings {
 		delegate, ok := delegateMap[staking.Candidate]
 		if !ok {
-			cand, err := candidates.ByOwnerAddress(staking.Candidate)
+			cand, err := candidates.ByCandidateID(staking.Candidate)
 			if err != nil {
 				return delegateMap, err
 			}

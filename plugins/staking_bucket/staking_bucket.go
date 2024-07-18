@@ -453,7 +453,7 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					ActionHash:       actHash,
 					Candidate:        info.Candidate,
 					AutoStake:        false,
-					ActType:          "MigrateStake",
+					ActType:          "CandidateEndorsement",
 					EndorsementExpireHeight: bucket.EndorsementExpireBlockHeight,
 					Duration:         0,
 					Amount:           decimal.NewFromInt(0),

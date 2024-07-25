@@ -69,7 +69,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 		}
 
 		candidate := &models.Candidate{}
-		if err := candidate.FetchByNameWithHeight(a.Name(), blkHeight); err != nil {
+		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
 			return err
 		}
 

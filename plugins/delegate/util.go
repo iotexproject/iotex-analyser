@@ -154,6 +154,30 @@ outerLoop:
 func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
+	for _, cand := range getNotStakeCandidateList(candidates, stakings) {
+		if _, ok := delegateMap[cand.CandidateID]; !ok {
+			active := false
+			productionNum := 0
+			//cand.OperatorAddress is block producer address
+			if productivity, ok := delegateActives[cand.OperatorAddress]; ok {
+				active = true
+				productionNum = productivity
+			}
+			delegate := &Delegate{
+				Name:            cand.Name,
+				OwnerAddress:    cand.OwnerAddress,
+				Candidate:       cand.CandidateID,
+				OperatorAddress: cand.OperatorAddress,
+				RewardAddress:   cand.RewardAddress,
+				Active:          active,
+				StakeAmount:     big.NewInt(0),
+				VoteWeight:      big.NewInt(0),
+				SelfStake:       false,
+				Productivity:    productionNum,
+			}
+			delegateMap[cand.CandidateID] = delegate
+		}
+	}
 	for _, staking := range stakings {
 		delegate, ok := delegateMap[staking.Candidate]
 		if !ok {
@@ -243,6 +267,22 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		}
 	}
 	return delegateMap, nil
+}
+
+func getNotStakeCandidateList(candidates models.Candidates, stakings []*Staking) models.Candidates {
+	stakingsMap := make(map[string]struct{})
+	for _, stakeing := range stakings {
+		stakingsMap[stakeing.Candidate] = struct{}{}
+	}
+
+	var cs models.Candidates
+	for _, candidate := range candidates {
+		if _, found := stakingsMap[candidate.CandidateID]; !found {
+			cs = append(cs, candidate)
+		}
+	}
+
+	return cs
 }
 
 type Staking struct {

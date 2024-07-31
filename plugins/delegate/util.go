@@ -78,12 +78,16 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	systemStakingsV2, err := getSystemStakingV2(pluginHeight)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	delegateActives := getDelegateActive(pluginHeight)
 	candidates, err := models.GetAllCandidates()
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	delegateMap, err := getDelegateMap(epochNumber, stakings, systemStakings, candidates, delegateActives, bucketSumAmount)
+	delegateMap, err := getDelegateMap(epochNumber, stakings, systemStakings, systemStakingsV2, candidates, delegateActives, bucketSumAmount)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -151,7 +155,7 @@ outerLoop:
 	return err
 }
 
-func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
+func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings, systemStakingsV2 []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
 	for _, cand := range getNotStakeCandidateList(candidates, stakings) {
@@ -226,6 +230,18 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings []*S
 		delegateMap[staking.Candidate] = delegate
 	}
 	for _, staking := range systemStakings {
+		delegate, ok := delegateMap[staking.DelegateOwnerAddress]
+		if !ok {
+			continue
+		}
+		stakeAmount, _ := big.NewInt(0).SetString(staking.StakedAmount, 0)
+		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
+		voteWeight, _ := big.NewInt(0).SetString(staking.VotingPower, 0)
+		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
+		totalVotes = totalVotes.Add(totalVotes, voteWeight)
+		delegateMap[staking.DelegateOwnerAddress] = delegate
+	}
+	for _, staking := range systemStakingsV2 {
 		delegate, ok := delegateMap[staking.DelegateOwnerAddress]
 		if !ok {
 			continue
@@ -408,6 +424,25 @@ func getCandidateStaking(height uint64) ([]*Staking, error) {
 func getSystemStaking(height uint64) ([]*SystemStakingBucket, error) {
 	db := db.DB()
 	query := "select t1.* from system_staking_buckets t1 INNER JOIN (select MAX(id)AS max_id  from system_staking_buckets t4 where block_height<=? GROUP BY bucket_id) as t2 on t2.max_id=t1.id"
+	rows, err := db.Raw(query, height).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results []*SystemStakingBucket
+	for rows.Next() {
+		av := new(SystemStakingBucket)
+		if err := db.ScanRows(rows, av); err != nil {
+			return nil, err
+		}
+		results = append(results, av)
+	}
+	return results, nil
+}
+
+func getSystemStakingV2(height uint64) ([]*SystemStakingBucket, error) {
+	db := db.DB()
+	query := "select t1.* from system_staking_buckets_v2 t1 INNER JOIN (select MAX(id)AS max_id  from system_staking_buckets_v2 t4 where block_height<=? GROUP BY bucket_id) as t2 on t2.max_id=t1.id"
 	rows, err := db.Raw(query, height).Rows()
 	if err != nil {
 		return nil, err

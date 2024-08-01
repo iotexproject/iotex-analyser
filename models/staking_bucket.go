@@ -17,7 +17,7 @@ type StakingBucket struct {
 	ActType                 string          `gorm:"size:42;not null;default:'';index"`
 	Sender                  string          `gorm:"size:42;not null;default:'';index:,length:9"`
 	ActionHash              string          `gorm:"size:64;not null;index:,length:9"`
-	EndorsementExpireHeight uint64          `gorm:"unsigned;not null;default:0" sql:"type:bigint"`
+	EndorsementExpireHeight uint64          `gorm:"type:numeric;not null;default:0"`
 	Timestamp               int64           `gorm:"type:int4;unsigned;not null;default:0"`
 	AutoStake               bool
 	Duration                uint32

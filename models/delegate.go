@@ -27,7 +27,7 @@ type DelegateRecord struct {
 	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
 	OperatorAddress string          `gorm:"size:42;not null;default:'';"`
 	RewardAddress   string          `gorm:"size:42;not null;default:'';"`
-	OwnerAddress    string          `gorm:"size:42;not null;default:'';uniqueIndex"`
+	OwnerAddress    string          `gorm:"size:42;not null;default:'';"`
 	Candidate       string          `gorm:"size:42;not null;default:'';"`
 	Active          bool            `gorm:"type:bool;not null;default:false"`
 	Name            string          `gorm:"size:42;not null;default:'';"`

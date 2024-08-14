@@ -96,7 +96,7 @@ type SystemStakingBucketRecord struct {
 	ActHash              string
 	AutoStake            bool
 	Duration             uint32 //means block number
-	Final                bool   `gorm:"type:bool;not null;default:true"`
+	Final                bool   `gorm:"type:bool;not null;default:false"`
 }
 
 func (SystemStakingBucketRecord) TableName() string {
@@ -122,7 +122,7 @@ type SystemStakingBucketV2Record struct {
 	ActHash              string
 	AutoStake            bool
 	Duration             uint32 //means block number
-	Final                bool   `gorm:"type:bool;not null;default:true"`
+	Final                bool   `gorm:"type:bool;not null;default:false"`
 }
 
 func (SystemStakingBucketV2Record) TableName() string {

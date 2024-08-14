@@ -125,6 +125,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            true, //default true
 						Duration:             duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -133,25 +134,26 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					from, _ := address.FromBytes(log.Topics[1][:])
 					to, _ := address.FromBytes(log.Topics[2][:])
 					bucketId := new(big.Int).SetBytes(log.Topics[3][:])
-					// if from.String() == address.ZeroAddress {
+					if from.String() == address.ZeroAddress {
 						//mint skip
-						// stakingBucket = models.SystemStakingBucketV2Record{
-						// 	BlockHeight:          blk.Height(),
-						// 	BucketID:             bucketId.Uint64(),
-						// 	OwnerAddress:         to.String(),
-						// 	Sender:               sender.String(),
-						// 	ActHash:              actHash,
-						// 	CreateTime:           blk.Timestamp().Unix(),
-						// 	StakeStartTime:       0,
-						// 	UnstakeStartTime:     0,
-						// 	DelegateOwnerAddress: "",
-						// 	AutoStake:            false,
-						// 	EventType:            "Transfer",
-						// 	Duration:             0,
-						// 	Amount:               decimal.NewFromInt(0),
-						// 	Timestamp:            blk.Timestamp().Unix(),
-						// }
-					if from.String() != address.ZeroAddress {
+						stakingBucket = models.SystemStakingBucketV2Record{
+							BlockHeight:          blk.Height(),
+							BucketID:             bucketId.Uint64(),
+							OwnerAddress:         to.String(),
+							Sender:               sender.String(),
+							ActHash:              actHash,
+							CreateTime:           blk.Timestamp().Unix(),
+							StakeStartTime:       0,
+							UnstakeStartTime:     0,
+							DelegateOwnerAddress: "",
+							AutoStake:            false,
+							EventType:            "Transfer",
+							Duration:             0,
+							Amount:               decimal.NewFromInt(0),
+							Timestamp:            blk.Timestamp().Unix(),
+							Final:                false,
+						}
+					} else {
 						info, err := getBucketInfoAddressByBucketID(tx, bucketId.Uint64())
 						if err != nil {
 							return errors.Wrap(err, errBucketInfoAddressByBucketID)
@@ -175,9 +177,13 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							Duration:             info.Duration,
 							Amount:               zeroAmount,
 							Timestamp:            blk.Timestamp().Unix(),
+							Final:                true,
 						}
 					}
-					
+					if err := tx.Create(&stakingBucket).Error; err != nil {
+						return err
+					}
+
 				case "Unstaked": // Unstaked(uint256 indexed bucketId)
 					bucketId := new(big.Int).SetBytes(log.Topics[1][:])
 					decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketId.Uint64())
@@ -206,6 +212,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						Duration:             info.Duration,
 						Amount:               decmailAmount.Mul(decimal.NewFromInt(-1)),
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -247,6 +254,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            autoStake,
 						Duration:             duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -281,6 +289,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            false,
 						Duration:             info.Duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -288,8 +297,8 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 				case "Merged": // Merged(uint256[] bucketIds, uint256 amount, uint256 duration)
 					event := struct {
 						bucketIds []*big.Int
-						Amount   *big.Int
-						Duration *big.Int
+						Amount    *big.Int
+						Duration  *big.Int
 					}{}
 					err := _systemStakingContractABIV2.UnpackIntoInterface(&event, "Merged", log.Data)
 					if err != nil {
@@ -323,6 +332,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							AutoStake:            info.AutoStake,
 							Duration:             info.Duration,
 							Timestamp:            blk.Timestamp().Unix(),
+							Final:                true,
 						}
 						if err := tx.Create(&stakingBucket).Error; err != nil {
 							return err
@@ -358,6 +368,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            autoStake,
 						Duration:             duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -403,6 +414,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            autoStake,
 						Duration:             duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -440,6 +452,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            info.AutoStake,
 						Duration:             info.Duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -470,6 +483,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						Duration:             0,
 						Amount:               decimal.NewFromInt(0),
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err
@@ -482,7 +496,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						return err
 					}
 					event := struct {
-						Amount   *big.Int
+						Amount *big.Int
 					}{}
 					err = _systemStakingContractABIV2.UnpackIntoInterface(&event, "Donated", log.Data)
 					if err != nil {
@@ -511,6 +525,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						AutoStake:            info.AutoStake,
 						Duration:             info.Duration,
 						Timestamp:            blk.Timestamp().Unix(),
+						Final:                true,
 					}
 					if err := tx.Create(&stakingBucket).Error; err != nil {
 						return err

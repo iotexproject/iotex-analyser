@@ -40,7 +40,7 @@ type DelegateRecord struct {
 	VoteWeight      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	Probated        bool            `gorm:"type:bool;not null;default:false"`
 	SelfStake       bool
-	Timestamp       time.Time `gorm:"type:timestamp;index:,expression:(timestamp::date);default:CURRENT_TIMESTAMP AT TIME ZONE 'UTC'"`
+	Timestamp       time.Time `gorm:"type:timestamp;index:,expression:(timestamp::date);default:timezone('UTC', now())"`
 }
 
 func (DelegateRecord) TableName() string {

@@ -41,7 +41,7 @@ func (b delegatePlugin) Start(ctx context.Context) error {
 			case <-b.stop:
 				return
 			case <-ticker.C:
-				if err := delegate(); err != nil {
+				if err := delegate(ctx); err != nil {
 					log.L().Warn("failed to delegate record", zap.Error(err))
 				}
 			}

@@ -35,8 +35,9 @@ type Delegate struct {
 	Productivity    int
 }
 
-func delegate() error {
+func delegate(ctx context.Context) error {
 	log.L().Debug("delegate record start")
+	blockTime := time.Now().UTC()
 	pluginHeight, err := db.GetIndexHeight("staking_actions")
 	if err != nil {
 		return errors.WithStack(err)
@@ -46,6 +47,11 @@ func delegate() error {
 		log.L().Warn("currentlly no self stake status, please check hermes_voting_results table", zap.Uint64("epoch_number", epochNumber))
 		return nil
 	}
+	blk, err := kernel.GetBlockByHeightFromChain(ctx, pluginHeight)
+	if err == nil {
+		blockTime = time.Unix(blk.Timestamp().Unix(), 0)
+	}
+
 	// request := &iotexapi.GetEpochMetaRequest{EpochNumber: epochNumber}
 	// chainClient := kernel.ChainClient()
 	// epochMeta, err := chainClient.GetEpochMeta(context.Background(), request)
@@ -112,6 +118,7 @@ func delegate() error {
 				SelfStake:       d.SelfStake,
 				Productivity:    d.Productivity,
 				Probated:        probated,
+				Timestamp:       blockTime,
 			}
 			if err := tx.Create(&modelDelegate).Error; err != nil {
 				return err

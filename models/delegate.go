@@ -1,6 +1,10 @@
 package models
 
-import "github.com/shopspring/decimal"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type Delegate struct {
 	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
@@ -36,6 +40,7 @@ type DelegateRecord struct {
 	VoteWeight      decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	Probated        bool            `gorm:"type:bool;not null;default:false"`
 	SelfStake       bool
+	Timestamp       time.Time `gorm:"type:timestamp;index:,expression:(timestamp::date);default:CURRENT_TIMESTAMP AT TIME ZONE 'UTC'"`
 }
 
 func (DelegateRecord) TableName() string {

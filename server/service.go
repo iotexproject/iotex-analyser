@@ -66,20 +66,20 @@ type RunnerStat struct {
 }
 
 type Service struct {
-	stop   chan bool
-	once   *sync.Once
+	stop     chan bool
+	once     *sync.Once
 	iotexSer *itx.Server
-	dao    blockdao.BlockDAO
-	logger *zap.Logger
+	dao      blockdao.BlockDAO
+	logger   *zap.Logger
 }
 
 func NewService(iotexSer *itx.Server) *Service {
 	s := &Service{
-		stop:   make(chan bool, 1),
-		once:   new(sync.Once),
+		stop:     make(chan bool, 1),
+		once:     new(sync.Once),
 		iotexSer: iotexSer,
-		dao:    iotexSer.ChainService(iotexSer.Config().Chain.ID).BlockDAO(),
-		logger: log.Logger("service"),
+		dao:      iotexSer.ChainService(iotexSer.Config().Chain.ID).BlockDAO(),
+		logger:   log.Logger("service"),
 	}
 	return s
 }
@@ -163,7 +163,7 @@ func (s *Service) registerPlugin(plug iap.Adapter) error {
 		return errors.Errorf("the plugin `%s(%s)` has been registered", plug.Name(), plug.Version())
 	}
 	//load plugin
-	runner, err := newRunner(PluginStatusLoaded, plug, s.iotexSer, s.dao)
+	runner, err := newRunner(PluginStatusLoaded, plug, s.iotexSer)
 	if err != nil {
 		return err
 	}

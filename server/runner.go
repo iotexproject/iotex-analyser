@@ -72,7 +72,7 @@ func GetRunnerStats() RunnerStats {
 }
 
 type runner struct {
-	iotexSer *itx.Server
+	iotexSer  *itx.Server
 	dao       blockdao.BlockDAO
 	plugin    plugin.Adapter
 	status    pluginStatus
@@ -83,10 +83,10 @@ type runner struct {
 	mu        sync.RWMutex
 }
 
-func newRunner(status pluginStatus, p plugin.Adapter, iotexSer *itx.Server, dao blockdao.BlockDAO) (*runner, error) {
+func newRunner(status pluginStatus, p plugin.Adapter, iotexSer *itx.Server) (*runner, error) {
 	r := &runner{
-		iotexSer: iotexSer,
-		dao:       dao,
+		iotexSer:  iotexSer,
+		dao:       iotexSer.ChainService(iotexSer.Config().Chain.ID).BlockDAO(),
 		status:    status,
 		plugin:    p,
 		logger:    log.Logger("runner"),

@@ -131,6 +131,7 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 				s.logger.Warn("failed to make plugin config", zap.Error(err), zap.String("plugin", name))
 			}
 		}
+		s.logger.Info("plugin loaded", zap.String("name", name), zap.String("cfg", string(pluginCfg)), zap.Int("cfg len", len(pluginCfg)))
 		pluginCtx := kernel.WithPluginConfigCtx(ctx, pluginCfg)
 		switch plugin.Status() {
 		case PluginStatusUnload:

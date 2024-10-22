@@ -1,68 +1,110 @@
 package main
 
 import (
-	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
 
-var (
-	versionSuffix = "_v" + strings.ReplaceAll(VERSION, ".", "_")
-)
+/*
+CREATE TABLE erc721_transfers
+(
 
+	`block_height` UInt64,
+	`action_hash` String,
+	`contract_address` String,
+	`token_id` String,
+	`sender` String,
+	`recipient` String,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, action_hash, contract_address, token_id, sender, recipient, timestamp)
+*/
 type Erc721Transfer struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string          `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	TokenId         decimal.Decimal `gorm:"type:decimal(76,0);not null;default:0;"`
-	Sender          string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Recipient       string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Timestamp       time.Time       `gorm:"type:timestamp;"`
+	BlockHeight     uint64
+	ActionHash      string
+	ContractAddress string
+	TokenId         decimal.Decimal
+	Sender          string
+	Recipient       string
+	Timestamp       time.Time
 }
 
 func (Erc721Transfer) TableName() string {
-	return "erc721_transfers" + versionSuffix
+	return "erc721_transfers"
 }
 
+/*
+CREATE TABLE erc721_approvals
+(
+
+	`block_height` UInt64,
+	`action_hash` String,
+	`contract_address` String,
+	`owner` String,
+	`approved` String,
+	`token_id` String,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, action_hash, contract_address, owner, approved, token_id, timestamp)
+*/
 type Erc721Approval struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string          `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Owner           string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Approved        string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	TokenId         decimal.Decimal `gorm:"type:decimal(76,0);not null;default:0;"`
-	Timestamp       time.Time       `gorm:"type:timestamp;"`
+	BlockHeight     uint64
+	ActionHash      string
+	ContractAddress string
+	Owner           string
+	Approved        string
+	TokenId         decimal.Decimal
+	Timestamp       time.Time
 }
 
 func (Erc721Approval) TableName() string {
-	return "erc721_approvals" + versionSuffix
+	return "erc721_approvals"
 }
 
+/*
+CREATE TABLE erc721_holders
+(
+
+	`contract_address` String,
+	`holder` String,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree ORDER BY (contract_address, holder)
+*/
 type Erc721Holder struct {
-	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
-	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
-	Holder          string    `gorm:"size:42;not null;default:'';index:,length:9"`
-	Timestamp       time.Time `gorm:"type:timestamp;"`
+	ContractAddress string
+	Holder          string
 }
 
 func (Erc721Holder) TableName() string {
-	return "erc721_holders" + versionSuffix
+	return "erc721_holders"
 }
 
+/*
+CREATE TABLE erc721_approval_for_alls
+(
+
+	`block_height` UInt64,
+	`action_hash` String,
+	`contract_address` String,
+	`owner` String,
+	`operator` String,
+	`approved` Bool,
+	`timestamp` DateTime64(3)
+
+) ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(timestamp) ORDER BY (block_height, action_hash, contract_address, owner, operator, approved, timestamp)
+*/
 type Erc721ApprovalForAll struct {
-	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64    `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string    `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
-	Owner           string    `gorm:"size:42;not null;default:'';index:,length:9"`
-	Operator        string    `gorm:"size:42;not null;default:'';index:,length:9"`
-	Approved        bool      `gorm:"type:bool;not null;default:false"`
-	Timestamp       time.Time `gorm:"type:timestamp;"`
+	BlockHeight     uint64
+	ActionHash      string
+	ContractAddress string
+	Owner           string
+	Operator        string
+	Approved        bool
+	Timestamp       time.Time
 }
 
 func (Erc721ApprovalForAll) TableName() string {
-	return "erc721_approval_for_alls" + versionSuffix
+	return "erc721_approval_for_alls"
 }

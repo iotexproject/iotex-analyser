@@ -80,7 +80,7 @@ type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc721_ch_" + VERSION
+	return "erc721_ch"
 }
 
 func (b tokenPlugin) Type() plugin.Type {
@@ -245,7 +245,6 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					model := Erc721Holder{
 						ContractAddress: log.Address,
 						Holder:          addr,
-						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Where("contract_address = ? and holder= ?", log.Address, addr).First(&model).Error; err != nil {
 						if err != gorm.ErrRecordNotFound {

@@ -114,14 +114,6 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 	if err := initAddress(); err != nil {
 		return errors.Wrap(err, "cannot init address")
 	}
-	if err := b.db.AutoMigrate(
-		&Erc721Transfer{},
-		&Erc721Holder{},
-		&Erc721Approval{},
-		&Erc721ApprovalForAll{},
-	); err != nil {
-		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
-	}
 	return nil
 }
 

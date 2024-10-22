@@ -42,9 +42,10 @@ func (Erc721Approval) TableName() string {
 }
 
 type Erc721Holder struct {
-	ID              uint64 `gorm:"primary_key;" sql:"type:bigint"`
-	ContractAddress string `gorm:"size:42;not null;default:'';index:,length:9"`
-	Holder          string `gorm:"size:42;not null;default:'';index:,length:9"`
+	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
+	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Holder          string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Timestamp       time.Time `gorm:"type:timestamp;"`
 }
 
 func (Erc721Holder) TableName() string {

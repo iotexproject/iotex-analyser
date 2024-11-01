@@ -315,12 +315,25 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 				case "Merged": // Merged(uint256[] bucketIds, uint256 amount, uint256 duration)
 					event := struct {
 						bucketIds []*big.Int
-						Amount   *big.Int
-						Duration *big.Int
+						Amount    *big.Int
+						Duration  *big.Int
 					}{}
-					err := _systemStakingContractABIV2.UnpackIntoInterface(&event, "Merged", log.Data)
+					eventMap := make(map[string]interface{})
+					err := _systemStakingContractABIV2.UnpackIntoMap(eventMap, "Merged", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
+					}
+					event.bucketIds, ok = eventMap["bucketIds"].([]*big.Int)
+					if !ok {
+						return errors.New("bucketIds type error")
+					}
+					event.Amount, ok = eventMap["amount"].(*big.Int)
+					if !ok {
+						return errors.New("amount type error")
+					}
+					event.Duration, ok = eventMap["duration"].(*big.Int)
+					if !ok {
+						return errors.New("duration type error")
 					}
 					decmailAmount := decimal.NewFromBigInt(event.Amount, 0)
 					//Here the amount of tokenIDs from the second tokenID are added to the first tokenID
@@ -531,7 +544,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						return err
 					}
 					event := struct {
-						Amount   *big.Int
+						Amount *big.Int
 					}{}
 					err = _systemStakingContractABIV2.UnpackIntoInterface(&event, "Donated", log.Data)
 					if err != nil {

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	glog "log"
 	"math/big"
 	"net"
 	"net/http"
@@ -13,6 +14,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/go-pkgs/util/httputil"
@@ -25,12 +31,12 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	itxconfig "github.com/iotexproject/iotex-core/config"
+	"github.com/iotexproject/iotex-core/db/trie/mptrie"
 	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/pkg/recovery"
+	"github.com/iotexproject/iotex-core/server/itx"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
-	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
 )
 
 var (
@@ -60,6 +66,7 @@ var (
 type Server struct {
 	m         sync.RWMutex
 	dao       blockdao.BlockDAO
+	iotexSer  *itx.Server
 	service   *Service
 	logger    *zap.Logger
 	isRunning *kernel.AtomicBool
@@ -89,8 +96,11 @@ func (srv *Server) Start(ctx context.Context) error {
 	// }
 	srv.isRunning.Set(true)
 
-	if err := srv.startDaoService(); err != nil {
-		return errors.Wrap(err, "failed to start blockdao service")
+	// if err := srv.startDaoService(); err != nil {
+	// 	return errors.Wrap(err, "failed to start blockdao service")
+	// }
+	if err := srv.startIotexService(); err != nil {
+		return errors.Wrap(err, "failed to start iotex service")
 	}
 
 	if config.Default.Server.Http != "" {
@@ -265,6 +275,83 @@ func (srv *Server) startHTTPService() error {
 	return nil
 }
 
+func (srv *Server) startIotexService() error {
+	ctx := context.Background()
+	iotex, err := newIotex(ctx, "./genesis_mainnet.yaml", "./config_mainnet.yaml")
+	if err != nil {
+		log.L().Fatal("Failed to new iotex service", zap.Error(err))
+	}
+
+	if err := iotex.Start(ctx); err != nil {
+		log.L().Fatal("Failed to start server.", zap.Error(err))
+	}
+	// srv.dao = iotex.ChainService(iotex.Config().Chain.ID).BlockDAO()
+	srv.iotexSer = iotex
+	return nil
+}
+
+func newIotex(ctx context.Context, genesisPath, overwritePath string) (*itx.Server, error) {
+	genesisCfg, err := genesis.New(genesisPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to new genesis config.")
+	}
+	// set genesis timestamp
+	genesis.SetGenesisTimestamp(genesisCfg.Timestamp)
+	if genesis.Timestamp() == 0 {
+		return nil, errors.New("Genesis timestamp is not set, call genesis.New() first")
+	}
+	// load genesis block's hash
+	block.LoadGenesisHash(&genesisCfg)
+	if block.GenesisHash() == hash.ZeroHash256 {
+		glog.Fatalln("")
+		return nil, errors.New("Genesis hash is not set, call block.LoadGenesisHash() first")
+	}
+
+	cfg, err := itxconfig.New([]string{overwritePath, ""}, []string{})
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to new config.")
+	}
+
+	if err = recovery.SetCrashlogDir(cfg.System.SystemLogDBPath); err != nil {
+		return nil, errors.Wrap(err, "Failed to set directory of crashlog")
+	}
+	defer recovery.Recover()
+
+	// check EVM network ID and chain ID
+	if cfg.Chain.EVMNetworkID == 0 || cfg.Chain.ID == 0 {
+		return nil, errors.New("EVM Network ID or Chain ID is not set, call config.New() first")
+	}
+
+	cfg.Genesis = genesisCfg
+	cfgToLog := cfg
+	cfgToLog.Chain.ProducerPrivKey = ""
+	cfgToLog.Network.MasterKey = ""
+	log.S().Infof("Config in use: %+v", cfgToLog)
+	log.S().Infof("EVM Network ID: %d, Chain ID: %d", cfg.Chain.EVMNetworkID, cfg.Chain.ID)
+	log.S().Infof("Genesis timestamp: %d", genesisCfg.Timestamp)
+	log.S().Infof("Genesis hash: %x", block.GenesisHash())
+
+	if cfg.System.MptrieLogPath != "" {
+		if err = mptrie.OpenLogDB(cfg.System.MptrieLogPath); err != nil {
+			return nil, errors.Wrap(err, "Failed to open mptrie log DB.")
+		}
+		defer func() {
+			if err = mptrie.CloseLogDB(); err != nil {
+				log.L().Error("Failed to close mptrie log DB.", zap.Error(err))
+			}
+		}()
+	}
+
+	// create and start the node
+	svr, err := itx.NewServer(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create iotex server.")
+	}
+
+	return svr, nil
+}
+
+
 func (srv *Server) startDaoService() error {
 	var tip protocol.TipInfo
 	ctxDao := protocol.WithBlockchainCtx(
@@ -325,7 +412,8 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 		return err
 	}
 
-	service := NewService(srv.dao)
+	service := NewService(srv.iotexSer)
+	// service := NewService(srv.dao)
 	if err := service.Start(ctx); err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/server/itx"
 	"github.com/pkg/errors"
 	"github.com/rodaine/table"
 	"go.uber.org/zap"
@@ -65,18 +66,20 @@ type RunnerStat struct {
 }
 
 type Service struct {
-	stop   chan bool
-	once   *sync.Once
-	dao    blockdao.BlockDAO
-	logger *zap.Logger
+	stop     chan bool
+	once     *sync.Once
+	iotexSer *itx.Server
+	dao      blockdao.BlockDAO
+	logger   *zap.Logger
 }
 
-func NewService(dao blockdao.BlockDAO) *Service {
+func NewService(iotexSer *itx.Server) *Service {
 	s := &Service{
-		stop:   make(chan bool, 1),
-		once:   new(sync.Once),
-		dao:    dao,
-		logger: log.Logger("service"),
+		stop:     make(chan bool, 1),
+		once:     new(sync.Once),
+		iotexSer: iotexSer,
+		dao:      iotexSer.ChainService(iotexSer.Config().Chain.ID).BlockDAO(),
+		logger:   log.Logger("service"),
 	}
 	return s
 }
@@ -160,7 +163,7 @@ func (s *Service) registerPlugin(plug iap.Adapter) error {
 		return errors.Errorf("the plugin `%s(%s)` has been registered", plug.Name(), plug.Version())
 	}
 	//load plugin
-	runner, err := newRunner(PluginStatusLoaded, plug, s.dao)
+	runner, err := newRunner(PluginStatusLoaded, plug, s.iotexSer)
 	if err != nil {
 		return err
 	}

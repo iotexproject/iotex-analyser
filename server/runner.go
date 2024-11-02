@@ -13,6 +13,7 @@ import (
 	"github.com/iotexproject/iotex-core/blockchain/block"
 	"github.com/iotexproject/iotex-core/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/server/itx"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -71,6 +72,7 @@ func GetRunnerStats() RunnerStats {
 }
 
 type runner struct {
+	iotexSer  *itx.Server
 	dao       blockdao.BlockDAO
 	plugin    plugin.Adapter
 	status    pluginStatus
@@ -81,9 +83,10 @@ type runner struct {
 	mu        sync.RWMutex
 }
 
-func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*runner, error) {
+func newRunner(status pluginStatus, p plugin.Adapter, iotexSer *itx.Server) (*runner, error) {
 	r := &runner{
-		dao:       dao,
+		iotexSer:  iotexSer,
+		dao:       iotexSer.ChainService(iotexSer.Config().Chain.ID).BlockDAO(),
 		status:    status,
 		plugin:    p,
 		logger:    log.Logger("runner"),

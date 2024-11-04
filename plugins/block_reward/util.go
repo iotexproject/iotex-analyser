@@ -2,16 +2,14 @@ package main
 
 import (
 	"encoding/hex"
-	"math/big"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/v2/action"
-	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
 	"github.com/millken/gocache"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
@@ -26,41 +24,7 @@ func getCandidateNameByAddress(tx *gorm.DB, addr string) (string, error) {
 	return name.(string), err
 }
 
-func getRewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, error) {
-	rewardInfoMap := make(map[string]*RewardInfo)
-	for _, l := range receipt.Logs() {
-		rewardLog := &rewardingpb.RewardLog{}
-		if err := proto.Unmarshal(l.Data, rewardLog); err != nil {
-			return nil, errors.Wrap(err, "failed to unmarshal receipt data into reward log")
-		}
-		rewards, ok := rewardInfoMap[rewardLog.Addr]
-		if !ok {
-			rewardInfoMap[rewardLog.Addr] = &RewardInfo{
-				BlockReward:     big.NewInt(0),
-				EpochReward:     big.NewInt(0),
-				FoundationBonus: big.NewInt(0),
-			}
-			rewards = rewardInfoMap[rewardLog.Addr]
-		}
-		amount, ok := big.NewInt(0).SetString(rewardLog.Amount, 10)
-		if !ok {
-			return nil, errors.New("failed to convert reward amount from string to big int")
-		}
-		switch rewardLog.Type {
-		case rewardingpb.RewardLog_BLOCK_REWARD:
-			rewards.BlockReward.Add(rewards.BlockReward, amount)
-		case rewardingpb.RewardLog_EPOCH_REWARD:
-			rewards.EpochReward.Add(rewards.EpochReward, amount)
-		case rewardingpb.RewardLog_FOUNDATION_BONUS:
-			rewards.FoundationBonus.Add(rewards.FoundationBonus, amount)
-		default:
-			return nil, errors.New("Unknown type of reward")
-		}
-	}
-	return rewardInfoMap, nil
-}
-
-func handleRewardInfoMap(tx *gorm.DB, blkHeight uint64, epochNum uint64, receipt *action.Receipt, rewardInfoMap map[string]*RewardInfo) error {
+func handleRewardInfoMap(tx *gorm.DB, blkHeight uint64, epochNum uint64, receipt *action.Receipt, rewardInfoMap map[string]*kernel.RewardInfo) error {
 	if len(rewardInfoMap) == 0 {
 		return nil
 	}

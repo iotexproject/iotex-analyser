@@ -3,10 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/big"
 
-	"github.com/iotexproject/iotex-core/v2/action"
-	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -82,38 +79,4 @@ func getStakingCandidates(chainClient iotexapi.APIServiceClient, offset, limit u
 		return nil, errors.Wrap(err, "failed to unmarshal VoteBucketList")
 	}
 	return
-}
-
-func handleLogs(logs []*action.Log) (map[string]*RewardInfo, error) {
-	rewardInfoMap := make(map[string]*RewardInfo)
-	for _, l := range logs {
-		rewardLog := &rewardingpb.RewardLog{}
-		if err := proto.Unmarshal(l.Data, rewardLog); err != nil {
-			return rewardInfoMap, errors.Wrap(err, "failed to unmarshal receipt data into reward log")
-		}
-		rewards, ok := rewardInfoMap[rewardLog.Addr]
-		if !ok {
-			rewardInfoMap[rewardLog.Addr] = &RewardInfo{
-				RewardHistory:   big.NewInt(0),
-				EpochReward:     big.NewInt(0),
-				FoundationBonus: big.NewInt(0),
-			}
-			rewards = rewardInfoMap[rewardLog.Addr]
-		}
-		amount, ok := big.NewInt(0).SetString(rewardLog.Amount, 10)
-		if !ok {
-			return rewardInfoMap, errors.New("failed to convert reward amount from string to big int")
-		}
-		switch rewardLog.Type {
-		case rewardingpb.RewardLog_BLOCK_REWARD:
-			rewards.RewardHistory.Add(rewards.RewardHistory, amount)
-		case rewardingpb.RewardLog_EPOCH_REWARD:
-			rewards.EpochReward.Add(rewards.EpochReward, amount)
-		case rewardingpb.RewardLog_FOUNDATION_BONUS:
-			rewards.FoundationBonus.Add(rewards.FoundationBonus, amount)
-		default:
-			return rewardInfoMap, errors.New("Unknown type of reward")
-		}
-	}
-	return rewardInfoMap, nil
 }

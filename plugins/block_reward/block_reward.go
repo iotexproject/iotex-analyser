@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"math/big"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
@@ -18,12 +17,6 @@ import (
 const VERSION = "2.1.3"
 
 type blockRewardPlugin struct {
-}
-
-type RewardInfo struct {
-	BlockReward     *big.Int
-	EpochReward     *big.Int
-	FoundationBonus *big.Int
 }
 
 func (b blockRewardPlugin) Name() string {
@@ -67,7 +60,7 @@ func (b blockRewardPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 				continue
 			}
 			// Parse receipt of grant reward
-			rewardInfoMap, err := getRewardInfoFromReceipt(receipt)
+			rewardInfoMap, err := kernel.RewardInfoFromReceipt(receipt)
 			if err != nil {
 				return errors.Wrap(err, "failed to get reward info from receipt")
 			}

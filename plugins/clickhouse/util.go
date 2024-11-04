@@ -131,6 +131,7 @@ func getReceiptsFromBlock(blk *block.Block) map[hash.Hash256]*action.Receipt {
 	return receipts
 }
 
+// TODO: many repeated code, move to common package
 func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	amount := big.NewInt(0)
 
@@ -144,7 +145,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	case *action.DepositToRewardingFund:
 		amount = a.Amount()
 	case *action.ClaimFromRewardingFund:
-		amount = a.Amount()
+		amount = a.ClaimAmount()
 	case *action.CreateStake:
 		amount = a.Amount()
 		payload = a.Payload()

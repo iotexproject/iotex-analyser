@@ -107,10 +107,7 @@ func initAddress() error {
 func isSBT(addr string, ab abi.ABI) (bool, error) {
 	cli := kernel.ChainClient()
 	callData, _ := ab.Pack("supportsInterface", interfaceId)
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return false, err
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

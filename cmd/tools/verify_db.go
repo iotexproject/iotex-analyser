@@ -86,10 +86,11 @@ func openDAO(c *cli.Context) (blockdao.BlockDAO, error) {
 	deser := block.NewDeserializer(config.EVMNetworkID())
 	blockDB := config.Default.BlockDB
 	blockDB.ReadOnly = true
-	dao, err = filedao.NewFileDAO(blockDB, deser)
+	fdao, err := filedao.NewFileDAO(blockDB, deser)
 	if err != nil {
 		return nil, err
 	}
+	dao = blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 	if err = dao.Start(ctxDao); err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func verifyAction(dao blockdao.BlockDAO, db *gorm.DB, height uint64) error {
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -345,7 +346,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	case *action.DepositToRewardingFund:
 		amount = a.Amount()
 	case *action.ClaimFromRewardingFund:
-		amount = a.Amount()
+		amount = a.ClaimAmount()
 	case *action.CreateStake:
 		amount = a.Amount()
 		payload = a.Payload()

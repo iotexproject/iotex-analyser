@@ -11,6 +11,7 @@ import (
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/action/protocol"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/v2/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	corecfg "github.com/iotexproject/iotex-core/v2/config"
@@ -39,8 +40,9 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	cfg.DbPath = testPath
 	cfg.ReadOnly = true
 	deser := block.NewDeserializer(config.EVMNetworkID())
-	dao, err := filedao.NewFileDAO(cfg, deser)
+	fdao, err := filedao.NewFileDAO(cfg, deser)
 	require.NoError(err)
+	dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 	require.NoError(dao.Start(ctx))
 	defer func() {
 		require.NoError(dao.Stop(ctx))

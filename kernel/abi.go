@@ -63,10 +63,7 @@ func CheckInterfaceID(addr string, interfaceID [4]byte) (bool, error) {
 	cli := ChainClient()
 	callData := common.FromHex("0x01ffc9a70000000000000000000000000000000000000000000000000000000000000000")
 	copy(callData[4:], interfaceID[:])
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return false, err
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

@@ -109,10 +109,7 @@ func initAddress() error {
 func readERC1155URI(addr string, tokenID *big.Int) (string, error) {
 	cli := kernel.ChainClient()
 	callData, _ := erc1155ABI.Pack("uri", tokenID)
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return "", err
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

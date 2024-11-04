@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
@@ -127,4 +128,11 @@ func (vd *virtualDAO) DeleteTipBlock() error {
 
 func (vd *virtualDAO) GetReceiptByActionHash(hash.Hash256, uint64) (*action.Receipt, error) {
 	return nil, nil
+}
+
+func (vd *virtualDAO) GetBlob(hash.Hash256) (*types.BlobTxSidecar, string, error) {
+	return nil, "", nil
+}
+func (vd *virtualDAO) GetBlobsByHeight(uint64) ([]*types.BlobTxSidecar, []string, error) {
+	return nil, nil, nil
 }

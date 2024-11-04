@@ -32,7 +32,7 @@ func getBlockString(blk *block.Block) string {
 		res.WriteString(fmt.Sprintf("to : %s\n", dst))
 		gasPrice := selp.GasPrice().String()
 		res.WriteString(fmt.Sprintf("gasPrice : %s\n", gasPrice))
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		res.WriteString(fmt.Sprintf("gasLimit : %d\n", gasLimit))
 		res.WriteString(fmt.Sprintf("gasPrice : %s\n", gasPrice))
 		nonce := selp.Nonce()
@@ -51,7 +51,7 @@ func getBlockString(blk *block.Block) string {
 		case *action.DepositToRewardingFund:
 			amount = a.Amount().String()
 		case *action.ClaimFromRewardingFund:
-			amount = a.Amount().String()
+			amount = a.ClaimAmount().String()
 		case *action.CreateStake:
 			amount = a.Amount().String()
 		case *action.DepositToStake:

@@ -64,6 +64,7 @@ func getReceiptsFromBlock(blk *block.Block) map[hash.Hash256]*action.Receipt {
 	return receipts
 }
 
+// TODO: many repeated code, move to common package
 func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	amount := big.NewInt(0)
 
@@ -77,7 +78,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	case *action.DepositToRewardingFund:
 		amount = a.Amount()
 	case *action.ClaimFromRewardingFund:
-		amount = a.Amount()
+		amount = a.ClaimAmount()
 	case *action.CreateStake:
 		amount = a.Amount()
 		payload = a.Payload()
@@ -119,7 +120,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		}
 
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -127,6 +128,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		amount, payload := getPayloadAmount(act)
 
 		amountDec := decimal.NewFromBigInt(amount, 0)
+		selp.Envelope.To()
 		acts = append(acts, models.BlockAction{
 			ActionHash:         hex.EncodeToString(actionHash[:]),
 			ActionType:         actionType,
@@ -140,7 +142,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			GasConsumed:        receipt.GasConsumed,
 			ChainID:            selp.ChainID(),
 			Encoding:           selp.Encoding(),
-			Version:            selp.Version(),
+			Version:            0, // TODO: how to get version
 			ContractAddress:    receipt.ContractAddress,
 			Status:             receipt.Status,
 			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),

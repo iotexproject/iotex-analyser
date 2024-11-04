@@ -280,10 +280,11 @@ func (srv *Server) startDaoService() error {
 		dao = kernel.NewVirtualDao()
 	} else {
 		deser := block.NewDeserializer(config.EVMNetworkID())
-		dao, err = filedao.NewFileDAO(config.Default.BlockDB, deser)
+		fdao, err := filedao.NewFileDAO(config.Default.BlockDB, deser)
 		if err != nil {
 			return err
 		}
+		dao = blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 	}
 	if err := dao.Start(ctxDao); err != nil {
 		return err

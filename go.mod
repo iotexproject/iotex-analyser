@@ -6,7 +6,7 @@ toolchain go1.22.8
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
-	github.com/ethereum/go-ethereum v1.14.11
+	github.com/ethereum/go-ethereum v1.13.12
 	github.com/gammazero/workerpool v1.1.3
 	github.com/google/go-cmp v0.6.0
 	github.com/imdario/mergo v0.3.13
@@ -59,7 +59,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c // indirect
-	github.com/crate-crypto/go-kzg-4844 v1.0.0 // indirect
+	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
@@ -71,7 +71,6 @@ require (
 	github.com/dustinxie/gmsm v1.4.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/ethereum/c-kzg-4844 v1.0.0 // indirect
-	github.com/ethereum/go-verkle v0.1.1-0.20240829091221-dffa7562dbe9 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
@@ -79,6 +78,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gammazero/deque v0.2.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff // indirect
+	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
@@ -254,5 +254,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-// replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v0.3.1
+replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v0.5.0
+
 // replace github.com/iotexproject/iotex-core => /media/millken/code01-data/Work/iotex/iotex-core

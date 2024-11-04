@@ -159,7 +159,7 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 		}
 
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -180,7 +180,7 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 			GasConsumed:        receipt.GasConsumed,
 			ChainID:            selp.ChainID(),
 			Encoding:           selp.Encoding(),
-			Version:            selp.Version(),
+			Version:            0, // TODO: how to get version
 			ContractAddress:    receipt.ContractAddress,
 			Status:             receipt.Status,
 			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),

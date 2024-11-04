@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/iotexproject/iotex-core/action"
+	"github.com/iotexproject/iotex-core/v2/action"
 )
 
 func appendIfMissing(slice []string, s string) []string {

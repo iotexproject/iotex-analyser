@@ -12,16 +12,16 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"github.com/iotexproject/iotex-analyser/server"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	slog "github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-analyser/server"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 )
 
 const VERSION = "2.0.0"
@@ -159,7 +159,7 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 		}
 
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -180,7 +180,7 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 			GasConsumed:        receipt.GasConsumed,
 			ChainID:            selp.ChainID(),
 			Encoding:           selp.Encoding(),
-			Version:            selp.Version(),
+			Version:            0, // TODO: how to get version
 			ContractAddress:    receipt.ContractAddress,
 			Status:             receipt.Status,
 			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),

@@ -11,10 +11,10 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
-	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -51,7 +51,7 @@ func (b stakingBucketPlugin) Start(ctx context.Context) error {
 	}
 
 	var ok bool
-	unSelfStake, ok = new(big.Int).SetString("000000000000000000000000000000000000000000000000ffffffffffffffff", 16) 
+	unSelfStake, ok = new(big.Int).SetString("000000000000000000000000000000000000000000000000ffffffffffffffff", 16)
 	if !ok {
 		return errors.New("can not convert string to bigint with plugin %s:" + b.Name())
 	}
@@ -441,23 +441,23 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				}
 
 				stakingBucket = models.StakingBucket{
-					BlockHeight:      blk.Height(),
-					BucketID:         bucketID,
-					CreateTime:       info.CreateTime,
-					StakeStartTime:   info.StakeStartTime,
-					UnstakeStartTime: info.UnstakeStartTime,
-					StakedAmount:     decimal.NewFromInt(0),
-					VotingPower:      decimal.NewFromInt(0),
-					OwnerAddress:     info.OwnerAddress,
-					Sender:           sender.String(),
-					ActionHash:       actHash,
-					Candidate:        info.Candidate,
-					AutoStake:        false,
-					ActType:          "CandidateEndorsement",
+					BlockHeight:             blk.Height(),
+					BucketID:                bucketID,
+					CreateTime:              info.CreateTime,
+					StakeStartTime:          info.StakeStartTime,
+					UnstakeStartTime:        info.UnstakeStartTime,
+					StakedAmount:            decimal.NewFromInt(0),
+					VotingPower:             decimal.NewFromInt(0),
+					OwnerAddress:            info.OwnerAddress,
+					Sender:                  sender.String(),
+					ActionHash:              actHash,
+					Candidate:               info.Candidate,
+					AutoStake:               false,
+					ActType:                 "CandidateEndorsement",
 					EndorsementExpireHeight: bucket.EndorsementExpireBlockHeight,
-					Duration:         0,
-					Amount:           decimal.NewFromInt(0),
-					Timestamp:        blk.Timestamp().Unix(),
+					Duration:                0,
+					Amount:                  decimal.NewFromInt(0),
+					Timestamp:               blk.Timestamp().Unix(),
 				}
 				if err := tx.Create(&stakingBucket).Error; err != nil {
 					return err

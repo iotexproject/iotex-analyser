@@ -13,9 +13,9 @@ import (
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	slog "github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 )
 
@@ -24,8 +24,8 @@ const VERSION = "2.0.7"
 var CandidateEndorsementOpRevokeHash256 hash.Hash256
 
 type candidatePlugin struct {
-	batchSize             int
-	tipHeight             uint64
+	batchSize      int
+	tipHeight      uint64
 	candidateDatas []*Candidate
 }
 
@@ -40,7 +40,6 @@ func (b candidatePlugin) Type() plugin.Type {
 func (b candidatePlugin) BatchSize() int {
 	return b.batchSize
 }
-
 
 func (b *candidatePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &Candidate{}); err != nil {
@@ -197,22 +196,22 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 
 func (b *candidatePlugin) putBlock(ctx context.Context, blk *block.Block) error {
 	actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
-		for _, selp := range blk.Actions {
-			actionHash, _ := selp.Hash()
-			actions[actionHash] = selp
-		}
+	for _, selp := range blk.Actions {
+		actionHash, _ := selp.Hash()
+		actions[actionHash] = selp
+	}
 
-		for _, receipt := range blk.Receipts {
-			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
-				continue
-			}
-			selp, ok := actions[receipt.ActionHash]
-			if !ok {
-				continue
-			}
-			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			b.handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender)
+	for _, receipt := range blk.Receipts {
+		if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+			continue
 		}
+		selp, ok := actions[receipt.ActionHash]
+		if !ok {
+			continue
+		}
+		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+		b.handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender)
+	}
 
 	return nil
 }

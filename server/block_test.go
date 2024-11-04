@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-core/action/protocol"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/filedao"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/action/protocol"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/blockchain/filedao"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/stretchr/testify/require"
 )
 

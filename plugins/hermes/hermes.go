@@ -14,7 +14,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -469,7 +469,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 			Votes:         decimal.NewFromBigInt(weightedAmount, 0),
 		})
 	}
-	
+
 	return tx.CreateInBatches(bucketBatches, 100).Error
 }
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/test/identityset"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/test/identityset"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 )
 
@@ -29,16 +29,10 @@ func initErc20() error {
 func ReadERC20Decimals(client iotexapi.APIServiceClient, contractAddr string) (int, error) {
 	decimals := 0 //default decimal
 
-	nonce := uint64(1)
 	transferAmount := big.NewInt(0)
-	gasLimit := uint64(100000)
-	gasPrice := big.NewInt(10000000)
 	callerAddress := identityset.Address(30).String()
 	callData, _ := hex.DecodeString("313ce567")
-	execution, err := action.NewExecution(contractAddr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return decimals, err
-	}
+	execution := action.NewExecution(contractAddr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,
@@ -58,16 +52,10 @@ func ReadERC20Decimals(client iotexapi.APIServiceClient, contractAddr string) (i
 func ReadERC20Symbol(client iotexapi.APIServiceClient, contractAddr string) (string, error) {
 	symbol := "" //default symbol
 
-	nonce := uint64(1)
 	transferAmount := big.NewInt(0)
-	gasLimit := uint64(100000)
-	gasPrice := big.NewInt(10000000)
 	callerAddress := identityset.Address(30).String()
 	callData, _ := hex.DecodeString("95d89b41")
-	execution, err := action.NewExecution(contractAddr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return symbol, nil
-	}
+	execution := action.NewExecution(contractAddr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,
@@ -95,16 +83,10 @@ func ReadERC20Symbol(client iotexapi.APIServiceClient, contractAddr string) (str
 func ReadERC20Name(client iotexapi.APIServiceClient, contractAddr string) (string, error) {
 	name := "" //default name
 
-	nonce := uint64(1)
 	transferAmount := big.NewInt(0)
-	gasLimit := uint64(100000)
-	gasPrice := big.NewInt(10000000)
 	callerAddress := identityset.Address(30).String()
 	callData, _ := hex.DecodeString("06fdde03")
-	execution, err := action.NewExecution(contractAddr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return name, nil
-	}
+	execution := action.NewExecution(contractAddr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

@@ -9,9 +9,9 @@ import (
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
-	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
@@ -131,6 +131,7 @@ func getReceiptsFromBlock(blk *block.Block) map[hash.Hash256]*action.Receipt {
 	return receipts
 }
 
+// TODO: many repeated code, move to common package
 func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	amount := big.NewInt(0)
 
@@ -144,7 +145,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	case *action.DepositToRewardingFund:
 		amount = a.Amount()
 	case *action.ClaimFromRewardingFund:
-		amount = a.Amount()
+		amount = a.ClaimAmount()
 	case *action.CreateStake:
 		amount = a.Amount()
 		payload = a.Payload()

@@ -17,12 +17,12 @@ import (
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/action/protocol"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	"github.com/iotexproject/iotex-core/blockchain/blockdao"
-	"github.com/iotexproject/iotex-core/blockchain/filedao"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/action/protocol"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/blockchain/blockdao"
+	"github.com/iotexproject/iotex-core/v2/blockchain/filedao"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/schollz/progressbar/v3"
@@ -86,10 +86,11 @@ func openDAO(c *cli.Context) (blockdao.BlockDAO, error) {
 	deser := block.NewDeserializer(config.EVMNetworkID())
 	blockDB := config.Default.BlockDB
 	blockDB.ReadOnly = true
-	dao, err = filedao.NewFileDAO(blockDB, deser)
+	fdao, err := filedao.NewFileDAO(blockDB, deser)
 	if err != nil {
 		return nil, err
 	}
+	dao = blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 	if err = dao.Start(ctxDao); err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func verifyAction(dao blockdao.BlockDAO, db *gorm.DB, height uint64) error {
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -345,7 +346,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	case *action.DepositToRewardingFund:
 		amount = a.Amount()
 	case *action.ClaimFromRewardingFund:
-		amount = a.Amount()
+		amount = a.ClaimAmount()
 	case *action.CreateStake:
 		amount = a.Amount()
 		payload = a.Payload()

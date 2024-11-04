@@ -13,8 +13,8 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -107,7 +107,7 @@ func verifyAction(blk *block.Block, db *gorm.DB, height uint64) error {
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -387,7 +387,7 @@ func getPayloadAmount(act action.Action) (*big.Int, []byte) {
 	case *action.DepositToRewardingFund:
 		amount = a.Amount()
 	case *action.ClaimFromRewardingFund:
-		amount = a.Amount()
+		amount = a.ClaimAmount()
 	case *action.CreateStake:
 		amount = a.Amount()
 		payload = a.Payload()

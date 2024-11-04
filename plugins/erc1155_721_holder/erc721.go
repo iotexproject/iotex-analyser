@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-core/action"
+	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 )
 
@@ -96,10 +96,7 @@ func isErc721(addr, topics, data string) bool {
 func readERC721URI(addr string, tokenID *big.Int) (string, error) {
 	cli := kernel.ChainClient()
 	callData, _ := erc721ABI.Pack("tokenURI", tokenID)
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return "", err
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

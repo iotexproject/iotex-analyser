@@ -6,7 +6,7 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/action"
+	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/shopspring/decimal"
 )

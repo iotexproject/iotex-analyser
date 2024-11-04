@@ -3,15 +3,14 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"math/big"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -24,12 +23,6 @@ var (
 )
 
 type rewardHistoryPlugin struct {
-}
-
-type RewardInfo struct {
-	RewardHistory   *big.Int
-	EpochReward     *big.Int
-	FoundationBonus *big.Int
 }
 
 func (b rewardHistoryPlugin) Name() string {
@@ -83,7 +76,7 @@ func (b rewardHistoryPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				continue
 			}
 			// Parse receipt of grant reward
-			rewardInfoMap, err := handleLogs(receipt.Logs())
+			rewardInfoMap, err := kernel.RewardInfoFromReceipt(receipt)
 			if err != nil {
 				return err
 			}
@@ -105,7 +98,7 @@ func (b rewardHistoryPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 					RewardAddress:   rewardAddress,
 					ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
 					CandidateName:   candidateName,
-					BlockReward:     decimal.NewFromBigInt(reward.RewardHistory, 0),
+					BlockReward:     decimal.NewFromBigInt(reward.BlockReward, 0),
 					EpochReward:     decimal.NewFromBigInt(reward.EpochReward, 0),
 					FoundationBonus: decimal.NewFromBigInt(reward.FoundationBonus, 0),
 				}

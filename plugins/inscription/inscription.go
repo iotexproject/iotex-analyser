@@ -15,9 +15,9 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	slog "github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
@@ -118,12 +118,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			slog.L().Debug("skip action: action failed", zap.Any("hash", hex.EncodeToString(actHash[:])))
 			continue
 		}
-		tx, ok := act.Action().(action.EthCompatibleAction)
-		if !ok {
-			slog.L().Debug("skip action: not eth-compatible", zap.Any("hash", hex.EncodeToString(actHash[:])))
-			continue
-		}
-		ethTx, err := tx.ToEthTx(0)
+		ethTx, err := act.ToEthTx()
 		if err != nil {
 			slog.L().Debug("skip action: to eth error", zap.Any("hash", hex.EncodeToString(actHash[:])), zap.Error(err))
 			continue

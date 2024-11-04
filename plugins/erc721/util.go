@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/test/identityset"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/test/identityset"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 )
 
@@ -114,10 +114,7 @@ func isErc721(addr, topics, data string) bool {
 
 func readContract(addr string, callData []byte) bool {
 	cli := kernel.ChainClient()
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return false
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

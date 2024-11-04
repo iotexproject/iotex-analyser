@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/test/identityset"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/test/identityset"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 )
 
@@ -107,10 +107,7 @@ func initAddress() error {
 func isSBT(addr string, ab abi.ABI) (bool, error) {
 	cli := kernel.ChainClient()
 	callData, _ := ab.Pack("supportsInterface", interfaceId)
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return false, err
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

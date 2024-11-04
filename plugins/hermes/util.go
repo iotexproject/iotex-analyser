@@ -16,7 +16,7 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	etypes "github.com/iotexproject/iotex-election/types"
 	"github.com/iotexproject/iotex-election/util"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"

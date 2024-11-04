@@ -13,9 +13,9 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	slog "github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
@@ -134,7 +134,7 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 		}
 
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
 		act := selp.Action()
@@ -155,7 +155,7 @@ func (b clickhousePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 			GasConsumed:        receipt.GasConsumed,
 			ChainID:            selp.ChainID(),
 			Encoding:           selp.Encoding(),
-			Version:            selp.Version(),
+			Version:            0, // TODO: how to get version
 			ContractAddress:    receipt.ContractAddress,
 			Status:             receipt.Status,
 			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),

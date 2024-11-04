@@ -7,8 +7,8 @@ import (
 	"math/big"
 
 	"github.com/iotexproject/iotex-address/address"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 )
 
 func getBlockString(blk *block.Block) string {
@@ -32,7 +32,7 @@ func getBlockString(blk *block.Block) string {
 		res.WriteString(fmt.Sprintf("to : %s\n", dst))
 		gasPrice := selp.GasPrice().String()
 		res.WriteString(fmt.Sprintf("gasPrice : %s\n", gasPrice))
-		gasLimit := selp.GasLimit()
+		gasLimit := selp.Gas()
 		res.WriteString(fmt.Sprintf("gasLimit : %d\n", gasLimit))
 		res.WriteString(fmt.Sprintf("gasPrice : %s\n", gasPrice))
 		nonce := selp.Nonce()
@@ -51,7 +51,7 @@ func getBlockString(blk *block.Block) string {
 		case *action.DepositToRewardingFund:
 			amount = a.Amount().String()
 		case *action.ClaimFromRewardingFund:
-			amount = a.Amount().String()
+			amount = a.ClaimAmount().String()
 		case *action.CreateStake:
 			amount = a.Amount().String()
 		case *action.DepositToStake:

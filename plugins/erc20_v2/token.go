@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"gopkg.in/yaml.v2"
-	"gorm.io/gorm/clause"
 	"math/big"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v2"
+	"gorm.io/gorm/clause"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,8 +17,8 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/blockchain/block"
-	slog "github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"

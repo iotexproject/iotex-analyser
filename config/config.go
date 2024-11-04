@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 
 	"github.com/imdario/mergo"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
-	coredb "github.com/iotexproject/iotex-core/db"
-	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	coredb "github.com/iotexproject/iotex-core/v2/db"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"github.com/sethvargo/go-envconfig"

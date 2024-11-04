@@ -8,7 +8,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
-	"github.com/iotexproject/iotex-core/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )

@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/test/identityset"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/test/identityset"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 )
@@ -63,10 +63,7 @@ func CheckInterfaceID(addr string, interfaceID [4]byte) (bool, error) {
 	cli := ChainClient()
 	callData := common.FromHex("0x01ffc9a70000000000000000000000000000000000000000000000000000000000000000")
 	copy(callData[4:], interfaceID[:])
-	execution, err := action.NewExecution(addr, nonce, transferAmount, gasLimit, gasPrice, callData)
-	if err != nil {
-		return false, err
-	}
+	execution := action.NewExecution(addr, transferAmount, callData)
 	request := &iotexapi.ReadContractRequest{
 		Execution:     execution.Proto(),
 		CallerAddress: callerAddress,

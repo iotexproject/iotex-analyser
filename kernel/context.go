@@ -3,7 +3,7 @@ package kernel
 import (
 	"context"
 
-	"github.com/iotexproject/iotex-core/blockchain/blockdao"
+	"github.com/iotexproject/iotex-core/v2/blockchain/blockdao"
 )
 
 type (

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -21,7 +21,7 @@ const (
 	readCandidatesLimit = 20000
 )
 
-//https://github.com/iotexproject/iotex-analytics/blob/4130adda652ccd3a8b9ecf2fc5be372651274aed/indexprotocol/protocol.go#L125
+// https://github.com/iotexproject/iotex-analytics/blob/4130adda652ccd3a8b9ecf2fc5be372651274aed/indexprotocol/protocol.go#L125
 // GetAllStakingCandidates get all candidates by height
 func GetAllStakingCandidates(chainClient iotexapi.APIServiceClient, height uint64) (candidateListAll *iotextypes.CandidateListV2, err error) {
 	candidateListAll = &iotextypes.CandidateListV2{}

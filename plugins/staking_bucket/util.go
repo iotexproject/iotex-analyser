@@ -11,7 +11,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -21,12 +21,12 @@ import (
 )
 
 const (
-    protocolID          = "staking"
-    readBucketsLimit    = 300000
+	protocolID       = "staking"
+	readBucketsLimit = 300000
 )
 
 func GetStakingBucketByID(bucketID, blkHeight uint64) (*iotextypes.VoteBucket, error) {
-    epochNum := kernel.GetEpochNum(blkHeight)
+	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
 
@@ -39,8 +39,8 @@ func GetStakingBucketByID(bucketID, blkHeight uint64) (*iotextypes.VoteBucket, e
 		}
 		for _, bucket := range voteBucketList.Buckets {
 			if bucket.Index == bucketID {
-                return bucket, nil
-            }
+				return bucket, nil
+			}
 		}
 		if len(voteBucketList.Buckets) < readBucketsLimit {
 			break

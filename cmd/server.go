@@ -9,7 +9,7 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/server"
-	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 )

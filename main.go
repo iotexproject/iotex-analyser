@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 

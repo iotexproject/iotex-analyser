@@ -8,7 +8,7 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )

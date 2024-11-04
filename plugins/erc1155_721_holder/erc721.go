@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
-	"github.com/iotexproject/iotex-core/action"
+	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 )
 

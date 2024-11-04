@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-core/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"

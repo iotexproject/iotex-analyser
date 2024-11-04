@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/iotexproject/iotex-core/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/stretchr/testify/require"
 )
 

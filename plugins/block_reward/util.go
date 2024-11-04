@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/iotexproject/iotex-core/action"
-	"github.com/iotexproject/iotex-core/action/protocol/rewarding/rewardingpb"
+	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
 	"github.com/millken/gocache"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"

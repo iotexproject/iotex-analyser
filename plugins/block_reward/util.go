@@ -43,6 +43,7 @@ func handleRewardInfoMap(tx *gorm.DB, blkHeight uint64, epochNum uint64, receipt
 			BlockReward:     decimal.NewFromBigInt(reward.BlockReward, 0),
 			EpochReward:     decimal.NewFromBigInt(reward.EpochReward, 0),
 			FoundationBonus: decimal.NewFromBigInt(reward.FoundationBonus, 0),
+			PriorityBonus:   decimal.NewFromBigInt(reward.PriorityBonus, 0),
 		}
 		if err := tx.Create(&m).Error; err != nil {
 			return err

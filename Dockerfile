@@ -12,7 +12,7 @@ COPY . .
 RUN go mod download
 RUN make
 
-FROM golang:1.22.8-alpine3.20
+FROM golang:1.22-bullseye
 
 WORKDIR /app
 COPY --from=builder /app/*.so /app/

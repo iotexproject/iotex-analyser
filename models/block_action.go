@@ -35,7 +35,7 @@ func (BlockAction) TableName() string {
 }
 
 type ActionType struct {
-	Hash string `gorm:"size:64;not null;index:,type:hash"`
+	Hash string `gorm:"primary_key;size:64;not null;index:,type:hash"`
 	Type uint   `gorm:"type:int4;unsigned;not null;default:0"`
 	// accesslist tx
 	AccessList datatypes.JSON `gorm:"type:jsonb"`
@@ -43,9 +43,10 @@ type ActionType struct {
 	GasTipCap decimal.Decimal `gorm:"type:decimal(42,0)"`
 	GasFeeCap decimal.Decimal `gorm:"type:decimal(42,0)"`
 	// blob tx
-	BlobGas    uint64          `gorm:"type:int8;unsigned"`
-	BlobFeeCap decimal.Decimal `gorm:"type:decimal(42,0)"`
-	BlobHashes pq.StringArray  `gorm:"type:text[]"`
+	BlobGas      uint64          `gorm:"type:int8;unsigned"`
+	BlobFeeCap   decimal.Decimal `gorm:"type:decimal(42,0)"`
+	BlobHashes   pq.StringArray  `gorm:"type:text[]"`
+	BlobGasPrice decimal.Decimal `gorm:"type:decimal(42,0)"`
 }
 
 func (ActionType) TableName() string {

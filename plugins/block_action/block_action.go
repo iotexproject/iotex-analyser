@@ -120,6 +120,9 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		}
 
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
+		if selp.TxType() != action.LegacyTxType && selp.TxType() != action.AccessListTxType {
+			gasPrice = decimal.NewFromBigInt(receipt.EffectiveGasPrice, 0)
+		}
 		gasLimit := selp.Gas()
 		nonce := selp.Nonce()
 
@@ -128,7 +131,6 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		amount, payload := getPayloadAmount(act)
 
 		amountDec := decimal.NewFromBigInt(amount, 0)
-		selp.Envelope.To()
 		acts = append(acts, models.BlockAction{
 			ActionHash:         hex.EncodeToString(actionHash[:]),
 			ActionType:         actionType,

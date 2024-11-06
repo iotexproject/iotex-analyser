@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
+	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
@@ -57,6 +58,14 @@ func (b actionTypePlugin) Start(ctx context.Context) error {
 
 func (b actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	ats := make([]*models.ActionType, 0, len(blk.Actions))
+	getReceipt := func(h hash.Hash256) *action.Receipt {
+		for _, r := range blk.Receipts {
+			if r.ActionHash == h {
+				return r
+			}
+		}
+		return nil
+	}
 	for _, act := range blk.Actions {
 		// skip legacy tx
 		if act.Envelope.TxType() == action.LegacyTxType {
@@ -72,11 +81,17 @@ func (b actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 		}
 		switch act.Envelope.TxType() {
 		case action.BlobTxType:
+			receipt := getReceipt(h)
+			if receipt == nil {
+				slog.L().Warn("failed to get receipt for blob tx", zap.String("hash", at.Hash))
+				continue
+			}
 			at.BlobGas = act.BlobGas()
 			at.BlobFeeCap = decimal.NewFromBigInt(act.BlobGasFeeCap(), 0)
 			for _, h := range act.BlobHashes() {
 				at.BlobHashes = append(at.BlobHashes, hex.EncodeToString(h[:]))
 			}
+			at.BlobGasPrice = decimal.NewFromBigInt(receipt.BlobGasPrice, 0)
 			fallthrough
 		case action.DynamicFeeTxType:
 			at.GasFeeCap = decimal.NewFromBigInt(act.GasFeeCap(), 0)

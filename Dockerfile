@@ -1,5 +1,5 @@
 #can not work on alpine3.14
-FROM golang:1.21.6-alpine AS builder
+FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
 # ENV GO111MODULE on
@@ -12,7 +12,7 @@ COPY . .
 RUN go mod download
 RUN make
 
-FROM golang:1.21.6-alpine
+FROM golang:1.22-alpine
 
 WORKDIR /app
 COPY --from=builder /app/*.so /app/

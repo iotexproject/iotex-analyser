@@ -63,7 +63,7 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 	}
 	// log receipt index
-	blockReward, epochReward, foundationBonus, gasConsumed, err := getReward(blk, grantRewardActs)
+	blockReward, epochReward, foundationBonus, priorityBonus, gasConsumed, err := getReward(blk, grantRewardActs)
 	if err != nil {
 		return err
 	}
@@ -95,12 +95,18 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			BlockReward:             decimal.NewFromBigInt(blockReward, 0),
 			EpochReward:             decimal.NewFromBigInt(epochReward, 0),
 			FoundationBonus:         decimal.NewFromBigInt(foundationBonus, 0),
+			PriorityBonus:           decimal.NewFromBigInt(priorityBonus, 0),
 			EpochNum:                epochNum,
 			EpochHeight:             epochHeight,
 			BlockSize:               blockSize,
+			BlobGasUsed:             blk.BlobGasUsed(),
+			ExcessBlobGas:           blk.ExcessBlobGas(),
+		}
+		if blk.BaseFee() != nil {
+			bm.BaseFee = decimal.NewFromBigInt(blk.BaseFee(), 0)
 		}
 
-		if err := tx.Create(&bm).Error; err != nil {
+		if err := tx.Save(&bm).Error; err != nil {
 			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

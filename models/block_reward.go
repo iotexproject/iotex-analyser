@@ -26,6 +26,7 @@ type BlockReward struct {
 	BlockReward     decimal.Decimal `gorm:"type:decimal(60,0);not null"`
 	EpochReward     decimal.Decimal `gorm:"type:decimal(60,0);not null"`
 	FoundationBonus decimal.Decimal `gorm:"type:decimal(60,0);not null"`
+	PriorityBonus   decimal.Decimal `gorm:"type:decimal(60,0)"`
 }
 
 func (BlockReward) TableName() string {

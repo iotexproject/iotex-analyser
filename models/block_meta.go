@@ -12,9 +12,13 @@ type BlockMeta struct {
 	BlockReward             decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	EpochReward             decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	FoundationBonus         decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
+	PriorityBonus           decimal.Decimal `gorm:"type:decimal(42,0);"`
 	EpochNum                uint64          `gorm:"unsigned;index"`
 	EpochHeight             uint64          `gorm:"unsigned;index"`
 	BlockSize               uint64          `gorm:"unsigned;not null;default:0;"`
+	BaseFee                 decimal.Decimal `gorm:"type:decimal(42,0);"`
+	BlobGasUsed             uint64          `gorm:"type:int8;unsigned;"`
+	ExcessBlobGas           uint64          `gorm:"type:int8;unsigned;"`
 }
 
 func (BlockMeta) TableName() string {

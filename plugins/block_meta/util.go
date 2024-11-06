@@ -20,9 +20,8 @@ func getCandidateName(height uint64, address string) string {
 	return name
 }
 
-func getReward(blk *block.Block, grantRewardActs map[hash.Hash256]bool) (*big.Int, *big.Int, *big.Int, uint64, error) {
-	blockReward, epochReward, foundationBonus, _, gasConsumed, err := kernel.RewardAt(blk, grantRewardActs)
-	return blockReward, epochReward, foundationBonus, gasConsumed, err
+func getReward(blk *block.Block, grantRewardActs map[hash.Hash256]bool) (*big.Int, *big.Int, *big.Int, *big.Int, uint64, error) {
+	return kernel.RewardAt(blk, grantRewardActs)
 }
 
 func getBlockSize(blk *block.Block) (uint64, error) {

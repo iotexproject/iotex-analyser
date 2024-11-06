@@ -1,18 +1,18 @@
 #can not work on alpine3.14
-FROM golang:1.22-alpine AS builder
+FROM golang:1.22.8-alpine3.20 AS builder
 WORKDIR /app
 
 # ENV GO111MODULE on
 # ENV GOPROXY https://goproxy.cn
 
 # RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
-RUN apk add --no-cache make gcc musl-dev linux-headers git
+RUN apk add --no-cache make gcc musl-dev linux-headers git binutils build-base
 
 COPY . .
 RUN go mod download
 RUN make
 
-FROM golang:1.22-alpine
+FROM golang:1.22.8-alpine3.20
 
 WORKDIR /app
 COPY --from=builder /app/*.so /app/

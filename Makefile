@@ -23,6 +23,7 @@ all : clean plugins build
 plugins:
 	for plugin in $(PLUGIN_DIRECTORIES) ; do \
 		so=`echo $${plugin}.so | sed 's/plugins\///g'` ; \
+		echo "$(GOBUILD) -o $$so -buildmode=plugin $$plugin/*.go" ; \
 		$(GOBUILD) -o $$so -buildmode=plugin $$plugin/*.go ; \
 	done
 

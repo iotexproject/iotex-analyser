@@ -15,6 +15,7 @@ var (
 var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers_v2_2_3
 (
     block_height UInt64,
+    log_index UInt32,
     action_hash String,
     contract_address String,
     token_id String,
@@ -23,11 +24,12 @@ var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers_v2_2_3
     timestamp DateTime64(6)
 )
 ENGINE = ReplacingMergeTree()
-PRIMARY KEY action_hash
-ORDER BY action_hash`
+PRIMARY KEY (block_height, log_index)
+ORDER BY (block_height, log_index)`
 
 type Erc721Transfer struct {
 	BlockHeight     uint64    `ch:"block_height"`
+	LogIndex        uint32    `ch:"log_index"`
 	ActionHash      string    `ch:"action_hash"`
 	ContractAddress string    `ch:"contract_address"`
 	TokenId         string    `ch:"token_id"`
@@ -43,6 +45,7 @@ func (Erc721Transfer) TableName() string {
 var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals_v2_2_3
 (
     block_height UInt64,
+    log_index UInt32,
     action_hash String,
     contract_address String,
     owner String,
@@ -51,11 +54,12 @@ var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals_v2_2_3
     timestamp DateTime64(6)
 )
 ENGINE = ReplacingMergeTree()
-PRIMARY KEY action_hash
-ORDER BY action_hash`
+PRIMARY KEY (block_height, log_index)
+ORDER BY (block_height, log_index)`
 
 type Erc721Approval struct {
 	BlockHeight     uint64    `ch:"block_height"`
+	LogIndex        uint32    `ch:"log_index"`
 	ActionHash      string    `ch:"action_hash"`
 	ContractAddress string    `ch:"contract_address"`
 	Owner           string    `ch:"owner"`
@@ -89,6 +93,7 @@ func (Erc721Holder) TableName() string {
 var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_alls_v2_2_3
 (
     block_height UInt64,
+    log_index UInt32,
     action_hash String,
     contract_address String,
     owner String,
@@ -97,11 +102,12 @@ var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_al
     timestamp DateTime64(6)
 )
 ENGINE = ReplacingMergeTree()
-PRIMARY KEY action_hash
-ORDER BY action_hash`
+PRIMARY KEY (block_height, log_index)
+ORDER BY (block_height, log_index)`
 
 type Erc721ApprovalForAll struct {
 	BlockHeight     uint64    `ch:"block_height"`
+	LogIndex        uint32    `ch:"log_index"`
 	ActionHash      string    `ch:"action_hash"`
 	ContractAddress string    `ch:"contract_address"`
 	Owner           string    `ch:"owner"`

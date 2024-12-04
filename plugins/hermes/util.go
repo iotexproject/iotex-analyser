@@ -62,6 +62,7 @@ type AggregateReward struct {
 	BlockReward     string
 	EpochReward     string
 	FoundationBonus string
+	PriorityBonus   string
 }
 
 type (
@@ -127,11 +128,10 @@ func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 	}
 	// Get aggregate reward	records from last epoch
 	var rows []AggregateReward
-	if err := tx.Raw("SELECT epoch_number, reward_address, SUM(block_reward) block_reward, SUM(epoch_reward)epoch_reward, SUM(foundation_bonus)foundation_bonus "+
+	if err := tx.Raw("SELECT epoch_number, reward_address, SUM(block_reward) block_reward, SUM(epoch_reward)epoch_reward, SUM(foundation_bonus)foundation_bonus, SUM(priority_bonus)priority_bonus "+
 		"FROM block_rewards WHERE epoch_number = ? GROUP BY epoch_number, reward_address", lastEpoch).Find(&rows).Error; err != nil {
 		return err
 	}
-
 	if len(rows) > 0 {
 		err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error
 		if err != nil {
@@ -154,6 +154,13 @@ func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 		totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
 		if !ok {
 			return ErrConvertBigIntString
+		}
+		if row.PriorityBonus != "" {
+			totalPriorityBonus, ok := big.NewInt(0).SetString(row.PriorityBonus, 10)
+			if !ok {
+				return ErrConvertBigIntString
+			}
+			totalBlockReward.Add(totalBlockReward, totalPriorityBonus)
 		}
 		if len(candidateNames) == 1 {
 			candidateName := candidateNames[0]

@@ -15,7 +15,7 @@ var (
 var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers_v2_2_3
 (
     block_height UInt64,
-	log_index UInt32,
+    log_index UInt32,
     action_hash String,
     contract_address String,
     token_id String,
@@ -45,7 +45,7 @@ func (Erc721Transfer) TableName() string {
 var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals_v2_2_3
 (
     block_height UInt64,
-	log_index UInt32,
+    log_index UInt32,
     action_hash String,
     contract_address String,
     owner String,
@@ -93,7 +93,7 @@ func (Erc721Holder) TableName() string {
 var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_alls_v2_2_3
 (
     block_height UInt64,
-	log_index UInt32,
+    log_index UInt32,
     action_hash String,
     contract_address String,
     owner String,

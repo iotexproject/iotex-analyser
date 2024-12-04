@@ -205,6 +205,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) (*result, e
 				toAddr, _ := address.FromBytes(event.To.Bytes())
 				model := Erc721Transfer{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
 					TokenId:         tokenID.String(),
@@ -231,6 +232,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) (*result, e
 				approved, _ := address.FromBytes(event.Approved.Bytes())
 				model := Erc721Approval{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
 					TokenId:         tokenID.String(),
@@ -254,6 +256,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) (*result, e
 				operator, _ := address.FromBytes(event.Operator.Bytes())
 				model := Erc721ApprovalForAll{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
 					Owner:           owner.String(),

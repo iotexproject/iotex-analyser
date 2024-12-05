@@ -287,7 +287,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) (*result, e
 	return res, nil
 }
 
-func (b *tokenPlugin) commit(height uint64, res *result) error {
+func (b tokenPlugin) commit(height uint64, res *result) error {
 	if len(res.erc721Transfer) > 0 {
 		batch, err := b.conn.PrepareBatch(context.Background(), "INSERT INTO erc721_transfers_v2_2_3")
 		if err != nil {

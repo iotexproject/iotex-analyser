@@ -76,7 +76,6 @@ func initAddress() error {
 }
 
 type tokenPlugin struct {
-	conn      driver.Conn
 	batchSize int
 }
 
@@ -98,6 +97,8 @@ func (b tokenPlugin) Type() plugin.Type {
 func (b tokenPlugin) BatchSize() int {
 	return b.batchSize
 }
+
+var chConn driver.Conn
 
 func openChConn(cfg *Config) (driver.Conn, error) {
 	op, err := clickhouse.ParseDSN(cfg.DSN)
@@ -127,7 +128,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to clickhouse")
 	}
-	b.conn = conn
+	chConn = conn
 	if err := b.migrateTable(ctx); err != nil {
 		return errors.Wrap(err, "failed to migrate clickhouse table")
 	}
@@ -289,7 +290,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) (*result, e
 
 func (b tokenPlugin) commit(height uint64, res *result) error {
 	if len(res.erc721Transfer) > 0 {
-		batch, err := b.conn.PrepareBatch(context.Background(), "INSERT INTO erc721_transfers_v2_2_3")
+		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_transfers_v2_2_3")
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}
@@ -303,7 +304,7 @@ func (b tokenPlugin) commit(height uint64, res *result) error {
 		}
 	}
 	if len(res.erc721Approval) > 0 {
-		batch, err := b.conn.PrepareBatch(context.Background(), "INSERT INTO erc721_approvals_v2_2_3")
+		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_approvals_v2_2_3")
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}
@@ -317,7 +318,7 @@ func (b tokenPlugin) commit(height uint64, res *result) error {
 		}
 	}
 	if len(res.erc721Holder) > 0 {
-		batch, err := b.conn.PrepareBatch(context.Background(), "INSERT INTO erc721_holders_v2_2_3")
+		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_holders_v2_2_3")
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}
@@ -331,7 +332,7 @@ func (b tokenPlugin) commit(height uint64, res *result) error {
 		}
 	}
 	if len(res.erc721ApprovalForAll) > 0 {
-		batch, err := b.conn.PrepareBatch(context.Background(), "INSERT INTO erc721_approval_for_alls_v2_2_3")
+		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_approval_for_alls_v2_2_3")
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}

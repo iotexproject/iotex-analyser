@@ -84,6 +84,10 @@ func (srv *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to connect DB")
 	}
+	_, err = db.ConnectClickhouse(config.Default.ClickHouseDSN)
+	if err != nil {
+		return errors.Wrap(err, "failed to connect ClickHouse")
+	}
 	// if err := kernel.GetDB().Ping(); err != nil {
 	// 	return errors.Wrap(err, "failed to ping DB")
 	// }

@@ -39,8 +39,9 @@ var (
 			SplitDBHeight:         900000,
 			HistoryStateRetention: 2000,
 		},
-		SubLogs: make(map[string]log.GlobalConfig),
-		Genesis: genesis.Default,
+		SubLogs:       make(map[string]log.GlobalConfig),
+		Genesis:       genesis.Default,
+		ClickHouseDSN: "tcp://127.0.0.1:8321",
 	}
 )
 
@@ -73,13 +74,14 @@ type (
 		BatchSize          uint64   `yaml:"batchSize"` //default 64, ~ 10 blocks
 	}
 	Config struct {
-		Genesis  genesis.Genesis             `yaml:"genesis"`
-		Server   Server                      `yaml:"server"`
-		Database Database                    `yaml:"database"`
-		Iotex    Iotex                       `yaml:"iotex"`
-		BlockDB  coredb.Config               `yaml:"blockDB"`
-		Log      log.GlobalConfig            `yaml:"log" json:"-"`
-		SubLogs  map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
+		Genesis       genesis.Genesis             `yaml:"genesis"`
+		Server        Server                      `yaml:"server"`
+		Database      Database                    `yaml:"database"`
+		ClickHouseDSN string                      `yaml:"clickHouseDSN"`
+		Iotex         Iotex                       `yaml:"iotex"`
+		BlockDB       coredb.Config               `yaml:"blockDB"`
+		Log           log.GlobalConfig            `yaml:"log" json:"-"`
+		SubLogs       map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
 	}
 )
 

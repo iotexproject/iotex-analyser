@@ -1,12 +1,23 @@
 package main
 
+var ActionExecutionDDL = `CREATE TABLE IF NOT EXISTS action_execution
+(
+    block_height UInt64,
+    action_hash FixedString(64),
+    contract FixedString(41),
+    receipt_contract_address FixedString(41),
+    data String
+)
+ENGINE = ReplacingMergeTree()
+PRIMARY KEY (action_hash)
+ORDER BY (action_hash)`
+
 type ActionExecution struct {
-	ID                     uint64 `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight            uint64 `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash             string `gorm:"size:64;not null;index:,length:9"`
-	Contract               string `gorm:"size:42;not null;default:'';index:,length:9"`
-	ReceiptContractAddress string `gorm:"size:42;not null;default:'';index:,length:9"`
-	Data                   []byte `gorm:"not null;"`
+	BlockHeight            uint64 `ch:"block_height"`
+	ActionHash             string `ch:"action_hash"`
+	Contract               string `ch:"contract"`
+	ReceiptContractAddress string `ch:"receipt_contract_address"`
+	Data                   string `ch:"data"`
 }
 
 func (ActionExecution) TableName() string {

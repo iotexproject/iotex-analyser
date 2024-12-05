@@ -16,11 +16,11 @@ var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers_v2_2_3
 (
     block_height UInt64,
     log_index UInt32,
-    action_hash String,
-    contract_address String,
+    action_hash FixedString(64),
+    contract_address FixedString(41),
     token_id String,
-    sender String,
-    recipient String,
+    sender FixedString(41),
+    recipient FixedString(41),
     timestamp DateTime64(6)
 )
 ENGINE = ReplacingMergeTree()
@@ -46,10 +46,10 @@ var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals_v2_2_3
 (
     block_height UInt64,
     log_index UInt32,
-    action_hash String,
-    contract_address String,
-    owner String,
-    approved String,
+    action_hash FixedString(64),
+    contract_address FixedString(41),
+    owner FixedString(41),
+    approved FixedString(41),
     token_id String,
     timestamp DateTime64(6)
 )
@@ -74,8 +74,8 @@ func (Erc721Approval) TableName() string {
 
 var Erc721HolderDDL = `CREATE TABLE IF NOT EXISTS erc721_holders_v2_2_3
 (
-    contract_address String,
-    holder String,
+    contract_address FixedString(41),
+    holder FixedString(41),
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (contract_address, holder)
@@ -94,10 +94,10 @@ var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_al
 (
     block_height UInt64,
     log_index UInt32,
-    action_hash String,
-    contract_address String,
-    owner String,
-    operator String,
+    action_hash FixedString(64),
+    contract_address FixedString(41),
+    owner FixedString(41),
+    operator FixedString(41),
     approved Bool,
     timestamp DateTime64(6)
 )

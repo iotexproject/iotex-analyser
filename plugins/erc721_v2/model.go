@@ -121,15 +121,15 @@ func (Erc721ApprovalForAll) TableName() string {
 }
 
 func (b tokenPlugin) migrateTable(ctx context.Context) error {
-	if err := b.conn.Exec(ctx, Erc721TransferDDL); err != nil {
+	if err := chConn.Exec(ctx, Erc721TransferDDL); err != nil {
 		return errors.Wrap(err, "failed to create clickhouse erc721_transfers_v2_2_3 table")
 	}
-	if err := b.conn.Exec(ctx, Erc721ApprovalDDL); err != nil {
+	if err := chConn.Exec(ctx, Erc721ApprovalDDL); err != nil {
 		return errors.Wrap(err, "failed to create clickhouse erc721_approvals_v2_2_3 table")
 	}
-	if err := b.conn.Exec(ctx, Erc721HolderDDL); err != nil {
+	if err := chConn.Exec(ctx, Erc721HolderDDL); err != nil {
 		return errors.Wrap(err, "failed to create clickhouse erc721_holders_v2_2_3 table")
 	}
-	err := b.conn.Exec(ctx, Erc721ApprovalForAllDDL)
+	err := chConn.Exec(ctx, Erc721ApprovalForAllDDL)
 	return errors.Wrap(err, "failed to create clickhouse erc721_approval_for_alls_v2_2_3 table")
 }

@@ -107,6 +107,10 @@ func (b *tokenPlugin) Start(ctx context.Context) error {
 		}
 	}
 
+	if err := b.migrateTable(ctx); err != nil {
+		return errors.Wrap(err, "failed to migrate table")
+	}
+
 	b.batchSize = cfg.BatchSize
 
 	if err := initAddress(); err != nil {

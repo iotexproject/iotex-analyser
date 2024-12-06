@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"time"
+
+	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/pkg/errors"
 )
 
 var Erc20TransferDDL = `CREATE TABLE IF NOT EXISTS erc20_transfers
@@ -82,4 +86,17 @@ type Erc20Holder struct {
 
 func (Erc20Holder) TableName() string {
 	return "erc20_holders"
+}
+
+func (b tokenPlugin) migrateTable(ctx context.Context) error {
+	if err := db.ChConn().Exec(ctx, Erc20TransferDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", Erc20Transfer{}.TableName())
+	}
+	if err := db.ChConn().Exec(ctx, Erc20ApprovalDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", Erc20Approval{}.TableName())
+	}
+	if err := db.ChConn().Exec(ctx, Erc20HolderDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", Erc20Holder{}.TableName())
+	}
+	return nil
 }

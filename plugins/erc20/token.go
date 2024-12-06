@@ -84,7 +84,7 @@ type tokenPlugin struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc20_ch"
+	return "erc20"
 }
 
 func (b tokenPlugin) Type() plugin.Type {

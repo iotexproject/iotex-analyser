@@ -14,14 +14,14 @@ var (
 
 var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers_v2_2_3
 (
-    block_height UInt64,
-    log_index UInt32,
-    action_hash FixedString(64),
-    contract_address FixedString(41),
-    token_id String,
-    sender FixedString(41),
-    recipient FixedString(41),
-    timestamp DateTime64(6)
+    block_height UInt64 NOT NULL,
+    log_index UInt32 NOT NULL,
+    action_hash FixedString(64) NOT NULL,
+    contract_address FixedString(41) NOT NULL,
+    token_id String NOT NULL,
+    sender FixedString(41) NOT NULL,
+    recipient FixedString(41) NOT NULL,
+    timestamp DateTime64(6) NOT NULL
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (block_height, log_index)
@@ -44,14 +44,14 @@ func (Erc721Transfer) TableName() string {
 
 var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals_v2_2_3
 (
-    block_height UInt64,
-    log_index UInt32,
-    action_hash FixedString(64),
-    contract_address FixedString(41),
-    owner FixedString(41),
-    approved FixedString(41),
-    token_id String,
-    timestamp DateTime64(6)
+    block_height UInt64 NOT NULL,
+    log_index UInt32 NOT NULL,
+    action_hash FixedString(64) NOT NULL,
+    contract_address FixedString(41) NOT NULL,
+    owner FixedString(41) NOT NULL,
+    approved FixedString(41) NOT NULL,
+    token_id String NOT NULL,
+    timestamp DateTime64(6) NOT NULL
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (block_height, log_index)
@@ -74,8 +74,8 @@ func (Erc721Approval) TableName() string {
 
 var Erc721HolderDDL = `CREATE TABLE IF NOT EXISTS erc721_holders_v2_2_3
 (
-    contract_address FixedString(41),
-    holder FixedString(41),
+    contract_address FixedString(41) NOT NULL,
+    holder FixedString(41) NOT NULL,
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (contract_address, holder)
@@ -92,14 +92,14 @@ func (Erc721Holder) TableName() string {
 
 var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_alls_v2_2_3
 (
-    block_height UInt64,
-    log_index UInt32,
-    action_hash FixedString(64),
-    contract_address FixedString(41),
-    owner FixedString(41),
-    operator FixedString(41),
-    approved Bool,
-    timestamp DateTime64(6)
+    block_height UInt64 NOT NULL,
+    log_index UInt32 NOT NULL,
+    action_hash FixedString(64) NOT NULL,
+    contract_address FixedString(41) NOT NULL,
+    owner FixedString(41) NOT NULL,
+    operator FixedString(41) NOT NULL,
+    approved Bool NOT NULL,
+    timestamp DateTime64(6) NOT NULL
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (block_height, log_index)

@@ -60,7 +60,7 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 			BlockHeight: blk.Height(),
 			ActionHash:  hex.EncodeToString(actionHash[:]),
 			Contract:    contract,
-			Data:        hex.EncodeToString(data),
+			Data:        data,
 		}
 		// TODO: maybe find receipt by index instead of loop
 		for _, receipt := range blk.Receipts {

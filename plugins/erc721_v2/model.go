@@ -75,7 +75,7 @@ func (Erc721Approval) TableName() string {
 var Erc721HolderDDL = `CREATE TABLE IF NOT EXISTS erc721_holders_v2_2_3
 (
     contract_address FixedString(41) NOT NULL,
-    holder FixedString(41) NOT NULL,
+    holder FixedString(41) NOT NULL
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (contract_address, holder)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -97,9 +98,7 @@ func (b tokenPlugin) BatchSize() int {
 
 func (b *tokenPlugin) Start(ctx context.Context) error {
 	var err error
-	cfg := &Config{
-		DSN: "tcp://127.0.0.1:8321",
-	}
+	cfg := &Config{}
 	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
 		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
@@ -107,8 +106,9 @@ func (b *tokenPlugin) Start(ctx context.Context) error {
 			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
 		}
 	}
-	if err = openChConn(ctx, cfg); err != nil {
-		return errors.Wrapf(err, "failed to connect to clickhouse")
+
+	if err := b.migrateTable(ctx); err != nil {
+		return errors.Wrap(err, "failed to migrate table")
 	}
 
 	b.batchSize = cfg.BatchSize
@@ -175,9 +175,10 @@ func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 				toAddr, _ := address.FromBytes(event.To.Bytes())
 				b.erc20Transfer = append(b.erc20Transfer, &Erc20Transfer{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
-					Amount:          amount,
+					Amount:          amount.String(),
 					Sender:          fromAddr.String(),
 					Recipient:       toAddr.String(),
 					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
@@ -208,9 +209,10 @@ func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 				spender, _ := address.FromBytes(event.Spender.Bytes())
 				b.erc20Approval = append(b.erc20Approval, &Erc20Approval{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
-					Amount:          amount,
+					Amount:          amount.String(),
 					Owner:           owner.String(),
 					Spender:         spender.String(),
 					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
@@ -229,9 +231,10 @@ func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 				to, _ := address.FromBytes(event.Dst.Bytes())
 				b.erc20Transfer = append(b.erc20Transfer, &Erc20Transfer{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
-					Amount:          amount,
+					Amount:          amount.String(),
 					Sender:          "",
 					Recipient:       to.String(),
 					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
@@ -255,9 +258,10 @@ func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 				from, _ := address.FromBytes(event.Src.Bytes())
 				b.erc20Transfer = append(b.erc20Transfer, &Erc20Transfer{
 					BlockHeight:     blk.Height(),
+					LogIndex:        log.Index,
 					ActionHash:      actionHash,
 					ContractAddress: log.Address,
-					Amount:          amount,
+					Amount:          amount.String(),
 					Sender:          from.String(),
 					Recipient:       "",
 					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
@@ -273,9 +277,7 @@ func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 					topics = topics + hex.EncodeToString(t[:]) + "\t"
 				}
 				slog.L().Warn("unknown event", zap.String("contract", log.Address), zap.Uint64("blockHeight", log.BlockHeight), zap.String("topics", topics))
-
 			}
-
 		}
 	}
 
@@ -283,31 +285,59 @@ func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 }
 
 func (b *tokenPlugin) commit() error {
+	ctx := context.Background()
 	if len(b.erc20Transfer) > 0 {
-		if err := chDB.Model(&Erc20Transfer{}).CreateInBatches(b.erc20Transfer, len(b.erc20Transfer)+1).Error; err != nil {
-			slog.L().Error("put erc20Transfer ", zap.String("plugin", b.Name()), zap.Int("size", len(b.erc20Transfer)))
+		defer func() {
 			b.erc20Transfer = b.erc20Transfer[:0]
-			return errors.Wrap(err, errFailedInsertTable)
+		}()
+		batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", Erc20Transfer{}.TableName()))
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare batch")
 		}
-		b.erc20Transfer = b.erc20Transfer[:0]
+		for _, e := range b.erc20Transfer {
+			if err := batch.AppendStruct(e); err != nil {
+				return errors.Wrap(err, "failed to append struct")
+			}
+		}
+		if err := batch.Send(); err != nil {
+			return errors.Wrap(err, "failed to send batch")
+		}
 	}
 
 	if len(b.erc20Approval) > 0 {
-		if err := chDB.Model(&Erc20Approval{}).CreateInBatches(b.erc20Approval, len(b.erc20Approval)+1).Error; err != nil {
-			slog.L().Error("put erc20Approval ", zap.String("plugin", b.Name()), zap.Int("size", len(b.erc20Approval)))
+		defer func() {
 			b.erc20Approval = b.erc20Approval[:0]
-			return errors.Wrap(err, errFailedInsertTable)
+		}()
+		batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", Erc20Approval{}.TableName()))
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare batch")
 		}
-		b.erc20Approval = b.erc20Approval[:0]
+		for _, e := range b.erc20Approval {
+			if err := batch.AppendStruct(e); err != nil {
+				return errors.Wrap(err, "failed to append struct")
+			}
+		}
+		if err := batch.Send(); err != nil {
+			return errors.Wrap(err, "failed to send batch")
+		}
 	}
 
 	if len(b.erc20Holder) > 0 {
-		if err := chDB.Model(&Erc20Holder{}).CreateInBatches(b.erc20Holder, len(b.erc20Holder)+1).Error; err != nil {
-			slog.L().Error("put erc20Holder ", zap.String("plugin", b.Name()), zap.Int("size", len(b.erc20Holder)))
+		defer func() {
 			b.erc20Holder = b.erc20Holder[:0]
-			return err
+		}()
+		batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", Erc20Holder{}.TableName()))
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare batch")
 		}
-		b.erc20Holder = b.erc20Holder[:0]
+		for _, e := range b.erc20Holder {
+			if err := batch.AppendStruct(e); err != nil {
+				return errors.Wrap(err, "failed to append struct")
+			}
+		}
+		if err := batch.Send(); err != nil {
+			return errors.Wrap(err, "failed to send batch")
+		}
 	}
 
 	return db.UpdateIndexHeight(b.Name(), b.tipHeight)

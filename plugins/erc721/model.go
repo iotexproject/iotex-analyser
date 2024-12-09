@@ -2,17 +2,13 @@ package main
 
 import (
 	"context"
-	"strings"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/pkg/errors"
 )
 
-var (
-	versionSuffix = "_v" + strings.ReplaceAll(VERSION, ".", "_")
-)
-
-var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers_v2_2_3
+var Erc721TransferDDL = `CREATE TABLE IF NOT EXISTS erc721_transfers
 (
     block_height UInt64 NOT NULL,
     log_index UInt32 NOT NULL,
@@ -39,10 +35,10 @@ type Erc721Transfer struct {
 }
 
 func (Erc721Transfer) TableName() string {
-	return "erc721_transfers" + versionSuffix
+	return "erc721_transfers"
 }
 
-var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals_v2_2_3
+var Erc721ApprovalDDL = `CREATE TABLE IF NOT EXISTS erc721_approvals
 (
     block_height UInt64 NOT NULL,
     log_index UInt32 NOT NULL,
@@ -69,10 +65,10 @@ type Erc721Approval struct {
 }
 
 func (Erc721Approval) TableName() string {
-	return "erc721_approvals" + versionSuffix
+	return "erc721_approvals"
 }
 
-var Erc721HolderDDL = `CREATE TABLE IF NOT EXISTS erc721_holders_v2_2_3
+var Erc721HolderDDL = `CREATE TABLE IF NOT EXISTS erc721_holders
 (
     contract_address FixedString(41) NOT NULL,
     holder FixedString(41) NOT NULL
@@ -87,10 +83,10 @@ type Erc721Holder struct {
 }
 
 func (Erc721Holder) TableName() string {
-	return "erc721_holders" + versionSuffix
+	return "erc721_holders"
 }
 
-var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_alls_v2_2_3
+var Erc721ApprovalForAllDDL = `CREATE TABLE IF NOT EXISTS erc721_approval_for_alls
 (
     block_height UInt64 NOT NULL,
     log_index UInt32 NOT NULL,
@@ -117,19 +113,19 @@ type Erc721ApprovalForAll struct {
 }
 
 func (Erc721ApprovalForAll) TableName() string {
-	return "erc721_approval_for_alls" + versionSuffix
+	return "erc721_approval_for_alls"
 }
 
 func (b tokenPlugin) migrateTable(ctx context.Context) error {
-	if err := chConn.Exec(ctx, Erc721TransferDDL); err != nil {
-		return errors.Wrap(err, "failed to create clickhouse erc721_transfers_v2_2_3 table")
+	if err := db.ChConn().Exec(ctx, Erc721TransferDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", Erc721Transfer{}.TableName())
 	}
-	if err := chConn.Exec(ctx, Erc721ApprovalDDL); err != nil {
-		return errors.Wrap(err, "failed to create clickhouse erc721_approvals_v2_2_3 table")
+	if err := db.ChConn().Exec(ctx, Erc721ApprovalDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", Erc721Approval{}.TableName())
 	}
-	if err := chConn.Exec(ctx, Erc721HolderDDL); err != nil {
-		return errors.Wrap(err, "failed to create clickhouse erc721_holders_v2_2_3 table")
+	if err := db.ChConn().Exec(ctx, Erc721HolderDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", Erc721Holder{}.TableName())
 	}
-	err := chConn.Exec(ctx, Erc721ApprovalForAllDDL)
-	return errors.Wrap(err, "failed to create clickhouse erc721_approval_for_alls_v2_2_3 table")
+	err := db.ChConn().Exec(ctx, Erc721ApprovalForAllDDL)
+	return errors.Wrapf(err, "failed to create table %s", Erc721ApprovalForAll{}.TableName())
 }

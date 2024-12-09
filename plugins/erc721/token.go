@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
@@ -87,7 +86,7 @@ type result struct {
 }
 
 func (b tokenPlugin) Name() string {
-	return "erc721_" + VERSION
+	return "erc721"
 }
 
 func (b tokenPlugin) Type() plugin.Type {
@@ -98,25 +97,9 @@ func (b tokenPlugin) BatchSize() int {
 	return b.batchSize
 }
 
-var chConn driver.Conn
-
-func openChConn(cfg *Config) (driver.Conn, error) {
-	op, err := clickhouse.ParseDSN(cfg.DSN)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse clickhouse dsn")
-	}
-	chConn, err := clickhouse.Open(op)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect clickhouse")
-	}
-	return chConn, nil
-}
-
 func (b tokenPlugin) Start(ctx context.Context) error {
 	var err error
-	cfg := &Config{
-		DSN: "tcp://127.0.0.1:8321",
-	}
+	cfg := &Config{}
 	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
 		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
@@ -124,11 +107,6 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
 		}
 	}
-	conn, err := openChConn(cfg)
-	if err != nil {
-		return errors.Wrap(err, "failed to connect to clickhouse")
-	}
-	chConn = conn
 	if err := b.migrateTable(ctx); err != nil {
 		return errors.Wrap(err, "failed to migrate clickhouse table")
 	}
@@ -290,7 +268,7 @@ func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) (*result, e
 
 func (b tokenPlugin) commit(height uint64, res *result) error {
 	if len(res.erc721Transfer) > 0 {
-		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_transfers_v2_2_3")
+		batch, err := db.ChConn().PrepareBatch(context.Background(), fmt.Sprintf("INSERT INTO %s", Erc721Transfer{}.TableName()))
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}
@@ -304,7 +282,7 @@ func (b tokenPlugin) commit(height uint64, res *result) error {
 		}
 	}
 	if len(res.erc721Approval) > 0 {
-		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_approvals_v2_2_3")
+		batch, err := db.ChConn().PrepareBatch(context.Background(), fmt.Sprintf("INSERT INTO %s", Erc721Approval{}.TableName()))
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}
@@ -318,7 +296,7 @@ func (b tokenPlugin) commit(height uint64, res *result) error {
 		}
 	}
 	if len(res.erc721Holder) > 0 {
-		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_holders_v2_2_3")
+		batch, err := db.ChConn().PrepareBatch(context.Background(), fmt.Sprintf("INSERT INTO %s", Erc721Holder{}.TableName()))
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}
@@ -332,7 +310,7 @@ func (b tokenPlugin) commit(height uint64, res *result) error {
 		}
 	}
 	if len(res.erc721ApprovalForAll) > 0 {
-		batch, err := chConn.PrepareBatch(context.Background(), "INSERT INTO erc721_approval_for_alls_v2_2_3")
+		batch, err := db.ChConn().PrepareBatch(context.Background(), fmt.Sprintf("INSERT INTO %s", Erc721ApprovalForAll{}.TableName()))
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare batch")
 		}

@@ -13,11 +13,11 @@ var BlockDDL = `CREATE TABLE IF NOT EXISTS block
     block_height UInt64 NOT NULL,
     block_hash FixedString(64) NOT NULL,
     producer_address FixedString(41) NOT NULL,
-	num_actions UInt64 NOT NULL,
+    num_actions UInt64 NOT NULL,
     timestamp DateTime64(6) NOT NULL,
-	year UInt64 NOT NULL,
-	month UInt64 NOT NULL,
-	day UInt64 NOT NULL
+    year UInt64 NOT NULL,
+    month UInt64 NOT NULL,
+    day UInt64 NOT NULL
 )
 ENGINE = ReplacingMergeTree()
 PRIMARY KEY (block_height)

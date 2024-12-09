@@ -97,7 +97,7 @@ func (b tokenPlugin) BatchSize() int {
 	return b.batchSize
 }
 
-func (b tokenPlugin) Start(ctx context.Context) error {
+func (b *tokenPlugin) Start(ctx context.Context) error {
 	var err error
 	cfg := &Config{}
 	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
@@ -108,7 +108,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 		}
 	}
 	if err := b.migrateTable(ctx); err != nil {
-		return errors.Wrap(err, "failed to migrate clickhouse table")
+		return errors.Wrap(err, "failed to migrate table")
 	}
 
 	b.batchSize = cfg.BatchSize

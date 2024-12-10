@@ -6,14 +6,18 @@ import (
 	"math/big"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 )
 
@@ -22,6 +26,11 @@ const VERSION = "2.0.7"
 var CandidateEndorsementOpRevokeHash256 hash.Hash256
 
 type candidatePlugin struct {
+	batchSize int
+}
+
+type Config struct {
+	BatchSize int `yaml:"batchSize"`
 }
 
 func (b candidatePlugin) Name() string {
@@ -32,7 +41,24 @@ func (b candidatePlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b candidatePlugin) Start(ctx context.Context) error {
+func (b candidatePlugin) BatchSize() int {
+	return b.batchSize
+}
+
+func (b *candidatePlugin) Start(ctx context.Context) error {
+	var err error
+	cfg := &Config{
+		BatchSize: 200,
+	}
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
+		} else {
+			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		}
+	}
+	b.batchSize = cfg.BatchSize
+
 	if err := db.ChConn().Exec(ctx, models.CandidateDDL); err != nil {
 		return errors.Wrapf(err, "failed to create table %s", models.Candidate{}.TableName())
 	}
@@ -171,6 +197,18 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		return errors.Wrap(err, "failed to handle block")
 	}
 	return b.commit(ctx, cands, blk.Height())
+}
+
+func (b candidatePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	total := make([]*models.Candidate, 0)
+	for _, blk := range blks {
+		cands, err := b.handleBlock(ctx, blk)
+		if err != nil {
+			return errors.Wrap(err, "failed to handle block")
+		}
+		total = append(total, cands...)
+	}
+	return b.commit(ctx, total, blks[len(blks)-1].Height())
 }
 
 func (b candidatePlugin) handleBlock(ctx context.Context, blk *block.Block) ([]*models.Candidate, error) {

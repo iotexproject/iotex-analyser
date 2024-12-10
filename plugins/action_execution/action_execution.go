@@ -6,15 +6,20 @@ import (
 	"fmt"
 
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 const VERSION = "2.0.2"
 
 type actionExecutionPlugin struct {
+	batchSize int
 }
 
 func (b actionExecutionPlugin) Name() string {
@@ -25,7 +30,24 @@ func (b actionExecutionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b actionExecutionPlugin) Start(ctx context.Context) error {
+func (b actionExecutionPlugin) BatchSize() int {
+	return b.batchSize
+}
+
+func (b *actionExecutionPlugin) Start(ctx context.Context) error {
+	var err error
+	cfg := &Config{
+		BatchSize: 200,
+	}
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
+		} else {
+			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		}
+	}
+	b.batchSize = cfg.BatchSize
+
 	if err := db.ChConn().Exec(ctx, ActionExecutionDDL); err != nil {
 		return errors.Wrapf(err, "failed to create table %s", ActionExecution{}.TableName())
 	}
@@ -45,7 +67,19 @@ func getDataFromAction(act action.Action) (string, []byte, error) {
 	}
 }
 
+func (b actionExecutionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	execs := make([]*ActionExecution, 0)
+	for _, blk := range blks {
+		execs = append(execs, b.handleBlock(ctx, blk)...)
+	}
+	return b.commit(ctx, execs, blks[len(blks)-1].Height())
+}
+
 func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	return b.commit(ctx, b.handleBlock(ctx, blk), blk.Height())
+}
+
+func (b actionExecutionPlugin) handleBlock(ctx context.Context, blk *block.Block) []*ActionExecution {
 	execs := make([]*ActionExecution, 0, len(blk.Actions))
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
@@ -71,6 +105,10 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 		}
 		execs = append(execs, ae)
 	}
+	return execs
+}
+
+func (b actionExecutionPlugin) commit(ctx context.Context, execs []*ActionExecution, height uint64) error {
 	// batch insert to clickhouse
 	batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", ActionExecution{}.TableName()))
 	if err != nil {
@@ -85,7 +123,7 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 		return errors.Wrap(err, "failed to send batch")
 	}
 	// update index height
-	return db.UpdateIndexHeight(b.Name(), blk.Height())
+	return db.UpdateIndexHeight(b.Name(), height)
 }
 
 func (b actionExecutionPlugin) Stop(ctx context.Context) error {

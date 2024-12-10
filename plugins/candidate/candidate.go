@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/pkg/errors"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
@@ -34,33 +33,30 @@ func (b candidatePlugin) Type() plugin.Type {
 }
 
 func (b candidatePlugin) Start(ctx context.Context) error {
-	if err := db.AutoMigrate(b.Name(), &models.Candidate{}); err != nil {
-		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	if err := db.ChConn().Exec(ctx, models.CandidateDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", models.Candidate{}.TableName())
 	}
-
 	CandidateEndorsementOpRevokeHash256 = hash.BytesToHash256([]byte("candidateEndorsementWithOp"))
-
 	return nil
 }
 
-func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sender address.Address, tx *gorm.DB) error {
+func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sender address.Address, index uint32) (*models.Candidate, error) {
+	var createData *models.Candidate
 	switch a := act.(type) {
 	case *action.CandidateRegister:
-		createData := models.Candidate{
+		createData = &models.Candidate{
 			BlockHeight:     blkHeight,
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
 			OwnerAddress:    a.OwnerAddress().String(),
 			CandidateID:     a.OwnerAddress().String(),
 			RewardAddress:   a.RewardAddress().String(),
-			Amount:          decimal.NewFromBigInt(a.Amount(), 0),
+			Amount:          a.Amount().String(),
 			ActType:         "CandidateRegister",
 			AutoStake:       a.AutoStake(),
 			Duration:        a.Duration(),
 			Payload:         a.Payload(),
-		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
+			LogIndex:        index,
 		}
 	case *action.CandidateUpdate:
 		rewardAddress := ""
@@ -70,10 +66,10 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 
 		candidate := &models.Candidate{}
 		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
-			return err
+			return nil, err
 		}
 
-		createData := models.Candidate{
+		createData = &models.Candidate{
 			BlockHeight:     blkHeight,
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
@@ -81,9 +77,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			RewardAddress:   rewardAddress,
 			CandidateID:     candidate.CandidateID,
 			ActType:         "CandidateUpdate",
-		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
+			LogIndex:        index,
 		}
 	case *action.CandidateTransferOwnership:
 		newOwner := ""
@@ -93,10 +87,10 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 
 		candidate := &models.Candidate{}
 		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
-			return err
+			return nil, err
 		}
 
-		createData := models.Candidate{
+		createData = &models.Candidate{
 			BlockHeight:     blkHeight,
 			Name:            candidate.Name,
 			OperatorAddress: candidate.OperatorAddress,
@@ -104,43 +98,39 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			OwnerAddress:    newOwner,
 			CandidateID:     candidate.CandidateID,
 			ActType:         "CandidateTransferOwnership",
-		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
+			LogIndex:        index,
 		}
 	// navtive bucket
 	case *action.CandidateActivate:
 		bucketID := a.BucketID()
 		bucket, err := GetStakingBucketByID(bucketID, blkHeight)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		candidate := &models.Candidate{}
 		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight); err != nil {
-			return err
+			return nil, err
 		}
 
 		// TODO amount is the staked amount at the epoch height not block height
 		amount, ok := new(big.Int).SetString(bucket.StakedAmount, 10)
 		if !ok {
-			return errors.New("failed to parse bucket staked amount")
+			return nil, errors.New("failed to parse bucket staked amount")
 		}
-		createData := models.Candidate{
+		createData = &models.Candidate{
 			BlockHeight:     blkHeight,
 			Name:            candidate.Name,
 			OperatorAddress: candidate.OperatorAddress,
 			OwnerAddress:    candidate.OwnerAddress,
 			CandidateID:     candidate.CandidateID,
 			RewardAddress:   candidate.RewardAddress,
-			Amount:          decimal.NewFromBigInt(amount, 0),
+			Amount:          amount.String(),
 			ActType:         "CandidateActivate",
 			AutoStake:       bucket.AutoStake,
 			Duration:        bucket.StakedDuration,
 			Payload:         candidate.Payload,
-		}
-		if err := tx.Create(&createData).Error; err != nil {
-			return err
+			LogIndex:        index,
 		}
 	case *action.CandidateEndorsement:
 		switch a.Op() {
@@ -156,9 +146,9 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 					candidateID, _ = address.FromBytes(log.Topics[2][:])
 					candidate := &models.Candidate{}
 					if err := candidate.FetchByCandidateIDWithHeight(candidateID.String(), blkHeight); err != nil {
-						return err
+						return nil, err
 					}
-					createData := models.Candidate{
+					createData = &models.Candidate{
 						BlockHeight:     blkHeight,
 						Name:            candidate.Name,
 						OperatorAddress: candidate.OperatorAddress,
@@ -166,40 +156,67 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 						OwnerAddress:    candidate.OwnerAddress,
 						CandidateID:     candidate.CandidateID,
 						ActType:         "CandidateEndorsement-CandidateEndorsementOpRevoke",
-					}
-					if err := tx.Create(&createData).Error; err != nil {
-						return err
+						LogIndex:        index,
 					}
 				}
 			}
 		}
 	}
-	return nil
+	return createData, nil
 }
-func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
-		for _, selp := range blk.Actions {
-			actionHash, _ := selp.Hash()
-			actions[actionHash] = selp
-		}
 
-		for _, receipt := range blk.Receipts {
-			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
-				continue
-			}
-			selp, ok := actions[receipt.ActionHash]
-			if !ok {
-				continue
-			}
-			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			if err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, tx); err != nil {
-				return err
-			}
+func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	cands, err := b.handleBlock(ctx, blk)
+	if err != nil {
+		return errors.Wrap(err, "failed to handle block")
+	}
+	return b.commit(ctx, cands, blk.Height())
+}
+
+func (b candidatePlugin) handleBlock(ctx context.Context, blk *block.Block) ([]*models.Candidate, error) {
+	actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
+	for _, selp := range blk.Actions {
+		actionHash, _ := selp.Hash()
+		actions[actionHash] = selp
+	}
+	cands := make([]*models.Candidate, 0)
+	for index, receipt := range blk.Receipts {
+		if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+			continue
 		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-	})
-	return err
+		selp, ok := actions[receipt.ActionHash]
+		if !ok {
+			continue
+		}
+		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+		m, err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, uint32(index))
+		if err != nil {
+			return nil, err
+		}
+		if m != nil {
+			cands = append(cands, m)
+		}
+	}
+	return cands, nil
+}
+
+func (b candidatePlugin) commit(ctx context.Context, cands []*models.Candidate, height uint64) error {
+	// batch insert to clickhouse
+	batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", models.Candidate{}.TableName()))
+	if err != nil {
+		return errors.Wrap(err, "failed to prepare batch")
+	}
+	for _, e := range cands {
+		if err := batch.AppendStruct(e); err != nil {
+			return errors.Wrap(err, "failed to append struct")
+		}
+	}
+	if err := batch.Send(); err != nil {
+		return errors.Wrap(err, "failed to send batch")
+	}
+	// update index height
+	return db.UpdateIndexHeight(b.Name(), height)
+
 }
 
 func (b candidatePlugin) Stop(ctx context.Context) error {

@@ -1,25 +1,45 @@
 package models
 
 import (
+	"context"
 	"errors"
+	"strings"
 
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/shopspring/decimal"
 )
 
+var CandidateDDL = `CREATE TABLE IF NOT EXISTS candidate
+(
+    block_height UInt64 NOT NULL,
+	name String NOT NULL,
+    operator_address FixedString(41) NOT NULL,
+	reward_address FixedString(41) NOT NULL,
+	owner_address FixedString(41) NOT NULL,
+	candidate_id FixedString(41) NOT NULL,
+    amount String NOT NULL,
+	duration UInt32 NOT NULL,
+	act_type String,
+	auto_stake Bool,
+	payload Array(UInt8),
+	log_index UInt32 NOT NULL
+)
+ENGINE = ReplacingMergeTree()
+PRIMARY KEY (block_height, log_index)
+ORDER BY (block_height, log_index)`
+
 type Candidate struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"not null;unsigned;index" sql:"type:bigint"`
-	Name            string          `gorm:"size:42;not null;default:'';index"`
-	OperatorAddress string          `gorm:"size:42;not null;default:'';"`
-	RewardAddress   string          `gorm:"size:42;not null;default:'';"`
-	OwnerAddress    string          `gorm:"size:42;not null;default:'';"`
-	CandidateID string `gorm:"size:42;not null;default:'';"`
-	Amount          decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
-	Duration        uint32          `gorm:"not null;" sql:"type:bigint"`
-	ActType         string
-	AutoStake       bool
-	Payload         []byte
+	BlockHeight     uint64 `ch:"block_height"`
+	Name            string `ch:"name"`
+	OperatorAddress string `ch:"operator_address"`
+	RewardAddress   string `ch:"reward_address"`
+	OwnerAddress    string `ch:"owner_address"`
+	CandidateID     string `ch:"candidate_id"`
+	Amount          string `ch:"amount"`
+	Duration        uint32 `ch:"duration"`
+	ActType         string `ch:"act_type"`
+	AutoStake       bool   `ch:"auto_stake"`
+	Payload         []byte `ch:"payload"`
+	LogIndex        uint32 `ch:"log_index"`
 }
 
 type Candidates []Candidate
@@ -28,10 +48,26 @@ func (Candidate) TableName() string {
 	return "candidate"
 }
 
+func (Candidate) Columns() []string {
+	return []string{
+		"block_height",
+		"name",
+		"operator_address",
+		"reward_address",
+		"owner_address",
+		"candidate_id",
+		"amount",
+		"duration",
+		"act_type",
+		"auto_stake",
+		"payload",
+		"log_index",
+	}
+}
+
 func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 	var err error
-	db := db.DB()
-	err = db.Model(m).Where("name = ?", name).Order("block_height desc,id desc").Take(&m).Error
+	err = db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE name = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), name).ScanStruct(m)
 	if err != nil {
 		return nil, err
 	}
@@ -39,31 +75,31 @@ func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 }
 
 func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64) error {
-	var err error
-	db := db.DB()
-	err = db.Model(m).Where("block_height <=? and owner_address = ?", height, owner).Order("block_height desc,id desc").Take(&m).Error
-	return err
+	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE block_height <=? and owner_address = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, owner).ScanStruct(m)
 }
 
 func (m *Candidate) FetchByCandidateIDWithHeight(candidateID string, height uint64) error {
-	var err error
-	db := db.DB()
-	err = db.Model(m).Where("block_height <=? and candidate_id = ?", height, candidateID).Order("block_height desc,id desc").Take(&m).Error
-	return err
+	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE block_height <=? and candidate_id = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, candidateID).ScanStruct(m)
 }
 
 func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {
-	var err error
-	db := db.DB()
-	err = db.Model(m).Where("block_height <=? and name = ?", height, name).Order("block_height desc,id desc").Take(&m).Error
-	return err
+	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE block_height <=? and name = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, name).ScanStruct(m)
 }
 
 func GetAllCandidates() (Candidates, error) {
+	sql := `SELECT ?
+FROM (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (PARTITION BY candidate_id ORDER BY block_height DESC, log_index DESC) AS rn
+    FROM
+        ?
+) AS subquery
+WHERE
+    rn = 1;`
 	var candidates Candidates
-	db := db.DB()
-	result := db.Model(&Candidate{}).Where("id in (select max(id) from candidate group by candidate_id)").Find(&candidates)
-	return candidates, result.Error
+	err := db.ChConn().Select(context.Background(), &candidates, sql, strings.Join(Candidate{}.Columns(), ","), Candidate{}.TableName())
+	return candidates, err
 }
 
 func (m Candidates) ByOwnerAddress(addr string) (Candidate, error) {

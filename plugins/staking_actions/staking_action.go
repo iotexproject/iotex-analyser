@@ -65,7 +65,7 @@ func (b stakingActionPlugin) DependentPlugins() []string {
 
 func (b *stakingActionPlugin) Start(ctx context.Context) error {
 	var err error
-	cfg := Config{
+	cfg := &Config{
 		BatchSize: 200,
 	}
 	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
@@ -75,7 +75,7 @@ func (b *stakingActionPlugin) Start(ctx context.Context) error {
 			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
 		}
 	}
-	b.cfg = cfg
+	b.cfg = *cfg
 
 	if err := db.ChConn().Exec(ctx, models.StakingActionsDDL); err != nil {
 		return errors.Wrapf(err, "failed to create table %s", models.StakingActions{}.TableName())

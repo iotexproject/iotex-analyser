@@ -10,14 +10,18 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 const VERSION = "2.1.2"
@@ -36,6 +40,11 @@ const (
 var unSelfStake *big.Int
 
 type stakingActionPlugin struct {
+	cfg Config
+}
+
+type Config struct {
+	BatchSize int `yaml:"batchSize"`
 }
 
 func (b stakingActionPlugin) Name() string {
@@ -46,11 +55,28 @@ func (b stakingActionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+func (b stakingActionPlugin) BatchSize() int {
+	return b.cfg.BatchSize
+}
+
 func (b stakingActionPlugin) DependentPlugins() []string {
 	return []string{"candidate"}
 }
 
-func (b stakingActionPlugin) Start(ctx context.Context) error {
+func (b *stakingActionPlugin) Start(ctx context.Context) error {
+	var err error
+	cfg := Config{
+		BatchSize: 200,
+	}
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
+		} else {
+			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		}
+	}
+	b.cfg = cfg
+
 	if err := db.ChConn().Exec(ctx, models.StakingActionsDDL); err != nil {
 		return errors.Wrapf(err, "failed to create table %s", models.StakingActions{}.TableName())
 	}
@@ -64,7 +90,27 @@ func (b stakingActionPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func (b stakingActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	stakingActions := make([]*models.StakingActions, 0)
+	for _, blk := range blks {
+		actions, err := b.handleBlock(ctx, blk)
+		if err != nil {
+			return errors.Wrap(err, "failed to handle block")
+		}
+		stakingActions = append(stakingActions, actions...)
+	}
+	return b.commit(ctx, stakingActions, blks[len(blks)-1].Height())
+}
+
 func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	stakingActions, err := b.handleBlock(ctx, blk)
+	if err != nil {
+		return errors.Wrap(err, "failed to handle block")
+	}
+	return b.commit(ctx, stakingActions, blk.Height())
+}
+
+func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) ([]*models.StakingActions, error) {
 	var (
 		stakingActions []*models.StakingActions
 		stakingAction  *models.StakingActions
@@ -106,12 +152,12 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 		case *action.CreateStake:
 			cadidateAddr, err := getCandidateAddressByName(a.Candidate(), blk.Height())
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			bucketID, ok := bucketMap[actHash]
 			if !ok {
-				return errors.New("can not found bucketID with actHash:" + actHash)
+				return nil, errors.New("can not found bucketID with actHash:" + actHash)
 			}
 			stakingAction = &models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -132,11 +178,11 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			bucketID := a.BucketIndex()
 			decmailAmount, err := getBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrapf(err, errBucketSumAmount, bucketID)
+				return nil, errors.Wrapf(err, errBucketSumAmount, bucketID)
 			}
 			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrap(err, errBucketInfoAddressByBucketID)
+				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
 			stakingAction = &models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -172,14 +218,14 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			bucketID := a.BucketIndex()
 			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrap(err, errBucketInfoAddressByBucketID)
+				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
 			// fix greenland (height=6544441) restake
 			fixAmount := decimal.NewFromInt(0)
 			if blk.Height() < genesis.Default.GreenlandBlockHeight {
 				fixAmount, err = getFixBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 				if err != nil {
-					return errors.Wrapf(err, errBucketSumAmount, bucketID)
+					return nil, errors.Wrapf(err, errBucketSumAmount, bucketID)
 				}
 			}
 			stakingAction = &models.StakingActions{
@@ -201,11 +247,11 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			bucketID := a.BucketIndex()
 			decmailAmount, err := getBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrapf(err, errBucketSumAmount, bucketID)
+				return nil, errors.Wrapf(err, errBucketSumAmount, bucketID)
 			}
 			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrap(err, errBucketInfoAddressByBucketID)
+				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
 			stakingAction = &models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -224,7 +270,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			stakingActions = append(stakingActions, stakingAction)
 			cadidateAddr, err := getCandidateAddressByName(a.Candidate(), blk.Height())
 			if err != nil {
-				return err
+				return nil, err
 			}
 			stakingAction = &models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -249,7 +295,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			bucketID := a.BucketIndex()
 			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrap(err, errBucketInfoAddressByBucketID)
+				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
 			stakingAction = &models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -270,11 +316,11 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			bucketID := a.BucketIndex()
 			decmailAmount, err := getBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrap(err, "getBucketSumAmountByBucketID error")
+				return nil, errors.Wrap(err, "getBucketSumAmountByBucketID error")
 			}
 			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
 			if err != nil {
-				return errors.Wrap(err, errBucketInfoAddressByBucketID)
+				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
 			stakingAction = &models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -294,7 +340,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 		case *action.CandidateRegister:
 			bucketID, ok := bucketMap[actHash]
 			if !ok {
-				return errors.New("can not found bucketID with actHash:" + actHash)
+				return nil, errors.New("can not found bucketID with actHash:" + actHash)
 			}
 
 			if bucketID != unSelfStake.Uint64() {
@@ -316,7 +362,10 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			}
 		}
 	}
+	return stakingActions, nil
+}
 
+func (b stakingActionPlugin) commit(ctx context.Context, stakingActions []*models.StakingActions, height uint64) error {
 	if len(stakingActions) > 0 {
 		// batch insert to clickhouse
 		batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", models.StakingActions{}.TableName()))
@@ -332,7 +381,7 @@ func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 			return errors.Wrap(err, "failed to send batch")
 		}
 	}
-	return db.UpdateIndexHeightByTx(db.DB(), b.Name(), blk.Height())
+	return db.UpdateIndexHeightByTx(db.DB(), b.Name(), height)
 }
 
 func (b stakingActionPlugin) Stop(ctx context.Context) error {

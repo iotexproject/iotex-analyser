@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
@@ -12,12 +13,12 @@ import (
 )
 
 const (
-    protocolID          = "staking"
-    readBucketsLimit    = 300000
+	protocolID       = "staking"
+	readBucketsLimit = 300000
 )
 
 func GetStakingBucketByID(bucketID, blkHeight uint64) (*iotextypes.VoteBucket, error) {
-    epochNum := kernel.GetEpochNum(blkHeight)
+	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
 
@@ -30,8 +31,8 @@ func GetStakingBucketByID(bucketID, blkHeight uint64) (*iotextypes.VoteBucket, e
 		}
 		for _, bucket := range voteBucketList.Buckets {
 			if bucket.Index == bucketID {
-                return bucket, nil
-            }
+				return bucket, nil
+			}
 		}
 		if len(voteBucketList.Buckets) < readBucketsLimit {
 			break
@@ -75,4 +76,28 @@ func getStakingBuckets(chainClient iotexapi.APIServiceClient, offset, limit uint
 		return nil, errors.Wrap(err, "failed to unmarshal VoteBucketList")
 	}
 	return
+}
+
+func fetchCandidateByIDAt(stash map[string]*models.Candidate, id string, height uint64) (*models.Candidate, error) {
+	if c, ok := stash[id]; ok {
+		return c, nil
+	}
+	c := &models.Candidate{}
+	err := c.FetchByCandidateIDWithHeight(id, height)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get candidate by id")
+	}
+	return c, nil
+}
+
+func fetchCandidateByOwnerAt(stash map[string]*models.Candidate, owner string, height uint64) (*models.Candidate, error) {
+	if c, ok := stash[owner]; ok {
+		return c, nil
+	}
+	c := &models.Candidate{}
+	err := c.FetchByOwnerAddressWithHeight(owner, height)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get candidate by owner")
+	}
+	return c, nil
 }

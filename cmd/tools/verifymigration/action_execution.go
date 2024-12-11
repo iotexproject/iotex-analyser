@@ -3,13 +3,9 @@ package verifymigration
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"gorm.io/gorm"
@@ -25,29 +21,10 @@ var VerifyActionExecutionCmd = &cli.Command{
 func verifyActionExecution(c *cli.Context) error {
 	start := c.Uint64("start")
 	end := c.Uint64("end")
-	chDSN := c.String("chdsn")
-	pgDSN := c.String("pgdsn")
-	// verify action_execution
-	chConn, err := db.ConnectClickhouse(chDSN)
+	chConn, pg, err := connectDatabase(c)
 	if err != nil {
-		return errors.Wrap(err, "failed to connect clickhouse")
+		return err
 	}
-	fmt.Println("clickhouse connected successfully", chDSN)
-	pgCfg, err := pgconn.ParseConfig(pgDSN)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse postgres dsn")
-	}
-	config.Default.Database.Driver = "postgres"
-	config.Default.Database.User = pgCfg.User
-	config.Default.Database.Password = pgCfg.Password
-	config.Default.Database.Host = pgCfg.Host
-	config.Default.Database.Name = pgCfg.Database
-	config.Default.Database.Port = strconv.FormatInt(int64(pgCfg.Port), 10)
-	pg, err := db.Connect()
-	if err != nil {
-		return errors.Wrap(err, "failed to connect postgres")
-	}
-	fmt.Println("postgres connected successfully", config.Default.Database.Host)
 
 	batchSize := 2000
 	for i := start; i <= end; {

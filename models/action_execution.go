@@ -1,4 +1,4 @@
-package main
+package models
 
 var ActionExecutionDDL = `CREATE TABLE IF NOT EXISTS action_execution
 (

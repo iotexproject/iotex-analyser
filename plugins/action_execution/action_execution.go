@@ -7,6 +7,7 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
@@ -48,8 +49,8 @@ func (b *actionExecutionPlugin) Start(ctx context.Context) error {
 	}
 	b.batchSize = cfg.BatchSize
 
-	if err := db.ChConn().Exec(ctx, ActionExecutionDDL); err != nil {
-		return errors.Wrapf(err, "failed to create table %s", ActionExecution{}.TableName())
+	if err := db.ChConn().Exec(ctx, models.ActionExecutionDDL); err != nil {
+		return errors.Wrapf(err, "failed to create table %s", models.ActionExecution{}.TableName())
 	}
 	return nil
 }
@@ -68,7 +69,7 @@ func getDataFromAction(act action.Action) (string, []byte, error) {
 }
 
 func (b actionExecutionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
-	execs := make([]*ActionExecution, 0)
+	execs := make([]*models.ActionExecution, 0)
 	for _, blk := range blks {
 		execs = append(execs, b.handleBlock(ctx, blk)...)
 	}
@@ -79,8 +80,8 @@ func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) e
 	return b.commit(ctx, b.handleBlock(ctx, blk), blk.Height())
 }
 
-func (b actionExecutionPlugin) handleBlock(ctx context.Context, blk *block.Block) []*ActionExecution {
-	execs := make([]*ActionExecution, 0, len(blk.Actions))
+func (b actionExecutionPlugin) handleBlock(ctx context.Context, blk *block.Block) []*models.ActionExecution {
+	execs := make([]*models.ActionExecution, 0, len(blk.Actions))
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
 		act := selp.Action()
@@ -90,7 +91,7 @@ func (b actionExecutionPlugin) handleBlock(ctx context.Context, blk *block.Block
 		if contract, data, err = getDataFromAction(act); err != nil {
 			continue
 		}
-		ae := &ActionExecution{
+		ae := &models.ActionExecution{
 			BlockHeight: blk.Height(),
 			ActionHash:  hex.EncodeToString(actionHash[:]),
 			Contract:    contract,
@@ -108,9 +109,9 @@ func (b actionExecutionPlugin) handleBlock(ctx context.Context, blk *block.Block
 	return execs
 }
 
-func (b actionExecutionPlugin) commit(ctx context.Context, execs []*ActionExecution, height uint64) error {
+func (b actionExecutionPlugin) commit(ctx context.Context, execs []*models.ActionExecution, height uint64) error {
 	// batch insert to clickhouse
-	batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", ActionExecution{}.TableName()))
+	batch, err := db.ChConn().PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", models.ActionExecution{}.TableName()))
 	if err != nil {
 		return errors.Wrap(err, "failed to prepare batch")
 	}

@@ -18,6 +18,15 @@ func getCandidateAddressByName(name string, height uint64) (string, error) {
 	return candidate.CandidateID, nil
 }
 
+func bucketSumAmount(ctx context.Context, conn driver.Conn, bucketID string, stash *stash) (decimal.Decimal, error) {
+	amount, err := getBucketSumAmountByBucketID(ctx, conn, bucketID)
+	if err != nil {
+		return decimal.NewFromInt(0), errors.Wrap(err, "failed to get bucket sum amount by bucket id")
+	}
+	s := stash.sumAmount[bucketID]
+	return amount.Add(decimal.NewFromBigInt(&s, 0)), nil
+}
+
 func getBucketSumAmountByBucketID(ctx context.Context, conn driver.Conn, bucketID string) (decimal.Decimal, error) {
 	amount := big.NewInt(0)
 	zero := decimal.NewFromInt(0)
@@ -71,4 +80,15 @@ func getBucketInfoAddressByBucketID(ctx context.Context, tx driver.Conn, bucketI
 		return nil, errors.Wrap(err, "failed to get bucket info by bucket id")
 	}
 	return &bi, nil
+}
+
+func bucketInfo(ctx context.Context, tx driver.Conn, bucketID string, stash *stash) (*BucketInfo, error) {
+	if bi, ok := stash.info[bucketID]; ok {
+		return bi, nil
+	}
+	bi, err := getBucketInfoAddressByBucketID(ctx, tx, bucketID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get bucket info by bucket id")
+	}
+	return bi, nil
 }

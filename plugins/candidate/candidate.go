@@ -29,6 +29,11 @@ type candidatePlugin struct {
 	batchSize int
 }
 
+type stash struct {
+	byID    map[string]*models.Candidate
+	byOwner map[string]*models.Candidate
+}
+
 type Config struct {
 	BatchSize int `yaml:"batchSize"`
 }
@@ -66,7 +71,7 @@ func (b *candidatePlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sender address.Address, index uint32) (*models.Candidate, error) {
+func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sender address.Address, index uint32, stash *stash) (*models.Candidate, error) {
 	var createData *models.Candidate
 	switch a := act.(type) {
 	case *action.CandidateRegister:
@@ -84,14 +89,16 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			Payload:         a.Payload(),
 			LogIndex:        index,
 		}
+		stash.byID[a.OwnerAddress().String()] = createData
+		stash.byOwner[a.OwnerAddress().String()] = createData
 	case *action.CandidateUpdate:
 		rewardAddress := ""
 		if a.RewardAddress() != nil {
 			rewardAddress = a.RewardAddress().String()
 		}
 
-		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
+		candidate, err := fetchCandidateByOwnerAt(stash.byOwner, sender.String(), blkHeight)
+		if err != nil {
 			return nil, err
 		}
 
@@ -111,8 +118,8 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			newOwner = a.NewOwner().String()
 		}
 
-		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
+		candidate, err := fetchCandidateByOwnerAt(stash.byOwner, sender.String(), blkHeight)
+		if err != nil {
 			return nil, err
 		}
 
@@ -126,6 +133,8 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			ActType:         "CandidateTransferOwnership",
 			LogIndex:        index,
 		}
+		delete(stash.byOwner, sender.String())
+		stash.byOwner[newOwner] = createData
 	// navtive bucket
 	case *action.CandidateActivate:
 		bucketID := a.BucketID()
@@ -134,8 +143,8 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			return nil, err
 		}
 
-		candidate := &models.Candidate{}
-		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight); err != nil {
+		candidate, err := fetchCandidateByIDAt(stash.byID, bucket.CandidateAddress, blkHeight)
+		if err != nil {
 			return nil, err
 		}
 
@@ -170,8 +179,9 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 				if log.Topics[0] == CandidateEndorsementOpRevokeHash256 {
 					// candidateID = common.BytesToAddress(log.Topics[2][:])
 					candidateID, _ = address.FromBytes(log.Topics[2][:])
-					candidate := &models.Candidate{}
-					if err := candidate.FetchByCandidateIDWithHeight(candidateID.String(), blkHeight); err != nil {
+
+					candidate, err := fetchCandidateByIDAt(stash.byID, candidateID.String(), blkHeight)
+					if err != nil {
 						return nil, err
 					}
 					createData = &models.Candidate{
@@ -192,26 +202,34 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 }
 
 func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	cands, err := b.handleBlock(ctx, blk)
+	stash := &stash{
+		byID:    make(map[string]*models.Candidate),
+		byOwner: make(map[string]*models.Candidate),
+	}
+	cands, err := b.handleBlock(ctx, blk, stash)
 	if err != nil {
-		return errors.Wrap(err, "failed to handle block")
+		return errors.Wrapf(err, "failed to handle block %d", blk.Height())
 	}
 	return b.commit(ctx, cands, blk.Height())
 }
 
 func (b candidatePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	total := make([]*models.Candidate, 0)
+	stash := &stash{
+		byID:    make(map[string]*models.Candidate),
+		byOwner: make(map[string]*models.Candidate),
+	}
 	for _, blk := range blks {
-		cands, err := b.handleBlock(ctx, blk)
+		cands, err := b.handleBlock(ctx, blk, stash)
 		if err != nil {
-			return errors.Wrap(err, "failed to handle block")
+			return errors.Wrapf(err, "failed to handle block %d", blk.Height())
 		}
 		total = append(total, cands...)
 	}
 	return b.commit(ctx, total, blks[len(blks)-1].Height())
 }
 
-func (b candidatePlugin) handleBlock(ctx context.Context, blk *block.Block) ([]*models.Candidate, error) {
+func (b candidatePlugin) handleBlock(ctx context.Context, blk *block.Block, stash *stash) ([]*models.Candidate, error) {
 	actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
@@ -227,7 +245,7 @@ func (b candidatePlugin) handleBlock(ctx context.Context, blk *block.Block) ([]*
 			continue
 		}
 		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-		m, err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, uint32(index))
+		m, err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, uint32(index), stash)
 		if err != nil {
 			return nil, err
 		}

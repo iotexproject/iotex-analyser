@@ -19,6 +19,8 @@ import (
 
 const VERSION = "2.0.2"
 
+var count int
+
 type blockPlugin struct {
 	batchSize int
 }
@@ -54,6 +56,11 @@ func (b *blockPlugin) Start(ctx context.Context) error {
 }
 
 func (b blockPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	// for test
+	count += len(blks)
+	slog.L().Info("block plugin current block count", zap.Int("count", count), zap.Uint64("index", blks[0].Height()+uint64(len(blks))-1))
+	//
+
 	total := []*Block{}
 	for _, blk := range blks {
 		res, err := b.putBlock(ctx, blk)

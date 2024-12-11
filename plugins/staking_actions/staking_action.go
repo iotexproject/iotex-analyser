@@ -47,6 +47,11 @@ type Config struct {
 	BatchSize int `yaml:"batchSize"`
 }
 
+type stash struct {
+	sumAmount map[string]big.Int
+	info      map[string]*BucketInfo
+}
+
 func (b stakingActionPlugin) Name() string {
 	return "staking_actions"
 }
@@ -92,10 +97,14 @@ func (b *stakingActionPlugin) Start(ctx context.Context) error {
 
 func (b stakingActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	stakingActions := make([]*models.StakingActions, 0)
+	stash := &stash{
+		sumAmount: make(map[string]big.Int),
+		info:      make(map[string]*BucketInfo),
+	}
 	for _, blk := range blks {
-		actions, err := b.handleBlock(ctx, blk)
+		actions, err := b.handleBlock(ctx, blk, stash)
 		if err != nil {
-			return errors.Wrap(err, "failed to handle block")
+			return errors.Wrapf(err, "failed to handle block %d", blk.Height())
 		}
 		stakingActions = append(stakingActions, actions...)
 	}
@@ -103,14 +112,18 @@ func (b stakingActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block)
 }
 
 func (b stakingActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	stakingActions, err := b.handleBlock(ctx, blk)
+	stash := &stash{
+		sumAmount: make(map[string]big.Int),
+		info:      make(map[string]*BucketInfo),
+	}
+	stakingActions, err := b.handleBlock(ctx, blk, stash)
 	if err != nil {
-		return errors.Wrap(err, "failed to handle block")
+		return errors.Wrapf(err, "failed to handle block %d", blk.Height())
 	}
 	return b.commit(ctx, stakingActions, blk.Height())
 }
 
-func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) ([]*models.StakingActions, error) {
+func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, stash *stash) ([]*models.StakingActions, error) {
 	var (
 		stakingActions []*models.StakingActions
 		stakingAction  *models.StakingActions
@@ -174,13 +187,21 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 			}
 			logIndex++
 			stakingActions = append(stakingActions, stakingAction)
+			stash.info[strconv.FormatUint(bucketID, 10)] = &BucketInfo{
+				OwnerAddress: sender.String(),
+				Candidate:    cadidateAddr,
+				AutoStake:    a.AutoStake(),
+				Duration:     a.Duration(),
+			}
+			sa := stash.sumAmount[strconv.FormatUint(bucketID, 10)]
+			stash.sumAmount[strconv.FormatUint(bucketID, 10)] = *new(big.Int).Add(&sa, a.Amount())
 		case *action.TransferStake:
 			bucketID := a.BucketIndex()
-			decmailAmount, err := getBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			decmailAmount, err := bucketSumAmount(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrapf(err, errBucketSumAmount, bucketID)
 			}
-			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			info, err := bucketInfo(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
@@ -214,9 +235,15 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 			}
 			logIndex++
 			stakingActions = append(stakingActions, stakingAction)
+			stash.info[strconv.FormatUint(bucketID, 10)] = &BucketInfo{
+				OwnerAddress: a.VoterAddress().String(),
+				Candidate:    info.Candidate,
+				AutoStake:    info.AutoStake,
+				Duration:     info.Duration,
+			}
 		case *action.Restake:
 			bucketID := a.BucketIndex()
-			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			info, err := bucketInfo(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
@@ -243,13 +270,21 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 			}
 			logIndex++
 			stakingActions = append(stakingActions, stakingAction)
+			stash.info[strconv.FormatUint(bucketID, 10)] = &BucketInfo{
+				OwnerAddress: sender.String(),
+				Candidate:    info.Candidate,
+				AutoStake:    a.AutoStake(),
+				Duration:     a.Duration(),
+			}
+			sa := stash.sumAmount[strconv.FormatUint(bucketID, 10)]
+			stash.sumAmount[strconv.FormatUint(bucketID, 10)] = *new(big.Int).Add(&sa, fixAmount.BigInt())
 		case *action.ChangeCandidate:
 			bucketID := a.BucketIndex()
-			decmailAmount, err := getBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			decmailAmount, err := bucketSumAmount(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrapf(err, errBucketSumAmount, bucketID)
 			}
-			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			info, err := bucketInfo(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
@@ -287,13 +322,19 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 			}
 			logIndex++
 			stakingActions = append(stakingActions, stakingAction)
+			stash.info[strconv.FormatUint(bucketID, 10)] = &BucketInfo{
+				OwnerAddress: info.OwnerAddress,
+				Candidate:    cadidateAddr,
+				AutoStake:    info.AutoStake,
+				Duration:     info.Duration,
+			}
 			//TODO: candidate update has no bucketID
 		case *action.CandidateUpdate:
 			logIndex++
 			continue
 		case *action.DepositToStake:
 			bucketID := a.BucketIndex()
-			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			info, err := bucketInfo(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
@@ -312,13 +353,15 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 			}
 			logIndex++
 			stakingActions = append(stakingActions, stakingAction)
+			sa := stash.sumAmount[strconv.FormatUint(bucketID, 10)]
+			stash.sumAmount[strconv.FormatUint(bucketID, 10)] = *new(big.Int).Add(&sa, a.Amount())
 		case *action.Unstake:
 			bucketID := a.BucketIndex()
-			decmailAmount, err := getBucketSumAmountByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			decmailAmount, err := bucketSumAmount(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrap(err, "getBucketSumAmountByBucketID error")
 			}
-			info, err := getBucketInfoAddressByBucketID(ctx, tx, strconv.FormatUint(bucketID, 10))
+			info, err := bucketInfo(ctx, tx, strconv.FormatUint(bucketID, 10), stash)
 			if err != nil {
 				return nil, errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
@@ -337,6 +380,8 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 			}
 			logIndex++
 			stakingActions = append(stakingActions, stakingAction)
+			sa := stash.sumAmount[strconv.FormatUint(bucketID, 10)]
+			stash.sumAmount[strconv.FormatUint(bucketID, 10)] = *new(big.Int).Add(&sa, decmailAmount.Mul(decimal.NewFromInt(-1)).BigInt())
 		case *action.CandidateRegister:
 			bucketID, ok := bucketMap[actHash]
 			if !ok {
@@ -359,6 +404,14 @@ func (b stakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block) 
 				}
 				logIndex++
 				stakingActions = append(stakingActions, stakingAction)
+				stash.info[strconv.FormatUint(bucketID, 10)] = &BucketInfo{
+					OwnerAddress: a.OwnerAddress().String(),
+					Candidate:    a.OwnerAddress().String(),
+					AutoStake:    a.AutoStake(),
+					Duration:     a.Duration(),
+				}
+				sa := stash.sumAmount[strconv.FormatUint(bucketID, 10)]
+				stash.sumAmount[strconv.FormatUint(bucketID, 10)] = *new(big.Int).Add(&sa, a.Amount())
 			}
 		}
 	}

@@ -96,6 +96,9 @@ func (b *stakingActionPlugin) Start(ctx context.Context) error {
 }
 
 func (b stakingActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	if len(blks) == 0 {
+		return nil
+	}
 	stakingActions := make([]*models.StakingActions, 0)
 	stash := &stash{
 		sumAmount: make(map[string]big.Int),

@@ -69,6 +69,9 @@ func getDataFromAction(act action.Action) (string, []byte, error) {
 }
 
 func (b actionExecutionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	if len(blks) == 0 {
+		return nil
+	}
 	execs := make([]*models.ActionExecution, 0)
 	for _, blk := range blks {
 		execs = append(execs, b.handleBlock(ctx, blk)...)

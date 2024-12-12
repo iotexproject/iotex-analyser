@@ -214,6 +214,9 @@ func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 }
 
 func (b candidatePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	if len(blks) == 0 {
+		return nil
+	}
 	total := make([]*models.Candidate, 0)
 	stash := &stash{
 		byID:    make(map[string]*models.Candidate),

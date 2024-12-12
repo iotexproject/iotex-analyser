@@ -11,6 +11,7 @@ import (
 	"github.com/iotexproject/iotex-core/v2/blockchain/blockdao"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
+	"github.com/mohae/deepcopy"
 	"github.com/pkg/errors"
 )
 
@@ -31,10 +32,12 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 	if err != nil {
 		return nil, err
 	}
-	blk.Receipts, err = dao.GetReceipts(blkHeight)
+	blk = deepcopy.Copy(blk).(*block.Block)
+	receipts, err := dao.GetReceipts(blkHeight)
 	if err != nil {
 		return nil, err
 	}
+	blk.Receipts = deepcopy.Copy(receipts).([]*action.Receipt)
 	tlogs, err := dao.TransactionLogs(blkHeight)
 	if err != nil {
 		return nil, err

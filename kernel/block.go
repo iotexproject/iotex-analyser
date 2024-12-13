@@ -32,6 +32,7 @@ func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk 
 		return nil, err
 	}
 	d := &block.Deserializer{}
+	d.SetEvmNetworkID(config.EVMNetworkID())
 	blk, err = d.FromBlockProto(blk.ConvertToBlockPb())
 	if err != nil {
 		return nil, err

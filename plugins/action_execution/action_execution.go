@@ -19,6 +19,8 @@ import (
 
 const VERSION = "2.0.2"
 
+var expectHeight uint64
+
 type actionExecutionPlugin struct {
 	batchSize int
 }
@@ -52,6 +54,12 @@ func (b *actionExecutionPlugin) Start(ctx context.Context) error {
 	if err := db.ChConn().Exec(ctx, models.ActionExecutionDDL); err != nil {
 		return errors.Wrapf(err, "failed to create table %s", models.ActionExecution{}.TableName())
 	}
+
+	h, err := db.GetIndexHeight(b.Name())
+	if err != nil {
+		return errors.Wrap(err, "failed to get index height")
+	}
+	expectHeight = h + 1
 	return nil
 }
 
@@ -72,15 +80,31 @@ func (b actionExecutionPlugin) PutBlocks(ctx context.Context, blks []*block.Bloc
 	if len(blks) == 0 {
 		return nil
 	}
+	expect := expectHeight
 	execs := make([]*models.ActionExecution, 0)
 	for _, blk := range blks {
+		if blk.Height() != expect {
+			slog.L().Warn("unexpected block height", zap.Uint64("expect", expect), zap.Uint64("actual", blk.Height()), zap.String("plugin", b.Name()))
+		}
+		expect = blk.Height() + 1
 		execs = append(execs, b.handleBlock(ctx, blk)...)
 	}
-	return b.commit(ctx, execs, blks[len(blks)-1].Height())
+	err := b.commit(ctx, execs, blks[len(blks)-1].Height())
+	if err == nil {
+		expectHeight = blks[len(blks)-1].Height() + 1
+	}
+	return err
 }
 
 func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	return b.commit(ctx, b.handleBlock(ctx, blk), blk.Height())
+	if blk.Height() != expectHeight {
+		slog.L().Warn("unexpected block height", zap.Uint64("expect", expectHeight), zap.Uint64("actual", blk.Height()), zap.String("plugin", b.Name()))
+	}
+	err := b.commit(ctx, b.handleBlock(ctx, blk), blk.Height())
+	if err == nil {
+		expectHeight = blk.Height() + 1
+	}
+	return err
 }
 
 func (b actionExecutionPlugin) handleBlock(ctx context.Context, blk *block.Block) []*models.ActionExecution {

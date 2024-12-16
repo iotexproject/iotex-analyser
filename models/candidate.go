@@ -67,7 +67,7 @@ func (Candidate) Columns() []string {
 
 func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 	var err error
-	err = db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE name = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), name).ScanStruct(m)
+	err = db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? FINAL WHERE name = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), name).ScanStruct(m)
 	if err != nil {
 		return nil, err
 	}
@@ -75,15 +75,15 @@ func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 }
 
 func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64) error {
-	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE block_height <=? and owner_address = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, owner).ScanStruct(m)
+	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? FINAL WHERE block_height <=? and owner_address = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, owner).ScanStruct(m)
 }
 
 func (m *Candidate) FetchByCandidateIDWithHeight(candidateID string, height uint64) error {
-	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE block_height <=? and candidate_id = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, candidateID).ScanStruct(m)
+	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? FINAL WHERE block_height <=? and candidate_id = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, candidateID).ScanStruct(m)
 }
 
 func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {
-	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? WHERE block_height <=? and name = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, name).ScanStruct(m)
+	return db.ChConn().QueryRow(context.Background(), "SELECT * FROM ? FINAL WHERE block_height <=? and name = ? ORDER BY block_height DESC,log_index DESC LIMIT 1", m.TableName(), height, name).ScanStruct(m)
 }
 
 func GetAllCandidates() (Candidates, error) {
@@ -93,7 +93,7 @@ FROM (
         *,
         ROW_NUMBER() OVER (PARTITION BY candidate_id ORDER BY block_height DESC, log_index DESC) AS rn
     FROM
-        ?
+        ? FINAL
 ) AS subquery
 WHERE
     rn = 1;`

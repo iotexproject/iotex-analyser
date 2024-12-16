@@ -30,7 +30,7 @@ func bucketSumAmount(ctx context.Context, conn driver.Conn, bucketID string, sta
 func getBucketSumAmountByBucketID(ctx context.Context, conn driver.Conn, bucketID string) (decimal.Decimal, error) {
 	amount := big.NewInt(0)
 	zero := decimal.NewFromInt(0)
-	if err := conn.QueryRow(ctx, "SELECT sum(toInt256(amount)) FROM ? WHERE bucket_id=?", models.StakingActions{}.TableName(), bucketID).Scan(&amount); err != nil {
+	if err := conn.QueryRow(ctx, "SELECT sum(toInt256(amount)) FROM ? FINAL WHERE bucket_id=?", models.StakingActions{}.TableName(), bucketID).Scan(&amount); err != nil {
 		return zero, errors.Wrap(err, "failed to get sum amount by bucket id")
 	}
 	if amount.Sign() == 0 {
@@ -47,14 +47,14 @@ func getFixBucketSumAmountByBucketID(ctx context.Context, tx driver.Conn, bucket
 	amount := big.NewInt(0)
 	var count uint64
 	zero := decimal.NewFromInt(0)
-	err := tx.QueryRow(ctx, "SELECT count(*) FROM ? WHERE bucket_id=? and act_type='Unstake'", models.StakingActions{}.TableName(), bucketID).Scan(&count)
+	err := tx.QueryRow(ctx, "SELECT count(*) FROM ? FINAL WHERE bucket_id=? and act_type='Unstake'", models.StakingActions{}.TableName(), bucketID).Scan(&count)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to get count by bucket id")
 	}
 	if count == 0 {
 		return zero, nil
 	}
-	if err := tx.QueryRow(ctx, "SELECT sum(toInt256(amount)) FROM ? WHERE bucket_id=? and act_type!='Unstake'", models.StakingActions{}.TableName(), bucketID).Scan(&amount); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT sum(toInt256(amount)) FROM ? FINAL WHERE bucket_id=? and act_type!='Unstake'", models.StakingActions{}.TableName(), bucketID).Scan(&amount); err != nil {
 		return zero, errors.Wrap(err, "failed to get sum amount by bucket id")
 	}
 	if amount.Sign() == 0 {
@@ -76,7 +76,7 @@ type BucketInfo struct {
 
 func getBucketInfoAddressByBucketID(ctx context.Context, tx driver.Conn, bucketID string) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.QueryRow(ctx, "SELECT owner_address,candidate,auto_stake,duration FROM ? WHERE bucket_id=? ORDER BY block_height DESC, log_index DESC LIMIT 1", models.StakingActions{}.TableName(), bucketID).ScanStruct(&bi); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT owner_address,candidate,auto_stake,duration FROM ? FINAL WHERE bucket_id=? ORDER BY block_height DESC, log_index DESC LIMIT 1", models.StakingActions{}.TableName(), bucketID).ScanStruct(&bi); err != nil {
 		return nil, errors.Wrap(err, "failed to get bucket info by bucket id")
 	}
 	return &bi, nil

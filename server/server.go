@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/rpc"
+	"net/url"
 	"os"
 	"runtime"
 	"sync"
@@ -284,9 +285,21 @@ func (srv *Server) startDaoService() error {
 		dao = kernel.NewVirtualDao()
 	} else {
 		deser := block.NewDeserializer(config.EVMNetworkID())
-		fdao, err := filedao.NewFileDAO(config.Default.BlockDB, deser)
+		path := config.Default.BlockDB.DbPath
+		uri, err := url.Parse(path)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "failed to parse chain db path %s", path)
+		}
+		var fdao blockdao.BlockStore
+		switch uri.Scheme {
+		case "grpc":
+			fdao = blockdao.NewGrpcBlockDAO(uri.Host, uri.Query().Get("insecure") == "true", deser)
+		case "file", "":
+			dbConfig := config.Default.BlockDB
+			dbConfig.DbPath = uri.Path
+			fdao, err = filedao.NewFileDAO(dbConfig, deser)
+		default:
+			return errors.Errorf("unsupported blockdao scheme %s", uri.Scheme)
 		}
 		dao = blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 	}

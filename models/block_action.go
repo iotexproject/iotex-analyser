@@ -35,8 +35,9 @@ func (BlockAction) TableName() string {
 }
 
 type ActionType struct {
-	Hash string `gorm:"primary_key;size:64;not null;index:,type:hash"`
-	Type uint   `gorm:"type:int4;unsigned;not null;default:0"`
+	BlockHeight uint64 `gorm:"unsigned;index" sql:"type:bigint"`
+	Hash        string `gorm:"primary_key;size:64;not null;index:,type:hash"`
+	Type        uint   `gorm:"type:int4;unsigned;not null;default:0"`
 	// accesslist tx
 	AccessList datatypes.JSON `gorm:"type:jsonb"`
 	// dynamic fee tx

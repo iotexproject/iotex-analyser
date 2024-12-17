@@ -37,8 +37,9 @@ func (b metricsPlugin) Type() plugin.Type {
 
 func (b metricsPlugin) Start(ctx context.Context) error {
 	funM := []func(*sync.WaitGroup){
-		b.updateBlockGasConsumed,
+		b.updateBlockMetrics,
 		b.updateBlockGasPrice,
+		b.updatePriorityFee,
 	}
 
 	go func() {
@@ -100,7 +101,7 @@ func (m metricsPlugin) setCounter(identifier string, c prometheus.Counter) {
 	m.counters[identifier] = c
 }
 
-func (m metricsPlugin) updateBlockGasConsumed(wg *sync.WaitGroup) {
+func (m metricsPlugin) updateBlockMetrics(wg *sync.WaitGroup) {
 	defer wg.Done()
 	metric := "block_gas_consumed"
 	blkHeight, err := db.GetIndexHeight("block_meta")
@@ -124,6 +125,36 @@ func (m metricsPlugin) updateBlockGasConsumed(wg *sync.WaitGroup) {
 	}
 	log.L().Debug("metrics block gas consumed", zap.Uint64("height", blkHeight), zap.Uint64("gas_consumed", dbBlockMeta.GasConsumed))
 	gauge.Set(float64(dbBlockMeta.GasConsumed))
+
+	// update block base fee
+	metric = "block_base_fee"
+	gauge, ok = m.getGauge(metric)
+	if !ok {
+		gauge = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: m.prefix + metric,
+			Help: "block base fee",
+		})
+
+		m.setGauge(metric, gauge)
+		prometheus.Register(gauge)
+	}
+	log.L().Debug("metrics block base fee", zap.Uint64("height", blkHeight), zap.Uint64("base_fee", dbBlockMeta.BaseFee.BigInt().Uint64()))
+	gauge.Set(float64(dbBlockMeta.BaseFee.BigInt().Uint64()))
+
+	// update block priority bonus
+	metric = "block_priority_bonus"
+	gauge, ok = m.getGauge(metric)
+	if !ok {
+		gauge = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: m.prefix + metric,
+			Help: "block priority bonus",
+		})
+
+		m.setGauge(metric, gauge)
+		prometheus.Register(gauge)
+	}
+	log.L().Debug("metrics block priority bonus", zap.Uint64("height", blkHeight), zap.Uint64("priority_bonus", dbBlockMeta.PriorityBonus.BigInt().Uint64()))
+	gauge.Set(float64(dbBlockMeta.PriorityBonus.BigInt().Uint64()))
 }
 
 func (m metricsPlugin) updateBlockGasPrice(wg *sync.WaitGroup) {
@@ -159,4 +190,39 @@ func (m metricsPlugin) updateBlockGasPrice(wg *sync.WaitGroup) {
 	}
 	log.L().Debug("metrics block gas price", zap.Uint64("height", blkHeight), zap.Float64("gas_price", gasPrice))
 	gauge.Set(gasPrice)
+}
+
+func (m metricsPlugin) updatePriorityFee(wg *sync.WaitGroup) {
+	defer wg.Done()
+	metric := "priority_fee"
+	blkHeight, err := db.GetIndexHeight("action_type")
+	if err != nil {
+		return
+	}
+	var gasTipCap sql.NullString
+	if err := db.DB().Model(&models.ActionType{}).Select("avg(gas_tip_cap)").Where("block_height = ?", blkHeight).Scan(&gasTipCap).Error; err != nil {
+		log.L().Error("failed to get action type", zap.Error(err))
+		return
+	}
+	if gasTipCap.String == "" {
+		return
+	}
+	gasTip, err := strconv.ParseFloat(gasTipCap.String, 64)
+	if err != nil {
+		log.L().Error("failed to parse gas tip cap", zap.Error(err))
+		return
+	}
+
+	gauge, ok := m.getGauge(metric)
+	if !ok {
+		gauge = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: m.prefix + metric,
+			Help: "gas tip cap",
+		})
+
+		m.setGauge(metric, gauge)
+		prometheus.Register(gauge)
+	}
+	log.L().Debug("metrics gas tip price", zap.Uint64("height", blkHeight), zap.Float64("gas_tip_cap", gasTip))
+	gauge.Set(gasTip)
 }

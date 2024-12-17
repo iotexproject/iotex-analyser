@@ -76,8 +76,9 @@ func (b actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 			return errors.Wrap(err, "failed to get hash")
 		}
 		at := &models.ActionType{
-			Hash: hex.EncodeToString(h[:]),
-			Type: uint(act.Envelope.TxType()),
+			BlockHeight: blk.Height(),
+			Hash:        hex.EncodeToString(h[:]),
+			Type:        uint(act.Envelope.TxType()),
 		}
 		switch act.Envelope.TxType() {
 		case action.BlobTxType:

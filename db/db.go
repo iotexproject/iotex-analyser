@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -47,6 +48,12 @@ func Connect() (*gorm.DB, error) {
 	case "postgres":
 		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", host, user, password, name, port)
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
+		if err != nil {
+			return db, err
+		}
+	case "tidb":
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, name)
+		db, err = gorm.Open(mysql.Open(dsn), gormConfig)
 		if err != nil {
 			return db, err
 		}

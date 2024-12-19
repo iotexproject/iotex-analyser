@@ -7,7 +7,7 @@ type Block struct {
 	BlockHash       string    `gorm:"size:64;not null;uniqueIndex"`
 	ProducerAddress string    `gorm:"size:42;not null;index:,length:9"`
 	NumActions      int       `gorm:"type:int2;unsigned;not null;default:0"`
-	Timestamp       time.Time `gorm:"type:timestamp;index:,expression:DATE(timestamp)"`
+	Timestamp       time.Time `gorm:"type:timestamp;index:"`
 	Year            int       `gorm:"type:int2; unsigned;not null;default:0;index:idx_ymd"`
 	Month           int       `gorm:"type:int2; unsigned;not null;default:0;index:idx_ymd"`
 	Day             int       `gorm:"type:int2; unsigned;not null;default:0;index:idx_ymd"`

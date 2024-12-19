@@ -1,0 +1,64 @@
+name: build_image
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: iotexproject/iotex-analyser
+
+jobs:
+  build_docker_image:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+        
+      - name: Setup Docker and Colima
+        if: startsWith(matrix.os, 'macos-latest') == true
+        run: |
+          brew install docker colima
+          colima start
+          
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta-analyser
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+
+      - name: Build and push Docker image web
+        id: build-and-push-analyser
+        uses: docker/build-push-action@v4
+        with:
+          platforms: linux/amd64
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-analyser.outputs.tags }}
+          labels: ${{ steps.meta-analyser.outputs.labels }}

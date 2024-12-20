@@ -89,9 +89,15 @@ func (b actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 			}
 			at.BlobGas = act.BlobGas()
 			at.BlobFeeCap = decimal.NewFromBigInt(act.BlobGasFeeCap(), 0)
+			blobHashes := []string{}
 			for _, h := range act.BlobHashes() {
-				at.BlobHashes = append(at.BlobHashes, hex.EncodeToString(h[:]))
+				blobHashes = append(blobHashes, hex.EncodeToString(h[:]))
 			}
+			blobHashesJ, err := json.Marshal(blobHashes)
+			if err != nil {
+				return errors.Wrap(err, "failed to json marshal blob hashes")
+			}
+			at.BlobHashes = blobHashesJ
 			at.BlobGasPrice = decimal.NewFromBigInt(receipt.BlobGasPrice, 0)
 			fallthrough
 		case action.DynamicFeeTxType:

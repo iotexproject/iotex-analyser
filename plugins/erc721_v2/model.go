@@ -3,8 +3,6 @@ package main
 import (
 	"strings"
 	"time"
-
-	"github.com/shopspring/decimal"
 )
 
 var (
@@ -12,14 +10,14 @@ var (
 )
 
 type Erc721Transfer struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string          `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	TokenId         decimal.Decimal `gorm:"type:decimal(128,0);not null;default:0;"`
-	Sender          string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Recipient       string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Timestamp       time.Time       `gorm:"type:timestamp;"`
+	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight     uint64    `gorm:"unsigned;index" sql:"type:bigint"`
+	ActionHash      string    `gorm:"size:64;not null;index:,length:9"`
+	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	TokenId         string    `gorm:"not null;default:'';"`
+	Sender          string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Recipient       string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Timestamp       time.Time `gorm:"type:timestamp;"`
 }
 
 func (Erc721Transfer) TableName() string {
@@ -27,14 +25,14 @@ func (Erc721Transfer) TableName() string {
 }
 
 type Erc721Approval struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string          `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Owner           string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Approved        string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	TokenId         decimal.Decimal `gorm:"type:decimal(128,0);not null;default:0;"`
-	Timestamp       time.Time       `gorm:"type:timestamp;"`
+	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight     uint64    `gorm:"unsigned;index" sql:"type:bigint"`
+	ActionHash      string    `gorm:"size:64;not null;index:,length:9"`
+	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Owner           string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Approved        string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	TokenId         string    `gorm:"not null;default:'';"`
+	Timestamp       time.Time `gorm:"type:timestamp;"`
 }
 
 func (Erc721Approval) TableName() string {

@@ -174,8 +174,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						Operator:        operator.String(),
 						Sender:          from.String(),
 						Recipient:       to.String(),
-						SID:             sid,
-						Value:           value,
+						SID:             sid.String(),
+						Value:           value.String(),
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {
@@ -197,7 +197,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 						ActionHash:      actionHash,
 						ContractAddress: log.Address,
 						Value:           event.Value,
-						SID:             id,
+						SID:             id.String(),
 						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
 					}
 					if err := tx.Create(&model).Error; err != nil {

@@ -3,7 +3,6 @@ package models
 import (
 	"time"
 
-	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 	"gorm.io/datatypes"
 )
@@ -27,7 +26,7 @@ type BlockAction struct {
 	Status             uint64          `gorm:"type:int2;unsigned;not null;default:0"`
 	ExecutionRevertMsg string          `gorm:"size:255;not null;default:''"`
 	Payload            []byte
-	Timestamp          time.Time `gorm:"type:timestamp;index:,expression:(timestamp::date)"`
+	Timestamp          time.Time `gorm:"type:timestamp;index:"`
 }
 
 func (BlockAction) TableName() string {
@@ -46,7 +45,7 @@ type ActionType struct {
 	// blob tx
 	BlobGas      uint64          `gorm:"type:int8;unsigned"`
 	BlobFeeCap   decimal.Decimal `gorm:"type:decimal(42,0)"`
-	BlobHashes   pq.StringArray  `gorm:"type:text[]"`
+	BlobHashes   datatypes.JSON  `gorm:"type:json"`
 	BlobGasPrice decimal.Decimal `gorm:"type:decimal(42,0)"`
 }
 

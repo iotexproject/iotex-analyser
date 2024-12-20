@@ -12,7 +12,7 @@ type InscriptionRaw struct {
 	Recipient        string    `gorm:"size:42;not null;default:'';index:,length:9"`
 	Timestamp        time.Time `gorm:"type:timestamp;"`
 
-	RawData string `gorm:"type:text;not null;default:'';"`
+	RawData string `gorm:"type:text;not null"`
 }
 
 func (InscriptionRaw) TableName() string {
@@ -25,10 +25,10 @@ type Inscription struct {
 	BlockHeight      uint64 `gorm:"unsigned;index" sql:"type:bigint"`
 	ActionHash       string `gorm:"size:64;not null;index:,length:9"`
 	TransactionIndex uint64 `gorm:"unsigned" sql:"type:bigint"`
-	MIMEType         string `gorm:"type:text;not null;default:'';"`
-	Parameters       string `gorm:"type:text;not null;default:'';"`
-	Extension        string `gorm:"type:text;not null;default:'';"`
-	Data             string `gorm:"type:text;not null;default:'';"`
+	MIMEType         string `gorm:"type:text;not null"`
+	Parameters       string `gorm:"type:text;not null"`
+	Extension        string `gorm:"type:text;not null"`
+	Data             string `gorm:"type:text;not null"`
 }
 
 func (Inscription) TableName() string {

@@ -2,8 +2,6 @@ package main
 
 import (
 	"strings"
-
-	"github.com/shopspring/decimal"
 )
 
 var (
@@ -11,12 +9,12 @@ var (
 )
 
 type Erc1155721Holder struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9;uniqueIndex:idx_contract_address_holder_token_id_2"`
-	Holder          string          `gorm:"size:42;not null;default:'';index:,length:9;uniqueIndex:idx_contract_address_holder_token_id_2"`
-	ErcType         uint16          `gorm:"index;default:0;"` // 1155 or 721
-	TokenID         decimal.Decimal `gorm:"type:decimal(128,0);not null;default:0;uniqueIndex:idx_contract_address_holder_token_id_2"`
-	TokenValue      decimal.Decimal `gorm:"type:decimal(128,0);not null;default:0;"`
+	ID              uint64 `gorm:"primary_key;" sql:"type:bigint"`
+	ContractAddress string `gorm:"size:42;not null;default:'';index:,length:9;uniqueIndex:idx_contract_address_holder_token_id_2"`
+	Holder          string `gorm:"size:42;not null;default:'';index:,length:9;uniqueIndex:idx_contract_address_holder_token_id_2"`
+	ErcType         uint16 `gorm:"index;default:0;"` // 1155 or 721
+	TokenID         string `gorm:"not null;default:'';uniqueIndex:idx_contract_address_holder_token_id_2"`
+	TokenValue      string `gorm:"not null;default:'';"`
 }
 
 func (Erc1155721Holder) TableName() string {

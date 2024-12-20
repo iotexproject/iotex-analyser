@@ -80,8 +80,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         721,
-								TokenID:         tokenID,
-								TokenValue:      decimal.NewFromInt(1),
+								TokenID:         tokenID.String(),
+								TokenValue:      decimal.NewFromInt(1).String(),
 							}
 							slog.L().Debug("start handle create mint 721")
 							if err := tx.Clauses(clause.OnConflict{
@@ -106,8 +106,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         721,
-								TokenID:         tokenID,
-								TokenValue:      decimal.NewFromInt(1),
+								TokenID:         tokenID.String(),
+								TokenValue:      decimal.NewFromInt(1).String(),
 							}
 							if err := tx.Clauses(clause.OnConflict{
 								Columns:   []clause.Column{{Name: "contract_address"}, {Name: "holder"}, {Name: "token_id"}},
@@ -178,8 +178,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         1155,
-								TokenID:         tokenIDDec,
-								TokenValue:      tokenValDec,
+								TokenID:         tokenIDDec.String(),
+								TokenValue:      tokenValDec.String(),
 							}
 							slog.L().Debug("start handle create mint 1155")
 							if err := tx.Clauses(clause.OnConflict{
@@ -226,8 +226,8 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 								ContractAddress: log.Address,
 								Holder:          toAddr.String(),
 								ErcType:         1155,
-								TokenID:         tokenIDDec,
-								TokenValue:      tokenValDec,
+								TokenID:         tokenIDDec.String(),
+								TokenValue:      tokenValDec.String(),
 							}
 							slog.L().Debug("start handle create transfer 1155")
 							if err := tx.Clauses(clause.OnConflict{

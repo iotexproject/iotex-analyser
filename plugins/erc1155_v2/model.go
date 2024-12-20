@@ -3,8 +3,6 @@ package main
 import (
 	"strings"
 	"time"
-
-	"github.com/shopspring/decimal"
 )
 
 var (
@@ -29,16 +27,16 @@ func (Erc1155TransferBatch) TableName() string {
 }
 
 type Erc1155TransferSingle struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string          `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Operator        string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Sender          string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Recipient       string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	SID             decimal.Decimal `gorm:"column:_id;type:decimal(128,0);not null;default:'0';"`
-	Value           decimal.Decimal `gorm:"type:decimal(128,0);not null;default:'0';"`
-	Timestamp       time.Time       `gorm:"type:timestamp;"`
+	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight     uint64    `gorm:"unsigned;index" sql:"type:bigint"`
+	ActionHash      string    `gorm:"size:64;not null;index:,length:9"`
+	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Operator        string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Sender          string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Recipient       string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	SID             string    `gorm:"column:_id;not null;default:'';"`
+	Value           string    `gorm:"not null;default:'';"`
+	Timestamp       time.Time `gorm:"type:timestamp;"`
 }
 
 func (Erc1155TransferSingle) TableName() string {
@@ -46,13 +44,13 @@ func (Erc1155TransferSingle) TableName() string {
 }
 
 type Erc1155URI struct {
-	ID              uint64          `gorm:"primary_key;" sql:"type:bigint"`
-	BlockHeight     uint64          `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash      string          `gorm:"size:64;not null;index:,length:9"`
-	ContractAddress string          `gorm:"size:42;not null;default:'';index:,length:9"`
-	Value           string          `gorm:"size:128;not null;default:'';"`
-	SID             decimal.Decimal `gorm:"column:_id;type:decimal(128,0);not null;default:'0';"`
-	Timestamp       time.Time       `gorm:"type:timestamp;"`
+	ID              uint64    `gorm:"primary_key;" sql:"type:bigint"`
+	BlockHeight     uint64    `gorm:"unsigned;index" sql:"type:bigint"`
+	ActionHash      string    `gorm:"size:64;not null;index:,length:9"`
+	ContractAddress string    `gorm:"size:42;not null;default:'';index:,length:9"`
+	Value           string    `gorm:"size:128;not null;default:'';"`
+	SID             string    `gorm:"column:_id;not null;default:'';"`
+	Timestamp       time.Time `gorm:"type:timestamp;"`
 }
 
 func (Erc1155URI) TableName() string {

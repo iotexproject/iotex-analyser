@@ -101,71 +101,80 @@ func getAccount(selp *action.SealedEnvelope, receipt *action.Receipt) (address.A
 	return sender, dst, nil
 }
 
-func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	t := time.Now()
-	receipts := getReceiptsFromBlock(blk)
-	processTimeMetric.WithLabelValues(b.Name(), "getReceipts").Observe(time.Since(t).Seconds())
-	t = time.Now()
+func (b blockActionPlugin) BatchSize() int {
+	return 5000
+}
+
+func (b blockActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	var acts []models.BlockAction
+	var height uint64
+	t := time.Now()
+	for _, blk := range blks {
+		height = blk.Height()
+		t := time.Now()
+		receipts := getReceiptsFromBlock(blk)
+		processTimeMetric.WithLabelValues(b.Name(), "getReceipts").Observe(time.Since(t).Seconds())
+		t = time.Now()
 
-	for _, selp := range blk.Actions {
-		actionHash, _ := selp.Hash()
-		receipt, ok := receipts[actionHash]
-		if !ok {
-			continue
+		for _, selp := range blk.Actions {
+			actionHash, _ := selp.Hash()
+			receipt, ok := receipts[actionHash]
+			if !ok {
+				continue
+			}
+			sender, dst, err := getAccount(selp, receipt)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
+			}
+
+			gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
+			if selp.TxType() != action.LegacyTxType && selp.TxType() != action.AccessListTxType {
+				gasPrice = decimal.NewFromBigInt(receipt.EffectiveGasPrice, 0)
+			}
+			gasLimit := selp.Gas()
+			nonce := selp.Nonce()
+
+			act := selp.Action()
+			actionType := getActionTypeString(act)
+			amount, payload := getPayloadAmount(act)
+
+			amountDec := decimal.NewFromBigInt(amount, 0)
+			acts = append(acts, models.BlockAction{
+				ActionHash:         hex.EncodeToString(actionHash[:]),
+				ActionType:         actionType,
+				BlockHeight:        blk.Height(),
+				Sender:             sender.String(),
+				Recipient:          dst,
+				GasPrice:           gasPrice,
+				GasLimit:           gasLimit,
+				Nonce:              nonce,
+				Amount:             amountDec,
+				GasConsumed:        receipt.GasConsumed,
+				ChainID:            selp.ChainID(),
+				Encoding:           selp.Encoding(),
+				Version:            0, // TODO: how to get version
+				ContractAddress:    receipt.ContractAddress,
+				Status:             receipt.Status,
+				Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
+				ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
+				Payload:            payload,
+			})
 		}
-		sender, dst, err := getAccount(selp, receipt)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
-		}
-
-		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
-		if selp.TxType() != action.LegacyTxType && selp.TxType() != action.AccessListTxType {
-			gasPrice = decimal.NewFromBigInt(receipt.EffectiveGasPrice, 0)
-		}
-		gasLimit := selp.Gas()
-		nonce := selp.Nonce()
-
-		act := selp.Action()
-		actionType := getActionTypeString(act)
-		amount, payload := getPayloadAmount(act)
-
-		amountDec := decimal.NewFromBigInt(amount, 0)
-		acts = append(acts, models.BlockAction{
-			ActionHash:         hex.EncodeToString(actionHash[:]),
-			ActionType:         actionType,
-			BlockHeight:        blk.Height(),
-			Sender:             sender.String(),
-			Recipient:          dst,
-			GasPrice:           gasPrice,
-			GasLimit:           gasLimit,
-			Nonce:              nonce,
-			Amount:             amountDec,
-			GasConsumed:        receipt.GasConsumed,
-			ChainID:            selp.ChainID(),
-			Encoding:           selp.Encoding(),
-			Version:            0, // TODO: how to get version
-			ContractAddress:    receipt.ContractAddress,
-			Status:             receipt.Status,
-			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
-			ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
-			Payload:            payload,
-		})
 	}
 	processTimeMetric.WithLabelValues(b.Name(), "makeData").Observe(time.Since(t).Seconds())
 	t = time.Now()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("block_height = ?", blk.Height()).Delete(&models.BlockAction{}).Error; err != nil {
-			return err
-		}
+		// if err := tx.Where("block_height = ?", blk.Height()).Delete(&models.BlockAction{}).Error; err != nil {
+		// 	return err
+		// }
 		processTimeMetric.WithLabelValues(b.Name(), "deleteIfExisted").Observe(time.Since(t).Seconds())
 		t = time.Now()
-		if err := tx.Model(&models.BlockAction{}).CreateInBatches(acts, 200).Error; err != nil {
+		if err := tx.Model(&models.BlockAction{}).Create(acts).Error; err != nil {
 			return err
 		}
 		processTimeMetric.WithLabelValues(b.Name(), "insertData").Observe(time.Since(t).Seconds())
 		t = time.Now()
-		e := db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+		e := db.UpdateIndexHeightByTx(tx, b.Name(), height)
 		processTimeMetric.WithLabelValues(b.Name(), "updateIndex").Observe(time.Since(t).Seconds())
 		return e
 	})

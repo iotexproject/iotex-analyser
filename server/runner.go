@@ -199,6 +199,7 @@ func (r *runner) Start(ctx context.Context) error {
 	go func() {
 		var nextHeight, tipHeight uint64
 		var err error
+		var blk *block.Block
 		defer r.wg.Done()
 		for {
 			if !r.isRunning.Get() {
@@ -230,61 +231,91 @@ func (r *runner) Start(ctx context.Context) error {
 						break
 					}
 
-					batchSize := min(5000, tipHeight-nextHeight+1)
-					blks := make([]*block.Block, 0, batchSize)
+					blks := make([]*block.Block, 0, 5000)
 
 					timeStart := time.Now()
 					if !config.Default.Iotex.CatchUpMode {
-						for i := uint64(0); i < batchSize; i++ {
-							blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight+i, r.dao)
-							if err != nil {
-								r.logger.Error("failed to read block from dao",
-									zap.Error(err),
-									zap.String("pluginName", r.plugin.Name()),
-									zap.Uint64("height", nextHeight+i),
-									zap.Uint64("tipHeight", tipHeight),
-								)
-								break
+						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
+
+						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
+							actionNum := 0
+							for ; nextHeight <= tipHeight; nextHeight++ {
+								blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
+								if err != nil {
+									r.logger.Error("failed to read block from dao",
+										zap.Error(err),
+										zap.String("pluginName", r.plugin.Name()),
+										zap.Uint64("height", nextHeight),
+										zap.Uint64("tipHeight", tipHeight),
+									)
+									break
+								}
+								actionNum += len(blk.Actions)
+								blks = append(blks, blk)
+								if actionNum >= p.BatchSize() || nextHeight == tipHeight {
+									break
+								}
 							}
-							blks = append(blks, blk)
 						}
 					} else {
-						for i := uint64(0); i < batchSize; i++ {
-							blk, err := kernel.GetBlockByHeightFromChain(ctx, nextHeight+i)
-							if err != nil {
-								r.logger.Error("failed to read block from dao",
-									zap.Error(err),
-									zap.String("pluginName", r.plugin.Name()),
-									zap.Uint64("height", nextHeight+i),
-									zap.Uint64("tipHeight", tipHeight),
-								)
-								break
-							}
-							blks = append(blks, blk)
-						}
+						blk, err = kernel.GetBlockByHeightFromChain(ctx, nextHeight)
+					}
+					if err != nil {
+						r.logger.Error("failed to read block from dao",
+							zap.Error(err),
+							zap.String("pluginName", r.plugin.Name()),
+							zap.Uint64("height", nextHeight),
+							zap.Uint64("tipHeight", tipHeight),
+						)
+						break
 					}
 
-					for _, blk := range blks {
-						if err := r.plugin.PutBlock(ctx, blk); err != nil {
+					if batchPlugin, ok := r.plugin.(plugin.BatchAdapter); ok {
+						if err := batchPlugin.PutBlocks(ctx, blks); err != nil {
 							r.UpdateStatus(PluginStatusPutError)
 							r.UpdateError(err)
-							r.logger.Error("failed to put data to plugin, retrying...",
+							r.logger.Error("failed to put blocks to plugin, retrying...",
 								zap.String("pluginName", r.plugin.Name()),
-								zap.Uint64("height", blk.Height()),
+								zap.Uint64("height", nextHeight),
+								zap.Int("batchSize", len(blks)),
 								zap.Error(err),
 							)
 							break
 						}
 						r.UpdateStatus(PluginStatusPutOK)
 						r.UpdateError(nil)
-						r.logger.Debug("putblock to plugin",
+						r.logger.Debug("putBlocks to plugin",
+							zap.String("pluginName", r.plugin.Name()),
+							zap.Uint64("height", nextHeight),
+							zap.Int("batchSize", len(blks)),
+						)
+						serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
+						pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+
+						blks = blks[:0]
+						nextHeight++
+						continue
+					}
+
+					if err := r.plugin.PutBlock(ctx, blk); err != nil {
+						r.UpdateStatus(PluginStatusPutError)
+						r.UpdateError(err)
+						r.logger.Error("failed to put data to plugin, retrying...",
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("height", blk.Height()),
+							zap.Error(err),
 						)
-						serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
-						pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
-						nextHeight++
+						break
 					}
+					r.UpdateStatus(PluginStatusPutOK)
+					r.UpdateError(nil)
+					r.logger.Debug("putblock to plugin",
+						zap.String("pluginName", r.plugin.Name()),
+						zap.Uint64("height", blk.Height()),
+					)
+					serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
+					pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+					nextHeight++
 				}
 			}
 		}

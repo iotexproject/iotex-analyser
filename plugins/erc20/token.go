@@ -259,17 +259,17 @@ func (b tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 		//var erc20Approvals []*models.Erc20Approval
 		//var erc20Holders []*models.Erc20Holder
 		if len(erc20Transfers) != 0 {
-			if err := tx.Model(&models.Erc20Transfer{}).Create(erc20Transfers).Error; err != nil {
+			if err := tx.Model(&models.Erc20Transfer{}).CreateInBatches(erc20Transfers, 1000).Error; err != nil {
 				return err
 			}
 		}
 		if len(erc20Approvals) != 0 {
-			if err := tx.Model(&models.Erc20Approval{}).Create(erc20Approvals).Error; err != nil {
+			if err := tx.Model(&models.Erc20Approval{}).CreateInBatches(erc20Approvals, 1000).Error; err != nil {
 				return err
 			}
 		}
 		if len(erc20Holders) != 0 {
-			if err := tx.Model(&models.Erc20Holder{}).Create(erc20Holders).Error; err != nil {
+			if err := tx.Model(&models.Erc20Holder{}).CreateInBatches(erc20Holders, 1000).Error; err != nil {
 				return err
 			}
 		}

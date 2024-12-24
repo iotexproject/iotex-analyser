@@ -173,7 +173,7 @@ func (b blockActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) e
 		// }
 		processTimeMetric.WithLabelValues(b.Name(), "deleteIfExisted").Observe(time.Since(t).Seconds())
 		t = time.Now()
-		if err := tx.Model(&models.BlockAction{}).Create(acts).Error; err != nil {
+		if err := tx.Model(&models.BlockAction{}).CreateInBatches(acts, 1000).Error; err != nil {
 			return err
 		}
 		processTimeMetric.WithLabelValues(b.Name(), "insertData").Observe(time.Since(t).Seconds())

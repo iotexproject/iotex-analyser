@@ -105,6 +105,10 @@ func (b blockActionPlugin) BatchSize() int {
 	return 5000
 }
 
+func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	return b.PutBlocks(ctx, []*block.Block{blk})
+}
+
 func (b blockActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	var acts []models.BlockAction
 	var height uint64

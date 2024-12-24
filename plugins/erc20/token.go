@@ -103,6 +103,10 @@ func (b tokenPlugin) BatchSize() int {
 	return 5000
 }
 
+func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	return b.PutBlocks(ctx, []*block.Block{blk})
+}
+
 func (b tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		var height uint64

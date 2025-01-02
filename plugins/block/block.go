@@ -7,24 +7,16 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
-	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
 
 const VERSION = "2.0.2"
 
-var count int
-
-type blockPlugin struct {
-	batchSize int
-}
+type blockPlugin struct{}
 
 func (b blockPlugin) Name() string {
 	return "block"
@@ -34,21 +26,11 @@ func (b blockPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b *blockPlugin) Start(ctx context.Context) error {
-	var err error
-	cfg := &Config{}
-	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
-		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
-			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
-		} else {
-			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
-		}
-	}
-	if err := b.migrateTable(ctx); err != nil {
-		return errors.Wrap(err, "failed to migrate table")
+func (b blockPlugin) Start(ctx context.Context) error {
+	if err := db.AutoMigrate(b.Name(), &models.Block{}); err != nil {
+		return errors.Wrap(err, "failed to start block plugin")
 	}
 
-	b.batchSize = cfg.BatchSize
 	return nil
 }
 

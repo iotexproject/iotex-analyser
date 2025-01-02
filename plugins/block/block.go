@@ -35,39 +35,69 @@ func (b blockPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		blkHash := blk.HashBlock()
+func (b blockPlugin) BatchSize() int {
+	return 1000
+}
 
-		year, err := strconv.Atoi(blk.Timestamp().Format("2006"))
+func (b blockPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	ms := make([]*models.Block, 0, len(blks))
+	for _, blk := range blks {
+		m, err := b.convBlock(blk)
 		if err != nil {
 			return err
 		}
-		month, err := strconv.Atoi(blk.Timestamp().Format("01"))
-		if err != nil {
+		ms = append(ms, m)
+	}
+	if len(ms) == 0 {
+		return nil
+	}
+	tipHeight := blks[len(blks)-1].Height()
+
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(ms).Error; err != nil {
 			return err
 		}
-		day, err := strconv.Atoi(blk.Timestamp().Format("02"))
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
+	})
+}
+
+func (b blockPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		m, err := b.convBlock(blk)
 		if err != nil {
 			return err
-		}
-		m := &models.Block{
-			BlockHeight:     blk.Height(),
-			BlockHash:       hex.EncodeToString(blkHash[:]),
-			ProducerAddress: blk.ProducerAddress(),
-			NumActions:      len(blk.Actions),
-			Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-			Year:            year,
-			Month:           month,
-			Day:             day,
 		}
 		if err := tx.Create(m).Error; err != nil {
 			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
+}
 
-	return err
+func (b blockPlugin) convBlock(blk *block.Block) (*models.Block, error) {
+	blkHash := blk.HashBlock()
+	year, err := strconv.Atoi(blk.Timestamp().Format("2006"))
+	if err != nil {
+		return nil, err
+	}
+	month, err := strconv.Atoi(blk.Timestamp().Format("01"))
+	if err != nil {
+		return nil, err
+	}
+	day, err := strconv.Atoi(blk.Timestamp().Format("02"))
+	if err != nil {
+		return nil, err
+	}
+	return &models.Block{
+		BlockHeight:     blk.Height(),
+		BlockHash:       hex.EncodeToString(blkHash[:]),
+		ProducerAddress: blk.ProducerAddress(),
+		NumActions:      len(blk.Actions),
+		Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+		Year:            year,
+		Month:           month,
+		Day:             day,
+	}, nil
 }
 
 func (b blockPlugin) Stop(ctx context.Context) error {

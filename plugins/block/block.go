@@ -34,10 +34,6 @@ func (b blockPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b blockPlugin) BatchSize() int {
-	return b.batchSize
-}
-
 func (b *blockPlugin) Start(ctx context.Context) error {
 	var err error
 	cfg := &Config{}

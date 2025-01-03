@@ -14,7 +14,7 @@ type BlockAction struct {
 	ActionType         string          `gorm:"size:32;not null"`
 	BlockHeight        uint64          `gorm:"unsigned" sql:"type:bigint"`
 	Sender             string          `gorm:"size:42;not null;default:''"`
-	Recipient          string          `gorm:"size:42;not null;default:''"`
+	Recipient          string          `gorm:"size:43;not null;default:''"`
 	GasPrice           decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0"`
 	GasLimit           uint64          `gorm:"type:int4;unsigned;not null;default:0"`
 	Nonce              uint64          `gorm:"type:int8;unsigned;not null;default:0"`

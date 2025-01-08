@@ -120,14 +120,18 @@ func (b gasTrackerPlugin) track() error {
 	sort.Slice(prices, func(i, j int) bool {
 		return prices[i].Cmp(prices[j]) < 0
 	})
-	if len(prices) == 0 {
-		oracle.SafeGasPrice, _ = new(big.Int).Div(tipBlk.BaseFee(), big.NewInt(unit.Qev)).Float64()
-		oracle.ProposeGasPrice = 2 * oracle.SafeGasPrice
-		oracle.FastGasPrice = 3 * oracle.SafeGasPrice
+	minPrice := oracle.SuggestBaseFee + 1/float64(unit.Qev)
+	if len(prices) <= 1 {
+		oracle.SafeGasPrice = minPrice
+		oracle.ProposeGasPrice = 2 * oracle.SuggestBaseFee
+		oracle.FastGasPrice = 3 * oracle.SuggestBaseFee
 	} else {
 		oracle.SafeGasPrice, _ = new(big.Int).Div(prices[len(prices)/10], big.NewInt(unit.Qev)).Float64()
+		oracle.SafeGasPrice = max(minPrice, oracle.SafeGasPrice)
 		oracle.ProposeGasPrice, _ = new(big.Int).Div(prices[len(prices)/2], big.NewInt(unit.Qev)).Float64()
+		oracle.ProposeGasPrice = max(minPrice, oracle.ProposeGasPrice)
 		oracle.FastGasPrice, _ = new(big.Int).Div(prices[len(prices)*9/10], big.NewInt(unit.Qev)).Float64()
+		oracle.FastGasPrice = max(minPrice, oracle.FastGasPrice)
 	}
 	// store oracle
 	raw, err := json.Marshal(oracle)

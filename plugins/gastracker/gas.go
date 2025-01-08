@@ -120,7 +120,7 @@ func (b gasTrackerPlugin) track() error {
 	sort.Slice(prices, func(i, j int) bool {
 		return prices[i].Cmp(prices[j]) < 0
 	})
-	minPrice := oracle.SuggestBaseFee + 1/float64(unit.Qev)
+	minPrice := oracle.SuggestBaseFee + 0.1
 	if len(prices) <= 1 {
 		oracle.SafeGasPrice = minPrice
 		oracle.ProposeGasPrice = 2 * oracle.SuggestBaseFee

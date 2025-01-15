@@ -35,6 +35,10 @@ func (b blockMetaPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+func (b blockMetaPlugin) BatchSize() int {
+	return 1000
+}
+
 func (b blockMetaPlugin) Start(ctx context.Context) error {
 
 	if err := db.AutoMigrate(b.Name(), &models.BlockMeta{}); err != nil {
@@ -110,6 +114,80 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+	})
+	return err
+}
+
+func (b blockMetaPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	ms := []models.BlockMeta{}
+	blkHeight := uint64(0)
+	for _, blk := range blks {
+		blkHeight = blk.Height()
+		epochNum := kernel.GetEpochNum(blkHeight)
+		epochHeight := kernel.GetEpochHeight(epochNum)
+		chainClient := kernel.ChainClient()
+		if blkHeight == epochHeight || ActiveBlockProducers == nil {
+			if err := b.updateActiveBlockProducers(chainClient, epochNum); err != nil {
+				return err
+			}
+		}
+		grantRewardActs := make(map[hash.Hash256]bool)
+		// log action index
+		for _, selp := range blk.Actions {
+			if _, ok := selp.Action().(*action.GrantReward); ok {
+				actionHash, _ := selp.Hash()
+				grantRewardActs[actionHash] = true
+			}
+		}
+		// log receipt index
+		blockReward, epochReward, foundationBonus, priorityBonus, gasConsumed, err := getReward(blk, grantRewardActs)
+		if err != nil {
+			return err
+		}
+		producerName := getCandidateName(blkHeight, blk.ProducerAddress())
+		expectedProducerAddr := ""
+		expectedProducerName := ""
+		if len(ActiveBlockProducers) > 0 {
+			expectedProducerAddr = ActiveBlockProducers[int(blkHeight)%len(ActiveBlockProducers)]
+			if blk.ProducerAddress() == expectedProducerAddr {
+				expectedProducerName = producerName
+			} else {
+				expectedProducerName = getCandidateName(blkHeight, expectedProducerAddr)
+			}
+		}
+
+		blockSize, err := getBlockSize(blk)
+		if err != nil {
+			return err
+		}
+
+		bm := models.BlockMeta{
+			BlockHeight:             blkHeight,
+			GasConsumed:             gasConsumed,
+			ProducerName:            producerName,
+			ProducerAddress:         blk.ProducerAddress(),
+			ExpectedProducerName:    expectedProducerName,
+			ExpectedProducerAddress: expectedProducerAddr,
+			BlockReward:             decimal.NewFromBigInt(blockReward, 0),
+			EpochReward:             decimal.NewFromBigInt(epochReward, 0),
+			FoundationBonus:         decimal.NewFromBigInt(foundationBonus, 0),
+			PriorityBonus:           decimal.NewFromBigInt(priorityBonus, 0),
+			EpochNum:                epochNum,
+			EpochHeight:             epochHeight,
+			BlockSize:               blockSize,
+			BlobGasUsed:             blk.BlobGasUsed(),
+			ExcessBlobGas:           blk.ExcessBlobGas(),
+		}
+		if blk.BaseFee() != nil {
+			bm.BaseFee = decimal.NewFromBigInt(blk.BaseFee(), 0)
+		}
+		ms = append(ms, bm)
+	}
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.BlockMeta{}).CreateInBatches(ms, 200).Error; err != nil {
+			return err
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blkHeight)
 	})
 	return err
 }

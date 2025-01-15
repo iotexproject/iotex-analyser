@@ -33,6 +33,10 @@ func (b blockFooterPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+func (b blockFooterPlugin) BatchSize() int {
+	return 1000
+}
+
 func (b blockFooterPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
@@ -49,6 +53,30 @@ func (b blockFooterPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+	})
+	return err
+}
+
+func (b blockFooterPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	fs := []models.BlockFooter{}
+	blkHeight := uint64(0)
+	for _, blk := range blks {
+		blkHeight = blk.Height()
+		for _, endor := range blk.Footer.Endorsements() {
+			pubKey := endor.Endorser()
+			endorser := pubKey.Address().String()
+			fs = append(fs, models.BlockFooter{
+				BlockHeight: blkHeight,
+				Endorser:    endorser,
+			})
+		}
+	}
+
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.BlockFooter{}).CreateInBatches(fs, 200).Error; err != nil {
+			return err
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blkHeight)
 	})
 	return err
 }

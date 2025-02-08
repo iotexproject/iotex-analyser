@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	etypes "github.com/iotexproject/iotex-election/types"
@@ -516,6 +518,55 @@ type DelegateProfileProfileUpdated struct {
 	Raw      types.Log // Blockchain specific contextual infos
 }
 
+func getLogFromDB(contractAddress string, topicsFilter [][]byte, from, count uint64) ([]*iotextypes.Log, error) {
+	var receiptLogs []*models.BlockReceiptLog
+	err := db.DB().Model(&models.BlockReceiptLog{}).Where("address = ? AND block_height >= ? AND block_height < ?", contractAddress, from, from+count).Order("block_height, tx_index, index").Find(&receiptLogs).Error
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get logs from db")
+	}
+	logs := make([]*iotextypes.Log, 0, len(receiptLogs))
+	for _, receiptLog := range receiptLogs {
+		topics := [][]byte{}
+		want := len(topicsFilter) <= 0
+		for _, topic := range []string{receiptLog.Topic0, receiptLog.Topic1, receiptLog.Topic2, receiptLog.Topic3} {
+			if topic != "" {
+				t, err := hex.DecodeString(topic)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to decode topic")
+				}
+				topics = append(topics, t)
+				// filter out topics
+				if len(topicsFilter) > 0 {
+					if slices.ContainsFunc(topicsFilter, func(e []byte) bool {
+						return bytes.Equal(e, t)
+					}) {
+						want = true
+					}
+				}
+			}
+		}
+
+		if !want {
+			continue
+		}
+		hash, err := hex.DecodeString(receiptLog.ActionHash)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to decode action hash")
+		}
+		log := &iotextypes.Log{
+			ContractAddress: receiptLog.Address,
+			Topics:          topics,
+			Data:            receiptLog.Data,
+			Index:           uint32(receiptLog.Index),
+			TxIndex:         uint32(receiptLog.TxIndex),
+			BlkHeight:       receiptLog.BlockHeight,
+			ActHash:         hash,
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
+}
+
 func getLog(contractAddress string, from, count uint64, chainClient iotexapi.APIServiceClient, delegateProfileABI abi.ABI) (blockReward, epochReward, foundationReward map[string]float64, err error) {
 	blockReward = make(map[string]float64)
 	epochReward = make(map[string]float64)
@@ -537,23 +588,12 @@ func getLog(contractAddress string, from, count uint64, chainClient iotexapi.API
 			shardCount = count % maxBlockRange
 		}
 
-		response, err := chainClient.GetLogs(context.Background(), &iotexapi.GetLogsRequest{
-			Filter: &iotexapi.LogsFilter{
-				Address: []string{contractAddress},
-				Topics:  []*iotexapi.Topics{{Topic: topics}},
-			},
-			Lookup: &iotexapi.GetLogsRequest_ByRange{
-				ByRange: &iotexapi.GetLogsByRange{
-					FromBlock: from + i*maxBlockRange,
-					ToBlock:   from + i*maxBlockRange + shardCount,
-				},
-			},
-		})
+		logs, err := getLogFromDB(contractAddress, topics, from+i*maxBlockRange, shardCount)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
-		for _, l := range response.Logs {
+		for _, l := range logs {
 			for _, topic := range l.Topics {
 				switch hex.EncodeToString(topic) {
 				case topicProfileUpdated:

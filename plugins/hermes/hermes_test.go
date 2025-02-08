@@ -1,18 +1,29 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"math/big"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
+	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"gorm.io/gorm"
 )
 
@@ -376,5 +387,100 @@ func TestVotingResultV1(t *testing.T) {
 			FoundationBonusPercentage: decimal.NewFromFloat(foundationBonusPortion),
 		}
 		fmt.Printf("%+v\n", m)
+	}
+}
+
+func TestGetLogs(t *testing.T) {
+	t.Skip("skip test")
+	r := require.New(t)
+	// init db
+	config.Default.Database.Driver = "postgres"
+	config.Default.Database.User = ""
+	config.Default.Database.Password = ""
+	config.Default.Database.Host = ""
+	config.Default.Database.Port = "5432"
+	config.Default.Database.Name = "mainnet"
+	_, err := db.Connect()
+	r.NoError(err)
+	// init grpc
+	var opt grpc.DialOption
+	endpoint := "api.iotex.one:443"
+	opt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
+	conn, err := grpc.Dial(endpoint, grpc.WithTimeout(60*time.Second), opt, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(32*10e6)))
+	if err != nil {
+		log.L().Error("failed to connect to chain endpoint.",
+			zap.Error(err),
+			zap.String("endpoint", endpoint),
+		)
+	}
+	chainClient := iotexapi.NewAPIServiceClient(conn)
+	resp, err := chainClient.GetChainMeta(context.Background(), &iotexapi.GetChainMetaRequest{})
+	r.NoError(err)
+	end := resp.ChainMeta.Height
+
+	tp, err := hex.DecodeString(topicProfileUpdated)
+	r.NoError(err)
+	topics := [][]byte{tp}
+	contractAddress := RewardPortionContract
+	check := func(from, count uint64) int {
+		logsFromDB, err := getLogFromDB(contractAddress, topics, uint64(from), count)
+		r.NoError(err)
+		response, err := chainClient.GetLogs(context.Background(), &iotexapi.GetLogsRequest{
+			Filter: &iotexapi.LogsFilter{
+				Address: []string{contractAddress},
+				Topics:  []*iotexapi.Topics{{Topic: topics}},
+			},
+			Lookup: &iotexapi.GetLogsRequest_ByRange{
+				ByRange: &iotexapi.GetLogsByRange{
+					FromBlock: from,
+					ToBlock:   from + count,
+				},
+			},
+		})
+		r.NoError(err)
+		logsFromChain := response.GetLogs()
+
+		r.Len(logsFromDB, len(logsFromChain), "logs from db and chain should have the same length")
+		compare := func(li, lj *iotextypes.Log) bool {
+			if li.BlkHeight != lj.BlkHeight {
+				return li.BlkHeight < lj.BlkHeight
+			}
+			if li.TxIndex != lj.TxIndex {
+				return li.TxIndex < lj.TxIndex
+			}
+			if !bytes.Equal(li.ActHash, lj.ActHash) {
+				return bytes.Compare(li.ActHash, lj.ActHash) < 0
+			}
+			if li.Index != lj.Index {
+				return li.Index < lj.Index
+			}
+			return bytes.Compare(li.Data, lj.Data) < 0
+		}
+		sort.Slice(logsFromChain, func(i, j int) bool {
+			return compare(logsFromChain[i], logsFromChain[j])
+		})
+		sort.Slice(logsFromDB, func(i, j int) bool {
+			return compare(logsFromDB[i], logsFromDB[j])
+		})
+		for i, logFromDB := range logsFromDB {
+			logFromChain := logsFromChain[i]
+
+			r.Equal(logFromDB.BlkHeight, logFromChain.BlkHeight, "block height should be the same")
+			r.Equal(logFromDB.Index, logFromChain.Index, "index should be the same")
+			r.Equal(logFromDB.TxIndex, logFromChain.TxIndex, "tx index should be the same")
+			r.Equal(logFromDB.ActHash, logFromChain.ActHash, "action hash should be the same")
+			r.Equal(logFromDB.ContractAddress, logFromChain.ContractAddress, "contract address should be the same")
+			r.Equal(logFromDB.Topics, logFromChain.Topics, "topics should be the same")
+			r.Equal(logFromDB.Data, logFromChain.Data, "data should be the same")
+		}
+		return len(logsFromDB)
+	}
+
+	from := uint64(RewardportionContractDeployHeight)
+	count := uint64(maxBlockRange)
+	for from <= end {
+		size := check(from, count)
+		t.Log("verified from", from, "to", from+count, "size", size)
+		from += count
 	}
 }

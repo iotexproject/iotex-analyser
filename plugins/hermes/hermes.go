@@ -68,7 +68,7 @@ func (b hermesPlugin) Type() plugin.Type {
 }
 
 func (b hermesPlugin) DependentPlugins() []string {
-	return []string{"block_meta", "block_reward", "probation", "candidatelist"}
+	return []string{"block_meta", "block_reward", "probation", "candidatelist", "block_receipts"}
 }
 
 func (b hermesPlugin) Start(ctx context.Context) error {

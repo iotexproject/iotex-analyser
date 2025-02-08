@@ -520,7 +520,7 @@ type DelegateProfileProfileUpdated struct {
 
 func getLogFromDB(contractAddress string, topicsFilter [][]byte, from, count uint64) ([]*iotextypes.Log, error) {
 	var receiptLogs []*models.BlockReceiptLog
-	err := db.DB().Model(&models.BlockReceiptLog{}).Where("address = ? AND block_height >= ? AND block_height < ?", contractAddress, from, from+count).Order("block_height, tx_index, index").Find(&receiptLogs).Error
+	err := db.DB().Model(&models.BlockReceiptLog{}).Where("address = ? AND block_height >= ? AND block_height < ?", contractAddress, from, from+count).Order("block_height, tx_index, index, id").Find(&receiptLogs).Error
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get logs from db")
 	}

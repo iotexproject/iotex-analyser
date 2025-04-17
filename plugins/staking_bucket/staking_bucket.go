@@ -433,26 +433,34 @@ func (b stakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 				bucketID := a.BucketIndex()
 				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
 				if err != nil {
-					return err
+					return errors.Wrapf(err, "failed to get bucket info by bucketID %d", bucketID)
 				}
 				bucket, err := GetStakingBucketByID(bucketID, blk.Height())
 				if err != nil {
-					return err
+					return errors.Wrap(err, "failed to get staking bucket")
 				}
-
+				stakeAmount, err := decimal.NewFromString(bucket.StakedAmount)
+				if err != nil {
+					return errors.Wrap(err, "failed to parse staked amount")
+				}
+				selfStake := false
+				if a.Op() == action.CandidateEndorsementOpEndorse {
+					selfStake = true
+				}
+				votes := getVoteWeight(info.Duration, stakeAmount.BigInt(), bucket.AutoStake, selfStake)
 				stakingBucket = models.StakingBucket{
 					BlockHeight:             blk.Height(),
 					BucketID:                bucketID,
 					CreateTime:              info.CreateTime,
 					StakeStartTime:          info.StakeStartTime,
 					UnstakeStartTime:        info.UnstakeStartTime,
-					StakedAmount:            decimal.NewFromInt(0),
-					VotingPower:             decimal.NewFromInt(0),
+					StakedAmount:            stakeAmount,
+					VotingPower:             decimal.NewFromBigInt(votes, 0),
 					OwnerAddress:            info.OwnerAddress,
 					Sender:                  sender.String(),
 					ActionHash:              actHash,
 					Candidate:               info.Candidate,
-					AutoStake:               false,
+					AutoStake:               info.AutoStake,
 					ActType:                 "CandidateEndorsement",
 					EndorsementExpireHeight: bucket.EndorsementExpireBlockHeight,
 					Duration:                0,

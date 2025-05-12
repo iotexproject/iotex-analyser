@@ -149,8 +149,6 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 				plugin.UpdateStatus(PluginStatusStartOK)
 				plugin.UpdateError(nil)
 			}
-		default:
-			log.L().Warn("plugin status unexpected", zap.String("name", name), zap.Int("status", int(plugin.Status())))
 		}
 	}
 	setRunners(plugins)

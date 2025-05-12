@@ -340,15 +340,15 @@ func (srv *Server) startRPCService(ctx context.Context) error {
 	}
 
 	service := NewService(srv.dao)
-	if err := service.Start(ctx); err != nil {
-		return err
-	}
 	for _, pluginFile := range config.Default.Server.Plugins {
 		pluginArgs := &Args{Path: pluginFile}
 		pluginReply := &Reply{}
 		if err := service.Load(pluginArgs, pluginReply); err != nil {
 			return err
 		}
+	}
+	if err := service.Start(ctx); err != nil {
+		return err
 	}
 	if err := rpc.Register(service); err != nil {
 		return err

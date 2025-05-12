@@ -149,6 +149,8 @@ func (s *Service) pluginRefresh(ctx context.Context) {
 				plugin.UpdateStatus(PluginStatusStartOK)
 				plugin.UpdateError(nil)
 			}
+		default:
+			log.L().Warn("plugin status unexpected", zap.String("name", name), zap.Int("status", int(plugin.Status())))
 		}
 	}
 	setRunners(plugins)
@@ -186,6 +188,7 @@ func (s *Service) Load(args *Args, reply *Reply) error {
 	if err := s.registerPlugin(plugin); err != nil {
 		return errors.Wrap(err, "failed to register plugin")
 	}
+	log.L().Info("plugin loaded", zap.String("name", plugin.Name()), zap.String("version", plugin.Version()))
 	return nil
 }
 

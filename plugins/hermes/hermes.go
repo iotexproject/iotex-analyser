@@ -28,6 +28,8 @@ var FairbankBlockHeight = 5165641
 
 const (
 	HermesContractAddress = "io1fqulsuv8p820wmr0yd39jzx0m3pnpmuzzcywh8"
+	// TODO: update this address
+	SystemStakingV3ContractAddress = "###"
 )
 
 var DISTRIBUTE hash.Hash256
@@ -267,10 +269,15 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 	totalVoted := big.NewInt(0)
 	selfStakeIndex := selfStakeIndexMap(delegates)
 	lsdBuckets := make([]*iotextypes.VoteBucket, 0)
+	v3Buckets := make([]*iotextypes.VoteBucket, 0)
 	for _, vote := range votes.Buckets {
 		if _, ok := nameMap[vote.CandidateAddress]; !ok {
 			// the candidate is no longer active (and non-eligible for reward)
 			// vote is not counted
+			continue
+		}
+		if vote.ContractAddress == SystemStakingV3ContractAddress {
+			v3Buckets = append(v3Buckets, vote)
 			continue
 		}
 		//lsd buckets
@@ -280,6 +287,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		}
 		//for sumOfWeightedVotes
 		key := aggregateKey{
+			contractAddr:  "",
 			epochNumber:   epochNumber,
 			candidateName: vote.CandidateAddress,
 			voterAddress:  vote.Owner,
@@ -289,7 +297,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		if _, ok := selfStakeIndex[vote.Index]; ok {
 			selfStake = true
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
 		if err != nil {
 			return errors.Wrap(err, "failed to calculate vote weight")
 		}
@@ -304,8 +312,32 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		}
 		totalVoted.Add(totalVoted, stakeAmount)
 	}
+	for _, vote := range v3Buckets {
+		key := aggregateKey{
+			contractAddr:  vote.ContractAddress,
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      false,
+		}
+		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
+		if !ok {
+			return errors.New("failed to convert string to big int")
+		}
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 1, false)
+		if err != nil {
+			return errors.Wrap(err, "failed to calculate vote weight")
+		}
+		if val, ok := sumOfWeightedVotes[key]; ok {
+			val.Add(val, weightedAmount)
+		} else {
+			sumOfWeightedVotes[key] = weightedAmount
+		}
+		totalVoted = totalVoted.Add(totalVoted, stakeAmount)
+	}
 	for _, vote := range lsdBuckets {
 		key := aggregateKey{
+			contractAddr:  vote.ContractAddress,
 			epochNumber:   epochNumber,
 			candidateName: vote.CandidateAddress,
 			voterAddress:  vote.Owner,
@@ -319,7 +351,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		}
 		weightedAmount := stakeAmount
 		if blkHeight >= config.Default.Genesis.RedseaBlockHeight {
-			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
 			if err != nil {
 				return errors.Wrap(err, "failed to calculate vote weight")
 			}
@@ -392,11 +424,16 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 	intensityRate, probationMap := stakingProbationListToMap(delegates, pb)
 	selfStakeIndex := selfStakeIndexMap(delegates)
 	lsdBuckets := make([]*iotextypes.VoteBucket, 0)
+	v3Buckets := make([]*iotextypes.VoteBucket, 0)
 	bucketBatches := make([]models.HermesBucketVoting, 0)
 	for _, vote := range votes.Buckets {
 		if _, ok := nameMap[vote.CandidateAddress]; !ok {
 			// the candidate is no longer active (and non-eligible for reward)
 			// vote is not counted
+			continue
+		}
+		if vote.ContractAddress == SystemStakingV3ContractAddress {
+			v3Buckets = append(v3Buckets, vote)
 			continue
 		}
 		//lsd buckets
@@ -406,6 +443,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 		}
 		//for sumOfWeightedVotes
 		key := aggregateKey{
+			contractAddr:  "",
 			epochNumber:   epochNumber,
 			candidateName: vote.CandidateAddress,
 			voterAddress:  vote.Owner,
@@ -415,7 +453,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 		if _, ok := selfStakeIndex[vote.Index]; ok {
 			selfStake = true
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
 		if err != nil {
 			return errors.Wrap(err, "failed to calculate vote weight")
 		}
@@ -434,8 +472,35 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 			Votes:         decimal.NewFromBigInt(weightedAmount, 0),
 		})
 	}
+	for _, vote := range v3Buckets {
+		key := aggregateKey{
+			contractAddr:  vote.ContractAddress,
+			epochNumber:   epochNumber,
+			candidateName: vote.CandidateAddress,
+			voterAddress:  vote.Owner,
+			isNative:      false,
+		}
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 1, false)
+		if err != nil {
+			return errors.Wrap(err, "failed to calculate vote weight")
+		}
+		if _, ok := probationMap[key.candidateName]; ok {
+			// filter based on probation
+			votingPower := new(big.Float).SetInt(weightedAmount)
+			weightedAmount, _ = votingPower.Mul(votingPower, big.NewFloat(intensityRate)).Int(nil)
+		}
+		bucketBatches = append(bucketBatches, models.HermesBucketVoting{
+			EpochNumber:   key.epochNumber,
+			CandidateName: nameMap[key.candidateName],
+			VoterAddress:  key.voterAddress,
+			NativeFlag:    key.isNative,
+			BucketID:      vote.Index,
+			Votes:         decimal.NewFromBigInt(weightedAmount, 0),
+		})
+	}
 	for _, vote := range lsdBuckets {
 		key := aggregateKey{
+			contractAddr:  vote.ContractAddress,
 			epochNumber:   epochNumber,
 			candidateName: vote.CandidateAddress,
 			voterAddress:  vote.Owner,
@@ -449,7 +514,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 		}
 		weightedAmount := stakeAmount
 		if blkHeight >= config.Default.Genesis.RedseaBlockHeight {
-			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
 			if err != nil {
 				return errors.Wrap(err, "failed to calculate vote weight")
 			}

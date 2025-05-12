@@ -205,7 +205,7 @@ func TestHermesUpdate(t *testing.T) {
 		if _, ok := selfStakeIndex[vote.Index]; ok {
 			selfStake = true
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
 		require.NoError(err)
 		stakeAmount, ok := big.NewInt(0).SetString(vote.StakedAmount, 10)
 		require.True(ok)
@@ -229,7 +229,7 @@ func TestHermesUpdate(t *testing.T) {
 		require.True(ok)
 		weightedAmount := stakeAmount
 		if config.Default.Genesis.RedseaBlockHeight <= blkHeight {
-			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, selfStake)
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
 			require.NoError(err)
 		}
 		if val, ok := sumOfWeightedVotes[key]; ok {

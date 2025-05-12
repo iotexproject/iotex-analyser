@@ -638,6 +638,7 @@ type (
 	}
 
 	aggregateKey struct {
+		contractAddr  string
 		epochNumber   uint64
 		candidateName string
 		voterAddress  string
@@ -702,8 +703,8 @@ func selfStakeIndexMap(candidates *iotextypes.CandidateListV2) map[uint64]struct
 }
 
 // CalculateVoteWeight calculates the weighted votes
-func CalculateVoteWeight(cfg genesis.VoteWeightCalConsts, v *iotextypes.VoteBucket, selfStake bool) (*big.Int, error) {
-	remainingTime := float64(v.StakedDuration * 86400)
+func CalculateVoteWeight(cfg genesis.VoteWeightCalConsts, v *iotextypes.VoteBucket, durationUnit uint32, selfStake bool) (*big.Int, error) {
+	remainingTime := float64(v.StakedDuration * durationUnit)
 	weight := float64(1)
 	var m float64
 	if v.AutoStake {

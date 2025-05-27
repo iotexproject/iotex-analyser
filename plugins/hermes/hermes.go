@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
@@ -297,7 +298,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		if _, ok := selfStakeIndex[vote.Index]; ok {
 			selfStake = true
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 24*time.Hour, selfStake)
 		if err != nil {
 			return errors.Wrap(err, "failed to calculate vote weight")
 		}
@@ -324,7 +325,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		if !ok {
 			return errors.New("failed to convert string to big int")
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 1, false)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, time.Second, false)
 		if err != nil {
 			return errors.Wrap(err, "failed to calculate vote weight")
 		}
@@ -351,7 +352,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 		}
 		weightedAmount := stakeAmount
 		if blkHeight >= config.Default.Genesis.RedseaBlockHeight {
-			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 24*time.Hour, selfStake)
 			if err != nil {
 				return errors.Wrap(err, "failed to calculate vote weight")
 			}
@@ -453,7 +454,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 		if _, ok := selfStakeIndex[vote.Index]; ok {
 			selfStake = true
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 24*time.Hour, selfStake)
 		if err != nil {
 			return errors.Wrap(err, "failed to calculate vote weight")
 		}
@@ -480,7 +481,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 			voterAddress:  vote.Owner,
 			isNative:      false,
 		}
-		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 1, false)
+		weightedAmount, err := CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, time.Second, false)
 		if err != nil {
 			return errors.Wrap(err, "failed to calculate vote weight")
 		}
@@ -514,7 +515,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 		}
 		weightedAmount := stakeAmount
 		if blkHeight >= config.Default.Genesis.RedseaBlockHeight {
-			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 86400, selfStake)
+			weightedAmount, err = CalculateVoteWeight(GenesisVoteWeightCalConsts, vote, 24*time.Hour, selfStake)
 			if err != nil {
 				return errors.Wrap(err, "failed to calculate vote weight")
 			}

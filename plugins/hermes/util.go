@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -703,8 +704,8 @@ func selfStakeIndexMap(candidates *iotextypes.CandidateListV2) map[uint64]struct
 }
 
 // CalculateVoteWeight calculates the weighted votes
-func CalculateVoteWeight(cfg genesis.VoteWeightCalConsts, v *iotextypes.VoteBucket, durationUnit uint32, selfStake bool) (*big.Int, error) {
-	remainingTime := float64(v.StakedDuration * durationUnit)
+func CalculateVoteWeight(cfg genesis.VoteWeightCalConsts, v *iotextypes.VoteBucket, durationUnit time.Duration, selfStake bool) (*big.Int, error) {
+	remainingTime := float64(time.Duration(v.StakedDuration) * durationUnit)
 	weight := float64(1)
 	var m float64
 	if v.AutoStake {

@@ -1,4 +1,4 @@
-package main
+package systemstaking
 
 import (
 	"math/big"

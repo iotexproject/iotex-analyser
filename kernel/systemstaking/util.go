@@ -17,6 +17,7 @@ type BucketInfo struct {
 	VotingPower          string
 	AutoStake            bool
 	Duration             uint32
+	DurationType         uint8
 	CreateTime           int64
 	StakeStartTime       int64
 	UnstakeStartTime     int64

@@ -20,6 +20,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
 
@@ -29,8 +30,6 @@ var FairbankBlockHeight = 5165641
 
 const (
 	HermesContractAddress = "io1fqulsuv8p820wmr0yd39jzx0m3pnpmuzzcywh8"
-	// TODO: update this address
-	SystemStakingV3ContractAddress = "###"
 )
 
 var DISTRIBUTE hash.Hash256
@@ -59,7 +58,12 @@ func initAddress() error {
 	return nil
 }
 
+type Config struct {
+	V3ContractAddress string `yaml:"v3ContractAddress"`
+}
+
 type hermesPlugin struct {
+	v3ContractAddr string
 }
 
 func (b hermesPlugin) Name() string {
@@ -75,6 +79,15 @@ func (b hermesPlugin) DependentPlugins() []string {
 }
 
 func (b hermesPlugin) Start(ctx context.Context) error {
+	cfgBytes, ok := kernel.GetPluginConfigCtx(ctx)
+	if !ok {
+		return errors.New("cannot get plugin config from context")
+	}
+	cfg := &Config{}
+	if err := yaml.Unmarshal(cfgBytes, cfg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal plugin config")
+	}
+	b.v3ContractAddr = cfg.V3ContractAddress
 	if err := initAddress(); err != nil {
 		return errors.Wrap(err, "cannot init address")
 	}
@@ -277,7 +290,7 @@ func (b hermesPlugin) updateAggregateStaking(blkHeight uint64, tx *gorm.DB, vote
 			// vote is not counted
 			continue
 		}
-		if vote.ContractAddress == SystemStakingV3ContractAddress {
+		if vote.ContractAddress == b.v3ContractAddr {
 			v3Buckets = append(v3Buckets, vote)
 			continue
 		}
@@ -433,7 +446,7 @@ func (b hermesPlugin) updateBucketStaking(blkHeight uint64, tx *gorm.DB, votes *
 			// vote is not counted
 			continue
 		}
-		if vote.ContractAddress == SystemStakingV3ContractAddress {
+		if vote.ContractAddress == b.v3ContractAddr {
 			v3Buckets = append(v3Buckets, vote)
 			continue
 		}

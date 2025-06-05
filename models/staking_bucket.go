@@ -46,10 +46,10 @@ type (
 		Timestamp            int64           `gorm:"type:int4;unsigned;not null;default:0"`
 		ActHash              string
 		AutoStake            bool
-		Duration             uint32 // days | block number | seconds
+		Duration             uint32 // days
 		Final                bool   `gorm:"type:bool;not null;default:false"`
 		Muted                bool   `gorm:"type:bool;not null;default:false"`
-		DurationType         uint8  // 0: days, 1: blocks, 2: seconds
+		DurationType         uint8  // 0: 5s per block in days; 1: 2.5s per block in days; 2: seconds in days
 	}
 
 	SystemStakingBucketRecord struct {

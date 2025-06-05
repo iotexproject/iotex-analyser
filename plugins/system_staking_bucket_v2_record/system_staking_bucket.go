@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/kernel/systemstaking"
@@ -69,6 +70,11 @@ func (b systemStakingBucketPlugin) Start(ctx context.Context) error {
 		b.startHeight = cfg.Height
 		b.muteHeight = cfg.MuteHeight
 		b.contractAddress = cfg.ContractAddress
+	} else {
+		log.L().Info("no plugin config found, using default config", zap.String("plugin", b.Name()))
+		b.startHeight = 0
+		b.muteHeight = config.Default.Genesis.WakeBlockHeight
+		b.contractAddress = config.Default.Genesis.Poll.SystemStakingContractV2Address
 	}
 	if height == 0 {
 		return db.UpdateIndexHeight(b.Name(), cfg.Height)
@@ -687,7 +693,7 @@ func (b systemStakingBucketPlugin) revise(ctx context.Context, tx *gorm.DB) erro
 			false,
 		)
 		record.VotingPower = decimal.NewFromBigInt(voteWeight, 0)
-		record.Duration = record.Duration * 17280
+		record.Duration = record.Duration / 2
 		record.DurationType = 1
 		record.ID = 0 // reset ID to create a new record
 		record.BlockHeight = b.muteHeight

@@ -11,6 +11,8 @@ import (
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
+	"github.com/iotexproject/iotex-analyser/kernel/systemstaking"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
@@ -19,6 +21,8 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
 
@@ -29,8 +33,14 @@ const (
 	errBucketInfoAddressByBucketID = "getBucketInfoAddressByBucketID error"
 )
 
+type Config struct {
+	BlockIntervalHalfHeight uint64 `yaml:"blockIntervalHalfHeight"`
+	ContractAddress         string `yaml:"contractAddress"`
+}
 type systemStakingBucketPlugin struct {
-	needUpdating bool
+	needUpdating            bool
+	blockIntervalHalfHeight uint64
+	contractAddress         string
 }
 
 func (b systemStakingBucketPlugin) Name() string {
@@ -48,6 +58,19 @@ func (b systemStakingBucketPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.SystemStakingBucketRecord{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
+	cfg := &Config{}
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		if err := yaml.Unmarshal(cfgData, cfg); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
+		}
+		log.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		b.blockIntervalHalfHeight = cfg.BlockIntervalHalfHeight
+		b.contractAddress = cfg.ContractAddress
+	} else {
+		b.blockIntervalHalfHeight = config.Default.Genesis.WakeBlockHeight
+		b.contractAddress = config.Default.Genesis.Poll.SystemStakingContractAddress
+	}
+
 	height, err := db.GetIndexHeight(b.Name())
 	if err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
@@ -99,7 +122,15 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 		}
 		b.needUpdating = true
 	}
+	halfBlockInterval := b.blockIntervalHalfHeight > 0 && blk.Height() >= b.blockIntervalHalfHeight
+
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		if blk.Height() == b.blockIntervalHalfHeight {
+			log.L().Info("system_staking_bucket_record plugin need to update data", zap.Uint64("blockHeight", blk.Height()))
+			if err := b.revise(ctx, tx); err != nil {
+				return errors.Wrapf(err, "failed to revise at block height %d", blk.Height())
+			}
+		}
 		var stakingBucket models.SystemStakingBucketRecord
 		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
 		for _, selp := range blk.Actions {
@@ -121,7 +152,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 			actHash := hex.EncodeToString(actionHash[:])
 			zeroAmount := decimal.NewFromInt(0)
 			for _, log := range receipt.Logs() {
-				if log.Address != config.Default.Genesis.Poll.SystemStakingContractAddress {
+				if log.Address != b.contractAddress {
 					continue
 				}
 				abiEvent, err := _systemStakingContractABI.EventByID(common.Hash(log.Topics[0]))
@@ -150,7 +181,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						return err
 					}
 					stakedAmount := decmailAmount.Add(decimal.NewFromBigInt(event.Amount, 0))
-					duration := durationDays(uint32(event.Duration.Uint64()))
+					duration := durationDays(uint32(event.Duration.Uint64()), halfBlockInterval)
 					voteWeight := getVoteWeight(blk.Height(), uint32(duration), stakedAmount.Coefficient(), true, false)
 					cadidateAddr, _ := address.FromHex(event.Delegate.String())
 					stakingBucket = models.SystemStakingBucketRecord{
@@ -170,6 +201,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							EventType:            "Staked",
 							AutoStake:            true, //default true
 							Duration:             duration,
+							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
 						},
@@ -182,6 +214,10 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					to, _ := address.FromBytes(log.Topics[2][:])
 					tokenID := new(big.Int).SetBytes(log.Topics[3][:])
 					if from.String() == address.ZeroAddress {
+						durationType := uint8(0)
+						if halfBlockInterval {
+							durationType = 1 // 2.5s per block in days
+						}
 						// mint skip
 						stakingBucket = models.SystemStakingBucketRecord{
 							SystemStakingBucketRecordBase: models.SystemStakingBucketRecordBase{
@@ -197,6 +233,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 								AutoStake:            false,
 								EventType:            "Transfer",
 								Duration:             0,
+								DurationType:         durationType,
 								Amount:               decimal.NewFromInt(0),
 								Timestamp:            blk.Timestamp().Unix(),
 								Final:                false,
@@ -225,6 +262,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 								AutoStake:            info.AutoStake,
 								EventType:            "Transfer",
 								Duration:             info.Duration,
+								DurationType:         info.DurationType,
 								Amount:               zeroAmount,
 								Timestamp:            blk.Timestamp().Unix(),
 								Final:                true,
@@ -261,6 +299,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							AutoStake:            info.AutoStake,
 							EventType:            "Unstaked",
 							Duration:             info.Duration,
+							DurationType:         info.DurationType,
 							Amount:               decmailAmount.Mul(decimal.NewFromInt(-1)),
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
@@ -286,7 +325,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrapf(err, errBucketSumAmount, tokenID)
 					}
-					duration := durationDays(uint32(event.Duration.Uint64()))
+					duration := durationDays(uint32(event.Duration.Uint64()), halfBlockInterval)
 					autoStake := true //locked must auto stake
 					voteWeight := getVoteWeight(blk.Height(), uint32(duration), decmailAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucketRecord{
@@ -306,6 +345,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							EventType:            "Locked",
 							AutoStake:            autoStake,
 							Duration:             duration,
+							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
 						},
@@ -343,6 +383,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							EventType:            "Unlocked",
 							AutoStake:            false,
 							Duration:             info.Duration,
+							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
 						},
@@ -388,6 +429,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 								EventType:            "Merged",
 								AutoStake:            info.AutoStake,
 								Duration:             info.Duration,
+								DurationType:         info.DurationType,
 								Timestamp:            blk.Timestamp().Unix(),
 								Final:                true,
 							},
@@ -405,7 +447,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrap(err, errBucketInfoAddressByBucketID)
 					}
-					duration := durationDays(uint32(event.Duration.Uint64()))
+					duration := durationDays(uint32(event.Duration.Uint64()), halfBlockInterval)
 					autoStake := true
 					stakeAmount := decmailAmount
 					voteWeight := getVoteWeight(blk.Height(), uint32(duration), stakeAmount.BigInt(), autoStake, false)
@@ -426,6 +468,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							EventType:            "Merged",
 							AutoStake:            autoStake,
 							Duration:             duration,
+							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
 						},
@@ -452,7 +495,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrap(err, errBucketInfoAddressByBucketID)
 					}
-					duration := durationDays(uint32(event.Duration.Uint64()))
+					duration := durationDays(uint32(event.Duration.Uint64()), halfBlockInterval)
 					autoStake := true
 					stakeAmount := decmailAmount
 					voteWeight := getVoteWeight(blk.Height(), uint32(duration), stakeAmount.BigInt(), autoStake, false)
@@ -474,6 +517,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							EventType:            "BucketExpanded",
 							AutoStake:            autoStake,
 							Duration:             duration,
+							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
 						},
@@ -514,6 +558,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							EventType:            "DelegateChanged",
 							AutoStake:            info.AutoStake,
 							Duration:             info.Duration,
+							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
 						},
@@ -546,6 +591,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							AutoStake:            false,
 							EventType:            "Withdrawal",
 							Duration:             0,
+							DurationType:         info.DurationType,
 							Amount:               decimal.NewFromInt(0),
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
@@ -581,6 +627,39 @@ func (b systemStakingBucketPlugin) Stop(ctx context.Context) error {
 
 func (b systemStakingBucketPlugin) Version() string {
 	return VERSION
+}
+
+func (b systemStakingBucketPlugin) revise(ctx context.Context, tx *gorm.DB) error {
+	var records []models.SystemStakingBucketRecord
+	subQuery := tx.Model(&models.SystemStakingBucketRecord{}).
+		Select("MAX(id)").
+		Where("staked_amount != 0 AND duration != 0 AND duration_type = 0").
+		Group("bucket_id")
+
+	if err := tx.Model(&models.SystemStakingBucketRecord{}).
+		Where("id IN (?)", subQuery).
+		Find(&records).Error; err != nil {
+		return err
+	}
+	for _, record := range records {
+		voteWeight := systemstaking.GetVoteWeight(
+			b.blockIntervalHalfHeight,
+			record.Duration/2,
+			record.StakedAmount.BigInt(),
+			record.AutoStake,
+			false,
+		)
+		record.VotingPower = decimal.NewFromBigInt(voteWeight, 0)
+		record.Duration = record.Duration / 2
+		record.DurationType = 1
+		record.ID = 0 // reset ID to create a new record
+		record.BlockHeight = b.blockIntervalHalfHeight
+		if err := tx.Create(&record).Error; err != nil {
+			return errors.Wrapf(err, "failed to revise record %d", record.ID)
+		}
+	}
+
+	return nil
 }
 
 // exported

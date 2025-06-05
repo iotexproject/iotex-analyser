@@ -13,8 +13,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func durationDays(duration uint32) uint32 {
-	return duration / 17280
+func durationDays(duration uint32, halfBlockInterval bool) uint32 {
+	days := duration / 17280
+	if halfBlockInterval {
+		days *= 2
+	}
+	return days
 }
 
 func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
@@ -40,6 +44,7 @@ type BucketInfo struct {
 	VotingPower          string
 	AutoStake            bool
 	Duration             uint32
+	DurationType         uint8
 	CreateTime           int64
 	StakeStartTime       int64
 	UnstakeStartTime     int64
@@ -47,7 +52,7 @@ type BucketInfo struct {
 
 func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&models.SystemStakingBucketRecord{}).Select("owner_address,delegate_owner_address,staked_amount,voting_power,auto_stake,duration,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Last(&bi).Error; err != nil {
+	if err := tx.Model(&models.SystemStakingBucketRecord{}).Select("owner_address,delegate_owner_address,staked_amount,voting_power,auto_stake,duration,duration_type,create_time,stake_start_time,unstake_start_time").Where("bucket_id=?", bucketID).Last(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil

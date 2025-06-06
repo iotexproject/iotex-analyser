@@ -51,7 +51,7 @@ func (b systemStakingBucketPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b systemStakingBucketPlugin) Start(ctx context.Context) error {
+func (b *systemStakingBucketPlugin) Start(ctx context.Context) error {
 	if err := initContract(); err != nil {
 		return errors.Wrap(err, "cannot init contract")
 	}

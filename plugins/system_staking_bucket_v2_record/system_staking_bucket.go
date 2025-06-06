@@ -53,7 +53,7 @@ func (b systemStakingBucketPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b systemStakingBucketPlugin) Start(ctx context.Context) error {
+func (b *systemStakingBucketPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.SystemStakingBucketV2Record{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}

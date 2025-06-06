@@ -6,7 +6,7 @@ WORKDIR /app
 # ENV GOPROXY https://goproxy.cn
 
 # RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
-RUN apt-get update && apt-get install -y make gcc musl-dev git libc-dev build-essential
+RUN apt-get update && apt-get install -y make gcc git libc-dev build-essential
 
 COPY . .
 RUN go mod download

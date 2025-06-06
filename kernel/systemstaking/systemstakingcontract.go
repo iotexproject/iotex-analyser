@@ -1,4 +1,4 @@
-package main
+package systemstaking
 
 import (
 	"strings"
@@ -23,11 +23,11 @@ https://github.com/iotexproject/iip13-contracts/blob/main/src/SystemStaking2.sol
 */
 
 var (
-	_systemStakingContractABIV2 abi.ABI
+	ABI abi.ABI
 )
 
 const (
-	SystemStakingContractABIV2 = `[
+	ABIStr = `[
 		{
 			"inputs": [
 				{
@@ -1200,9 +1200,10 @@ const (
 	]`
 )
 
-func initContract() error {
+func init() {
 	var err error
-	_systemStakingContractABIV2, err = abi.JSON(strings.NewReader(SystemStakingContractABIV2))
-
-	return err
+	ABI, err = abi.JSON(strings.NewReader(ABIStr))
+	if err != nil {
+		panic("failed to parse SystemStakingContract ABI: " + err.Error())
+	}
 }

@@ -138,8 +138,8 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						return err
 					}
 					stakedAmount := decimalAmount.Add(decimal.NewFromBigInt(event.Amount, 0))
-					duration := uint32(event.Duration.Uint64())
-					voteWeight := systemstaking.GetVoteWeight(blk.Height(), legacyBlockToDays(duration, info.DurationType, shouldMute), stakedAmount.Coefficient(), true, false)
+					duration := legacyBlockToDays(uint32(event.Duration.Uint64()), info.DurationType, shouldMute)
+					voteWeight := systemstaking.GetVoteWeight(blk.Height(), duration, stakedAmount.Coefficient(), true, false)
 					cadidateAddr, _ := address.FromHex(event.Delegate.String())
 					stakingBucket = models.SystemStakingBucketV2Record{
 						SystemStakingBucketRecordBase: models.SystemStakingBucketRecordBase{
@@ -173,6 +173,10 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					bucketId := new(big.Int).SetBytes(log.Topics[3][:])
 					if from.String() == address.ZeroAddress {
 						//mint skip
+						durationType := uint8(0)
+						if shouldMute {
+							durationType = 1 // 2.5s per block in days
+						}
 						stakingBucket = models.SystemStakingBucketV2Record{
 							SystemStakingBucketRecordBase: models.SystemStakingBucketRecordBase{
 								BlockHeight:          blk.Height(),
@@ -187,7 +191,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 								AutoStake:            false,
 								EventType:            "Transfer",
 								Duration:             0,
-								DurationType:         1, // blocks
+								DurationType:         durationType, // blocks
 								Amount:               decimal.NewFromInt(0),
 								Timestamp:            blk.Timestamp().Unix(),
 								Final:                false,
@@ -283,14 +287,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrapf(err, errBucketSumAmount, bucketId)
 					}
-					duration := uint32(event.Duration.Uint64())
-					durationType := info.DurationType
-					switch durationType {
-					case 0: // days
-						duration = duration * 86400 / 5
-						durationType = 1
-					case 1:
-					}
+					duration := legacyBlockToDays(uint32(event.Duration.Uint64()), info.DurationType, shouldMute)
 					autoStake := true //locked must auto stake
 					voteWeight := systemstaking.GetVoteWeight(blk.Height(), uint32(duration), decimalAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucketV2Record{

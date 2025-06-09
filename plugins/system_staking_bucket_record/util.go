@@ -16,7 +16,7 @@ import (
 func durationDays(duration uint32, halfBlockInterval bool) uint32 {
 	days := duration / 17280
 	if halfBlockInterval {
-		days *= 2
+		days /= 2
 	}
 	return days
 }

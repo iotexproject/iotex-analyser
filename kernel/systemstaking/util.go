@@ -1,12 +1,11 @@
 package systemstaking
 
 import (
-	"math"
 	"math/big"
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/config"
-	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/staking"
 )
 
 type BucketInfo struct {
@@ -24,46 +23,51 @@ type BucketInfo struct {
 	Muted                bool
 }
 
-type VoteBucket struct {
-	Index            uint64
-	Candidate        string
-	Owner            string
-	StakedAmount     *big.Int
-	StakedDuration   uint32
-	CreateTime       time.Time
-	StakeStartTime   time.Time
-	UnstakeStartTime time.Time
-	AutoStake        bool
-}
-
-func GetVoteWeight(blkHeight uint64, duration uint32, stakeAmount *big.Int, autoStake, selfStake bool) *big.Int {
+func GetVoteWeight(blkHeight uint64, duration time.Duration, stakeAmount *big.Int, autoStake, selfStake bool) *big.Int {
 	if blkHeight < config.Default.Genesis.RedseaBlockHeight {
 		return stakeAmount
 	}
-	voteBucket := &VoteBucket{
+	voteBucket := &staking.VoteBucket{
 		StakedAmount:   stakeAmount,
 		AutoStake:      autoStake,
 		StakedDuration: duration,
 	}
-	return calculateVoteWeight(config.Default.Genesis.Staking.VoteWeightCalConsts, voteBucket, selfStake)
+	return staking.CalculateVoteWeight(config.Default.Genesis.Staking.VoteWeightCalConsts, voteBucket, selfStake)
 }
 
-func calculateVoteWeight(c genesis.VoteWeightCalConsts, v *VoteBucket, selfStake bool) *big.Int {
-	remainingTime := float64(v.StakedDuration * 86400)
-	weight := float64(1)
-	var m float64
-	if v.AutoStake {
-		m = c.AutoStake
+func BlocksToDuration(blocks uint32, halfBlockInterval bool) time.Duration {
+	duration := time.Duration(blocks) * 5 * time.Second
+	if halfBlockInterval {
+		// 2.5s per block
+		duration /= 2
 	}
-	if remainingTime > 0 {
-		weight += math.Log(math.Ceil(remainingTime/86400)*(1+m)) / math.Log(c.DurationLg) / 100
-	}
-	if selfStake && v.AutoStake && v.StakedDuration >= 91 {
-		// self-stake extra bonus requires enable auto-stake for at least 3 months
-		weight *= c.SelfStake
-	}
+	return duration
+}
 
-	amount := new(big.Float).SetInt(v.StakedAmount)
-	weightedAmount, _ := amount.Mul(amount, big.NewFloat(weight)).Int(nil)
-	return weightedAmount
+func DurationByType(duration time.Duration, durationType uint8) uint32 {
+	if durationType == 0 {
+		// 5s per block in days
+		return uint32(duration.Hours() / 24)
+	} else if durationType == 1 {
+		// 2.5s per block in seconds
+		return uint32(duration.Seconds())
+	} else if durationType == 2 {
+		// seconds in seconds
+		return uint32(duration.Seconds())
+	}
+	return 0
+}
+
+func DurationFromType(duration uint32, durationType uint8) time.Duration {
+	if durationType == 0 {
+		// 5s per block in days
+		return time.Duration(duration*17280) * time.Second
+	} else if durationType == 1 {
+		// 2.5s per block in seconds
+		return time.Duration(duration) * time.Second
+	} else if durationType == 2 {
+		// seconds in seconds
+		return time.Duration(duration) * time.Second
+	}
+	return 0
 }

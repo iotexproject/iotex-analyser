@@ -61,7 +61,7 @@ func DurationByType(duration time.Duration, durationType uint8) uint32 {
 func DurationFromType(duration uint32, durationType uint8) time.Duration {
 	if durationType == 0 {
 		// 5s per block in days
-		return time.Duration(duration*17280) * time.Second
+		return time.Duration(duration*24) * time.Hour
 	} else if durationType == 1 {
 		// 2.5s per block in seconds
 		return time.Duration(duration) * time.Second

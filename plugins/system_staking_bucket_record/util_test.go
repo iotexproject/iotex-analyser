@@ -3,7 +3,9 @@ package main
 import (
 	"math/big"
 	"testing"
+	"time"
 
+	"github.com/iotexproject/iotex-core/v2/action/protocol/staking"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/stretchr/testify/require"
 )
@@ -29,12 +31,12 @@ func TestNFTBuckets(t *testing.T) {
 	for _, test := range tests {
 		_ = test
 		stakeAmount, _ := big.NewInt(0).SetString(test.Amount, 10)
-		voteBucket := &VoteBucket{
+		voteBucket := &staking.VoteBucket{
 			StakedAmount:   stakeAmount,
 			AutoStake:      test.AutoStake,
-			StakedDuration: test.DurationDays,
+			StakedDuration: time.Duration(test.DurationDays*24) * time.Hour,
 		}
-		weightVotes := calculateVoteWeight(genesis.Default.VoteWeightCalConsts, voteBucket, false)
+		weightVotes := staking.CalculateVoteWeight(genesis.Default.VoteWeightCalConsts, voteBucket, false)
 		r.Equal(test.WeightedVotes, weightVotes.Int64())
 	}
 }

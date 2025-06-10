@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
@@ -127,7 +128,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						return err
 					}
 					stakedAmount := decmailAmount.Add(decimal.NewFromBigInt(event.Amount, 0))
-					duration := uint32(event.Duration.Uint64() / 86400) // convert seconds to days
+					duration := time.Duration(event.Duration.Uint64()) * time.Second
 					voteWeight := systemstaking.GetVoteWeight(blk.Height(), duration, stakedAmount.Coefficient(), true, false)
 					cadidateAddr, _ := address.FromHex(event.Delegate.String())
 					stakingBucket = models.SystemStakingBucketV3Record{
@@ -146,7 +147,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							Amount:               decimal.NewFromBigInt(event.Amount, 0),
 							EventType:            "Staked",
 							AutoStake:            true, //default true
-							Duration:             duration,
+							Duration:             uint32(duration.Seconds()),
 							DurationType:         2, // seconds in days
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
@@ -269,8 +270,8 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrapf(err, errBucketSumAmount, bucketId)
 					}
-					duration := uint32(event.Duration.Uint64() / 86400) // convert seconds to days
-					autoStake := true                                   //locked must auto stake
+					duration := time.Duration(event.Duration.Uint64()) * time.Second
+					autoStake := true //locked must auto stake
 					voteWeight := systemstaking.GetVoteWeight(blk.Height(), duration, decmailAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucketV3Record{
 						SystemStakingBucketRecordBase: models.SystemStakingBucketRecordBase{
@@ -288,7 +289,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							Amount:               zeroAmount,
 							EventType:            "Locked",
 							AutoStake:            autoStake,
-							Duration:             duration,
+							Duration:             uint32(duration.Seconds()),
 							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
@@ -308,7 +309,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrapf(err, errBucketSumAmount, bucketId)
 					}
-					duration := info.Duration
+					duration := time.Duration(info.Duration) * time.Second
 					autoStake := false //unlocked means auto stake is false
 					voteWeight := systemstaking.GetVoteWeight(blk.Height(), duration, decmailAmount.BigInt(), autoStake, false)
 					stakingBucket = models.SystemStakingBucketV3Record{
@@ -406,7 +407,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrap(err, errBucketInfoAddressByBucketID)
 					}
-					duration := uint32(event.Duration.Uint64() / 86400) // convert seconds to days
+					duration := time.Duration(event.Duration.Uint64()) * time.Second
 					autoStake := true
 					stakeAmount := decmailAmount
 					voteWeight := systemstaking.GetVoteWeight(blk.Height(), duration, stakeAmount.BigInt(), autoStake, false)
@@ -426,7 +427,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							Amount:               decmailAmount.Sub(tokenAmount),
 							EventType:            "Merged",
 							AutoStake:            autoStake,
-							Duration:             duration,
+							Duration:             uint32(duration.Seconds()),
 							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
@@ -454,7 +455,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					if err != nil {
 						return errors.Wrap(err, errBucketInfoAddressByBucketID)
 					}
-					duration := uint32(event.Duration.Uint64() / 86400) // convert seconds to days
+					duration := time.Duration(event.Duration.Uint64()) * time.Second
 					autoStake := true
 					stakeAmount := decmailAmount
 					voteWeight := systemstaking.GetVoteWeight(blk.Height(), duration, stakeAmount.BigInt(), autoStake, false)
@@ -475,7 +476,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 							Amount:               decmailAmount.Sub(oldDecmailAmount),
 							EventType:            "BucketExpanded",
 							AutoStake:            autoStake,
-							Duration:             duration,
+							Duration:             uint32(duration.Seconds()),
 							DurationType:         info.DurationType,
 							Timestamp:            blk.Timestamp().Unix(),
 							Final:                true,
@@ -578,7 +579,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						return err
 					}
 					stakedAmount := decmailAmount.Sub(decimal.NewFromBigInt(event.Amount, 0))
-					voteWeight := systemstaking.GetVoteWeight(blk.Height(), info.Duration/86400, stakedAmount.Coefficient(), info.AutoStake, false)
+					voteWeight := systemstaking.GetVoteWeight(blk.Height(), time.Duration(info.Duration)*time.Second, stakedAmount.Coefficient(), info.AutoStake, false)
 					stakingBucket = models.SystemStakingBucketV3Record{
 						SystemStakingBucketRecordBase: models.SystemStakingBucketRecordBase{
 							BlockHeight:          blk.Height(),

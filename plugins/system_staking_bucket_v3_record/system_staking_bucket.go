@@ -103,7 +103,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 				if log.Address != b.contractAddress {
 					continue
 				}
-				abiEvent, err := systemstaking.ABI.EventByID(common.Hash(log.Topics[0]))
+				abiEvent, err := systemstaking.ABIV3.EventByID(common.Hash(log.Topics[0]))
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -119,7 +119,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						Amount   *big.Int
 						Duration *big.Int
 					}{}
-					err = systemstaking.ABI.UnpackIntoInterface(&event, "Staked", log.Data)
+					err = systemstaking.ABIV3.UnpackIntoInterface(&event, "Staked", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
 					}
@@ -258,7 +258,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					event := struct {
 						Duration *big.Int
 					}{}
-					err := systemstaking.ABI.UnpackIntoInterface(&event, "Locked", log.Data)
+					err := systemstaking.ABIV3.UnpackIntoInterface(&event, "Locked", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
 					}
@@ -345,7 +345,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						Duration  *big.Int
 					}{}
 					eventMap := make(map[string]interface{})
-					err := systemstaking.ABI.UnpackIntoMap(eventMap, "Merged", log.Data)
+					err := systemstaking.ABIV3.UnpackIntoMap(eventMap, "Merged", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
 					}
@@ -442,7 +442,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 						Amount   *big.Int
 						Duration *big.Int
 					}{}
-					err := systemstaking.ABI.UnpackIntoInterface(&event, "BucketExpanded", log.Data)
+					err := systemstaking.ABIV3.UnpackIntoInterface(&event, "BucketExpanded", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
 					}
@@ -490,7 +490,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					event := struct {
 						NewDelegate common.Address
 					}{}
-					err := systemstaking.ABI.UnpackIntoInterface(&event, "DelegateChanged", log.Data)
+					err := systemstaking.ABIV3.UnpackIntoInterface(&event, "DelegateChanged", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
 					}
@@ -570,7 +570,7 @@ func (b systemStakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Bloc
 					event := struct {
 						Amount *big.Int
 					}{}
-					err = systemstaking.ABI.UnpackIntoInterface(&event, "Donated", log.Data)
+					err = systemstaking.ABIV3.UnpackIntoInterface(&event, "Donated", log.Data)
 					if err != nil {
 						return errors.WithStack(err)
 					}

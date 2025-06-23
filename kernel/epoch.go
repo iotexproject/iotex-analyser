@@ -1,8 +1,6 @@
 package kernel
 
 import (
-	"fmt"
-
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rolldpos"
 )
@@ -10,18 +8,6 @@ import (
 var (
 	rolldposProtocol *rolldpos.Protocol
 )
-
-func init() {
-	g := config.Default.Genesis
-	fmt.Printf("genesis %+v\n", g)
-	rolldposProtocol = rolldpos.NewProtocol(
-		g.NumCandidateDelegates,
-		g.NumDelegates,
-		g.NumSubEpochs,
-		rolldpos.EnableDardanellesSubEpoch(g.DardanellesBlockHeight, g.DardanellesNumSubEpochs),
-		rolldpos.EnableWakeSubEpoch(g.WakeBlockHeight, g.WakeNumSubEpochs),
-	)
-}
 
 // https://github.com/millken/iotex-core/blob/77950cec681d2e441a77b2b9a162ffa1c4ca4f55/action/protocol/rolldpos/epoch.go#L213
 // GetEpochNum returns the number of the epoch for a given height

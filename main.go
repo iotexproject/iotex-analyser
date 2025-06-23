@@ -11,6 +11,7 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/cmd"
 	"github.com/iotexproject/iotex-analyser/config"
+	"github.com/iotexproject/iotex-analyser/kernel"
 )
 
 var (
@@ -58,6 +59,7 @@ func main() {
 			zap.String("version", version),
 			zap.Uint32("EVMNetworkID", config.EVMNetworkID()),
 		)
+		kernel.Init(cfg)
 		return nil
 	}
 	app.Commands = []*cli.Command{

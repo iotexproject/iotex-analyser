@@ -70,7 +70,7 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			return err
 		}
 	}
-	if b.cfg.ReviseHeight > 0 && blkHeight >= b.cfg.ReviseHeight {
+	if b.cfg.ReviseHeight > 0 && blkHeight == b.cfg.ReviseHeight {
 		b.reviseEpochNumber()
 	}
 	grantRewardActs := make(map[hash.Hash256]bool)

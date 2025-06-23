@@ -5,16 +5,20 @@ import (
 	"strconv"
 
 	"github.com/iotexproject/go-pkgs/hash"
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-core/v2/state"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +28,12 @@ var (
 	ActiveBlockProducers []string
 )
 
+type Config struct {
+	ReviseHeight uint64 `yaml:"reviseHeight"`
+}
+
 type blockMetaPlugin struct {
+	cfg Config
 }
 
 func (b blockMetaPlugin) Name() string {
@@ -35,12 +44,19 @@ func (b blockMetaPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b blockMetaPlugin) Start(ctx context.Context) error {
+func (b *blockMetaPlugin) Start(ctx context.Context) error {
 
 	if err := db.AutoMigrate(b.Name(), &models.BlockMeta{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
-
+	cfg := &Config{}
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		if err := yaml.Unmarshal(cfgData, cfg); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
+		}
+		log.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		b.cfg = *cfg
+	}
 	return nil
 }
 
@@ -53,6 +69,9 @@ func (b blockMetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		if err := b.updateActiveBlockProducers(chainClient, epochNum); err != nil {
 			return err
 		}
+	}
+	if b.cfg.ReviseHeight > 0 && blkHeight >= b.cfg.ReviseHeight {
+		b.reviseEpochNumber()
 	}
 	grantRewardActs := make(map[hash.Hash256]bool)
 	// log action index
@@ -143,6 +162,37 @@ func (b blockMetaPlugin) updateActiveBlockProducers(chainClient iotexapi.APIServ
 	}
 
 	return nil
+}
+
+func (b blockMetaPlugin) reviseEpochNumber() {
+	// revise epoch number for block meta from wake block height to latest
+	var (
+		from = config.Default.Genesis.Blockchain.WakeBlockHeight
+	)
+	db.DB().Transaction(func(tx *gorm.DB) error {
+		var blockMetas []models.BlockMeta
+		if err := tx.Where("block_height >= ?", from).Find(&blockMetas).Error; err != nil {
+			return errors.Wrap(err, "failed to get block metas with epoch_num = 0")
+		}
+		revisedCnt := 0
+		maxHeight := from
+		for _, bm := range blockMetas {
+			epochNum := kernel.GetEpochNum(bm.BlockHeight)
+			if bm.EpochNum == epochNum {
+				continue
+			}
+			bm.EpochNum = epochNum
+			if err := tx.Save(&bm).Error; err != nil {
+				return errors.Wrapf(err, "failed to update block meta %d", bm.BlockHeight)
+			}
+			revisedCnt++
+			if bm.BlockHeight > maxHeight {
+				maxHeight = bm.BlockHeight
+			}
+		}
+		log.L().Info("revised epoch number for block metas", zap.Uint64("from", from), zap.Int("revisedCnt", revisedCnt), zap.Uint64("max", maxHeight))
+		return nil
+	})
 }
 
 // exported

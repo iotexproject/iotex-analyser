@@ -13,7 +13,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/iotexproject/go-pkgs v0.1.15
 	github.com/iotexproject/iotex-address v0.2.8
-	github.com/iotexproject/iotex-core/v2 v2.2.0-rc1
+	github.com/iotexproject/iotex-core/v2 v2.2.0
 	github.com/iotexproject/iotex-election v0.3.7-0.20250204145548-654ace326d3e
 	github.com/iotexproject/iotex-proto v0.6.4
 	github.com/lib/pq v1.0.0

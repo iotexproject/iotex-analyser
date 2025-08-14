@@ -258,17 +258,29 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings, sys
 	if err != nil {
 		return nil, err
 	}
+	candidateOperatorExists := make(map[string]struct{})
 	for _, cand := range candidateListv2.GetCandidates() {
 		votes, ok := big.NewInt(0).SetString(cand.TotalWeightedVotes, 10)
 		if !ok {
 			continue
 		}
+		candidateOperatorExists[cand.OperatorAddress] = struct{}{}
 		for _, d := range delegateMap {
 			if strings.EqualFold(cand.OperatorAddress, d.OperatorAddress) {
 				d.VoteWeight = votes
 				break
 			}
 		}
+	}
+	// remove delegate that not in candidate list
+	toDeletes := make([]string, 0)
+	for c, d := range delegateMap {
+		if _, ok := candidateOperatorExists[d.OperatorAddress]; !ok {
+			toDeletes = append(toDeletes, c)
+		}
+	}
+	for _, c := range toDeletes {
+		delete(delegateMap, c)
 	}
 	candidateList, err := GetProducerCandidateList(kernel.ChainClient(), epochNumber)
 	if err == nil {

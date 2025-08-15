@@ -272,15 +272,15 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings, sys
 			}
 		}
 	}
-	// remove delegate that not in candidate list
-	toDeletes := make([]string, 0)
-	for c, d := range delegateMap {
+	// clear delegate that not in candidate list
+	for _, d := range delegateMap {
 		if _, ok := candidateOperatorExists[d.OperatorAddress]; !ok {
-			toDeletes = append(toDeletes, c)
+			d.SelfStake = false
+			d.VoteWeight = big.NewInt(0)
+			d.StakeAmount = big.NewInt(0)
+			d.Active = false
+			d.Productivity = 0
 		}
-	}
-	for _, c := range toDeletes {
-		delete(delegateMap, c)
 	}
 	candidateList, err := GetProducerCandidateList(kernel.ChainClient(), epochNumber)
 	if err == nil {

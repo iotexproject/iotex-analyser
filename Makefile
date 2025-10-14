@@ -11,7 +11,7 @@ NAME=iotex/iotex-analyser
 # Go parameters
 GOCMD=go
 GOLINT=golint
-GOBUILD=$(GOCMD) build
+GOBUILD=$(GOCMD) build -tags 'nosilkworm,generic' -ldflags="-s -w"
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 PLUGIN_DIRECTORIES = $(wildcard plugins/*)

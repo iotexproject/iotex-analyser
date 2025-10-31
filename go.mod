@@ -13,9 +13,9 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/iotexproject/go-pkgs v0.1.16-0.20250813090621-fc1c4ebefcb4
 	github.com/iotexproject/iotex-address v0.2.8
-	github.com/iotexproject/iotex-core/v2 v2.3.0-rc11
-	github.com/iotexproject/iotex-election v0.3.8-0.20251014025613-2bd07cad1e27
-	github.com/iotexproject/iotex-proto v0.6.5-0.20250926025103-f0e973cdb041
+	github.com/iotexproject/iotex-core/v2 v2.3.0
+	github.com/iotexproject/iotex-election v0.3.8-0.20251015031218-8df952babca1
+	github.com/iotexproject/iotex-proto v0.6.5
 	github.com/lib/pq v1.0.0
 	github.com/millken/gocache v1.0.5
 	github.com/mitchellh/go-homedir v1.1.0

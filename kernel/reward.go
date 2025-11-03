@@ -12,10 +12,11 @@ import (
 )
 
 type RewardInfo struct {
-	BlockReward     *big.Int
-	EpochReward     *big.Int
-	FoundationBonus *big.Int
-	PriorityBonus   *big.Int
+	BlockReward       *big.Int
+	EpochReward       *big.Int
+	FoundationBonus   *big.Int
+	PriorityBonus     *big.Int
+	UnproductiveSlash *big.Int
 }
 
 func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, error) {
@@ -30,10 +31,11 @@ func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, err
 			rewards, ok := rewardInfoMap[rewardLog.Addr]
 			if !ok {
 				rewardInfoMap[rewardLog.Addr] = &RewardInfo{
-					BlockReward:     big.NewInt(0),
-					EpochReward:     big.NewInt(0),
-					FoundationBonus: big.NewInt(0),
-					PriorityBonus:   big.NewInt(0),
+					BlockReward:       big.NewInt(0),
+					EpochReward:       big.NewInt(0),
+					FoundationBonus:   big.NewInt(0),
+					PriorityBonus:     big.NewInt(0),
+					UnproductiveSlash: big.NewInt(0),
 				}
 				rewards = rewardInfoMap[rewardLog.Addr]
 			}
@@ -50,6 +52,8 @@ func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, err
 				rewards.FoundationBonus.Add(rewards.FoundationBonus, amount)
 			case rewardingpb.RewardLog_PRIORITY_BONUS:
 				rewards.PriorityBonus.Add(rewards.PriorityBonus, amount)
+			case rewardingpb.RewardLog_UNPRODUCTIVE_SLASH:
+				rewards.UnproductiveSlash.Add(rewards.UnproductiveSlash, amount)
 			default:
 				return nil, errors.New("Unknown type of reward")
 			}

@@ -270,52 +270,71 @@ func (r *runner) Start(ctx context.Context) error {
 						break
 					}
 
-					if batchPlugin, ok := r.plugin.(plugin.BatchAdapter); ok {
-						if err := batchPlugin.PutBlocks(ctx, blks); err != nil {
-							r.UpdateStatus(PluginStatusPutError)
-							r.UpdateError(err)
-							r.logger.Error("failed to put blocks to plugin, retrying...",
+					putBlocks := func() (exit bool) {
+						defer func() {
+							if rc := recover(); rc != nil {
+								r.UpdateStatus(PluginStatusPutError)
+								r.UpdateError(errors.Errorf("panic when putting block to plugin: %v", rc))
+								r.logger.Error("panic when putting block to plugin",
+									zap.String("pluginName", r.plugin.Name()),
+									zap.Uint64("height", nextHeight),
+								)
+								exit = true
+							}
+						}()
+
+						if batchPlugin, ok := r.plugin.(plugin.BatchAdapter); ok {
+							if err := batchPlugin.PutBlocks(ctx, blks); err != nil {
+								r.UpdateStatus(PluginStatusPutError)
+								r.UpdateError(err)
+								r.logger.Error("failed to put blocks to plugin, retrying...",
+									zap.String("pluginName", r.plugin.Name()),
+									zap.Uint64("height", nextHeight),
+									zap.Int("batchSize", len(blks)),
+									zap.Error(err),
+								)
+								return true
+							}
+							r.UpdateStatus(PluginStatusPutOK)
+							r.UpdateError(nil)
+							r.logger.Debug("putBlocks to plugin",
 								zap.String("pluginName", r.plugin.Name()),
 								zap.Uint64("height", nextHeight),
 								zap.Int("batchSize", len(blks)),
+							)
+							serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
+							pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+
+							blks = blks[:0]
+							nextHeight++
+							return false
+						}
+
+						if err := r.plugin.PutBlock(ctx, blk); err != nil {
+							r.UpdateStatus(PluginStatusPutError)
+							r.UpdateError(err)
+							r.logger.Error("failed to put data to plugin, retrying...",
+								zap.String("pluginName", r.plugin.Name()),
+								zap.Uint64("height", blk.Height()),
 								zap.Error(err),
 							)
-							break
+							return true
 						}
 						r.UpdateStatus(PluginStatusPutOK)
 						r.UpdateError(nil)
-						r.logger.Debug("putBlocks to plugin",
-							zap.String("pluginName", r.plugin.Name()),
-							zap.Uint64("height", nextHeight),
-							zap.Int("batchSize", len(blks)),
-						)
-						serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
-						pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
-
-						blks = blks[:0]
-						nextHeight++
-						continue
-					}
-
-					if err := r.plugin.PutBlock(ctx, blk); err != nil {
-						r.UpdateStatus(PluginStatusPutError)
-						r.UpdateError(err)
-						r.logger.Error("failed to put data to plugin, retrying...",
+						r.logger.Debug("putblock to plugin",
 							zap.String("pluginName", r.plugin.Name()),
 							zap.Uint64("height", blk.Height()),
-							zap.Error(err),
 						)
+						serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
+						pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+						nextHeight++
+						return false
+					}
+
+					if putBlocks() {
 						break
 					}
-					r.UpdateStatus(PluginStatusPutOK)
-					r.UpdateError(nil)
-					r.logger.Debug("putblock to plugin",
-						zap.String("pluginName", r.plugin.Name()),
-						zap.Uint64("height", blk.Height()),
-					)
-					serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
-					pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
-					nextHeight++
 				}
 			}
 		}

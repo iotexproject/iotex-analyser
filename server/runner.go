@@ -278,6 +278,7 @@ func (r *runner) Start(ctx context.Context) error {
 								r.logger.Error("panic when putting block to plugin",
 									zap.String("pluginName", r.plugin.Name()),
 									zap.Uint64("height", nextHeight),
+									zap.Error(r.Error()),
 								)
 								exit = true
 							}

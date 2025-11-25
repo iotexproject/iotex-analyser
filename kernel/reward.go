@@ -41,7 +41,7 @@ func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, err
 			}
 			amount, ok := big.NewInt(0).SetString(rewardLog.Amount, 10)
 			if !ok {
-				return nil, errors.New("failed to convert reward amount from string to big int")
+				return nil, errors.Errorf("failed to convert reward amount from string to big int: %s, %s, %s", rewardLog.Addr, rewardLog.Type, rewardLog.Amount)
 			}
 			switch rewardLog.Type {
 			case rewardingpb.RewardLog_BLOCK_REWARD:

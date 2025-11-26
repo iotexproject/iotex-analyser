@@ -23,6 +23,7 @@ import (
 const VERSION = "1.0.0"
 
 type candidateSelfStakePlugin struct {
+	batchSize int
 }
 
 func (p candidateSelfStakePlugin) Name() string {
@@ -37,11 +38,11 @@ func (p candidateSelfStakePlugin) DependentPlugins() []string {
 	return []string{}
 }
 
-func (p candidateSelfStakePlugin) Start(ctx context.Context) error {
+func (p *candidateSelfStakePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(p.Name(), &models.CandidateSelfStake{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", p.Name())
 	}
-
+	p.batchSize = 1000
 	return nil
 }
 
@@ -53,6 +54,10 @@ func (p candidateSelfStakePlugin) PutBlock(ctx context.Context, blk *block.Block
 		return db.UpdateIndexHeightByTx(tx, p.Name(), blk.Height())
 	})
 	return err
+}
+
+func (p candidateSelfStakePlugin) BatchSize() int {
+	return p.batchSize
 }
 
 func (p candidateSelfStakePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {

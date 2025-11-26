@@ -5,6 +5,7 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rolldpos"
+	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 )
 
 func Init(cfg *config.Config) {
@@ -17,4 +18,8 @@ func Init(cfg *config.Config) {
 		rolldpos.EnableDardanellesSubEpoch(g.DardanellesBlockHeight, g.DardanellesNumSubEpochs),
 		rolldpos.EnableWakeSubEpoch(g.WakeBlockHeight, g.WakeNumSubEpochs),
 	)
+}
+
+func Genesis() *genesis.Genesis {
+	return &config.Default.Genesis
 }

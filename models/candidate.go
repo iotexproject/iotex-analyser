@@ -5,6 +5,7 @@ import (
 
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type Candidate struct {
@@ -14,7 +15,7 @@ type Candidate struct {
 	OperatorAddress string          `gorm:"size:42;not null;default:'';"`
 	RewardAddress   string          `gorm:"size:42;not null;default:'';"`
 	OwnerAddress    string          `gorm:"size:42;not null;default:'';"`
-	CandidateID string `gorm:"size:42;not null;default:'';"`
+	CandidateID     string          `gorm:"size:42;not null;default:'';"`
 	Amount          decimal.Decimal `gorm:"type:decimal(42,0);not null;default:0;"`
 	Duration        uint32          `gorm:"not null;" sql:"type:bigint"`
 	ActType         string
@@ -42,6 +43,12 @@ func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64) e
 	var err error
 	db := db.DB()
 	err = db.Model(m).Where("block_height <=? and owner_address = ?", height, owner).Order("block_height desc,id desc").Take(&m).Error
+	return err
+}
+
+func (m *Candidate) FetchByOperatorAddressWithHeight(operator string, height uint64, tx *gorm.DB) error {
+	var err error
+	err = tx.Model(m).Where("block_height <=? and operator_address = ?", height, operator).Order("block_height desc,id desc").Take(&m).Error
 	return err
 }
 

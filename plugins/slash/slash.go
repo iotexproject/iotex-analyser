@@ -34,6 +34,10 @@ func (b slashPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
+func (b slashPlugin) DependentPlugins() []string {
+	return []string{"candidate", "candidate_self_stake"}
+}
+
 func (b slashPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.Slash{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
@@ -73,7 +77,7 @@ func (b slashPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 		}
 		if len(epochRewardHash) == 0 {
 			// no epoch reward in this block
-			return nil
+			return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 		}
 		// log receipt index
 		idx := slices.IndexFunc(blk.Receipts, func(e *action.Receipt) bool {
@@ -93,15 +97,25 @@ func (b slashPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 			if slash.UnproductiveSlash == nil || slash.UnproductiveSlash.Sign() == 0 {
 				continue
 			}
+			cand := &models.Candidate{}
+			if err := cand.FetchByOperatorAddressWithHeight(addr, blkHeight, tx); err != nil {
+				return err
+			}
+			css := &models.CandidateSelfStake{}
+			if err := css.FetchByCandidateIDWithHeight(cand.CandidateID, blkHeight, tx); err != nil {
+				return err
+			}
 			m := models.Slash{
 				BlockHeight:     blkHeight,
 				ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
 				OperatorAddress: addr,
 				Amount:          decimal.NewFromBigInt(slash.UnproductiveSlash, 0),
+				CandidateID:     cand.CandidateID,
+				BucketID:        css.BucketID,
 			}
 			if err := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "block_height"}, {Name: "operator_address"}},
-				DoUpdates: clause.AssignmentColumns([]string{"action_hash", "amount"}),
+				DoUpdates: clause.AssignmentColumns([]string{"action_hash", "amount", "candidate_id", "bucket_id"}),
 			}).Create(&m).Error; err != nil {
 				return err
 			}

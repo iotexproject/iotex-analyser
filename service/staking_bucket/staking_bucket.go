@@ -509,7 +509,45 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			if a.RewardType() != action.EpochReward {
 				continue
 			}
+			slashs, err := models.FetchSlashByActionHash(actHash, tx)
+			if err != nil {
+				return errors.Wrapf(err, "failed to fetch slash by action hash %s", actHash)
+			}
+			for _, slash := range slashs {
+				bucketID := slash.BucketID
+				info, err := b.getBucketInfoAddressByBucketID(tx, bucketID)
+				if err != nil {
+					return errors.Wrapf(err, "failed to get bucket info by bucketID %d", bucketID)
+				}
+				decmailAmount, err := b.getBucketSumAmountByBucketID(tx, bucketID)
+				if err != nil {
+					return err
+				}
+				stakedAmount := decmailAmount.Add(slash.Amount)
+				voteWeight := getVoteWeight(info.Duration, stakedAmount.Coefficient(), info.AutoStake, true)
 
+				stakingBucket = models.StakingBucket{
+					BlockHeight:      blk.Height(),
+					BucketID:         bucketID,
+					CreateTime:       info.CreateTime,
+					StakeStartTime:   info.StakeStartTime,
+					UnstakeStartTime: info.UnstakeStartTime,
+					StakedAmount:     stakedAmount,
+					VotingPower:      decimal.NewFromBigInt(voteWeight, 0),
+					OwnerAddress:     info.OwnerAddress,
+					Sender:           sender.String(),
+					ActionHash:       actHash,
+					Candidate:        info.Candidate,
+					AutoStake:        info.AutoStake,
+					ActType:          "SlashCandidate",
+					Duration:         info.Duration,
+					Amount:           slash.Amount,
+					Timestamp:        blk.Timestamp().Unix(),
+				}
+				if err := tx.Create(b.ShadowTable(&stakingBucket)).Error; err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil

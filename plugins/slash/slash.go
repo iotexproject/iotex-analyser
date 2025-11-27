@@ -63,67 +63,30 @@ func (b slashPlugin) Start(ctx context.Context) error {
 }
 
 func (b slashPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	blkHeight := blk.Height()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		var epochRewardHash []byte
-		// log action index
-		for i := len(blk.Actions) - 1; i >= 0; i-- {
-			selp := blk.Actions[i]
-			if grantReward, ok := selp.Action().(*action.GrantReward); ok && grantReward.RewardType() == action.EpochReward {
-				actHash, _ := selp.Hash()
-				epochRewardHash = actHash[:]
-				break
-			}
-		}
-		if len(epochRewardHash) == 0 {
-			// no epoch reward in this block
-			return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-		}
-		// log receipt index
-		idx := slices.IndexFunc(blk.Receipts, func(e *action.Receipt) bool {
-			return bytes.Equal(e.ActionHash[:], epochRewardHash)
-		})
-		if idx == -1 {
-			return errors.Errorf("cannot find receipt for epoch reward action %x", epochRewardHash)
-		}
-		receipt := blk.Receipts[idx]
-		// Parse receipt of grant reward
-		rewardInfoMap, err := kernel.RewardInfoFromReceipt(receipt)
-		if err != nil {
+		if err := handleBlock(ctx, blk, tx); err != nil {
 			return err
-		}
-
-		for addr, slash := range rewardInfoMap {
-			if slash.UnproductiveSlash == nil || slash.UnproductiveSlash.Sign() == 0 {
-				continue
-			}
-			cand := &models.Candidate{}
-			if err := cand.FetchByOperatorAddressWithHeight(addr, blkHeight, tx); err != nil {
-				return err
-			}
-			css := &models.CandidateSelfStake{}
-			if err := css.FetchByCandidateIDWithHeight(cand.CandidateID, blkHeight, tx); err != nil {
-				return err
-			}
-			m := models.Slash{
-				BlockHeight:     blkHeight,
-				ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
-				OperatorAddress: addr,
-				Amount:          decimal.NewFromBigInt(slash.UnproductiveSlash, 0),
-				CandidateID:     cand.CandidateID,
-				BucketID:        css.BucketID,
-			}
-			if err := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "block_height"}, {Name: "operator_address"}},
-				DoUpdates: clause.AssignmentColumns([]string{"action_hash", "amount", "candidate_id", "bucket_id"}),
-			}).Create(&m).Error; err != nil {
-				return err
-			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
 	return err
 
+}
+
+func (b slashPlugin) BatchSize() int {
+	return 1000
+}
+
+func (b slashPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		for _, blk := range blks {
+			if err := handleBlock(ctx, blk, tx); err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blks[len(blks)-1].Height())
+	})
+	return err
 }
 
 func (b slashPlugin) Stop(ctx context.Context) error {
@@ -136,3 +99,63 @@ func (b slashPlugin) Version() string {
 
 // exported
 var Plugin = slashPlugin{}
+
+func handleBlock(ctx context.Context, blk *block.Block, tx *gorm.DB) error {
+	blkHeight := blk.Height()
+	var epochRewardHash []byte
+	// log action index
+	for i := len(blk.Actions) - 1; i >= 0; i-- {
+		selp := blk.Actions[i]
+		if grantReward, ok := selp.Action().(*action.GrantReward); ok && grantReward.RewardType() == action.EpochReward {
+			actHash, _ := selp.Hash()
+			epochRewardHash = actHash[:]
+			break
+		}
+	}
+	if len(epochRewardHash) == 0 {
+		// no epoch reward in this block
+		return nil
+	}
+	// log receipt index
+	idx := slices.IndexFunc(blk.Receipts, func(e *action.Receipt) bool {
+		return bytes.Equal(e.ActionHash[:], epochRewardHash)
+	})
+	if idx == -1 {
+		return errors.Errorf("cannot find receipt for epoch reward action %x", epochRewardHash)
+	}
+	receipt := blk.Receipts[idx]
+	// Parse receipt of grant reward
+	rewardInfoMap, err := kernel.RewardInfoFromReceipt(receipt)
+	if err != nil {
+		return err
+	}
+
+	for addr, slash := range rewardInfoMap {
+		if slash.UnproductiveSlash == nil || slash.UnproductiveSlash.Sign() == 0 {
+			continue
+		}
+		cand := &models.Candidate{}
+		if err := cand.FetchByOperatorAddressWithHeight(addr, blkHeight, tx); err != nil {
+			return err
+		}
+		css := &models.CandidateSelfStake{}
+		if err := css.FetchByCandidateIDWithHeight(cand.CandidateID, blkHeight, tx); err != nil {
+			return err
+		}
+		m := models.Slash{
+			BlockHeight:     blkHeight,
+			ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
+			OperatorAddress: addr,
+			Amount:          decimal.NewFromBigInt(slash.UnproductiveSlash, 0),
+			CandidateID:     cand.CandidateID,
+			BucketID:        css.BucketID,
+		}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "block_height"}, {Name: "operator_address"}},
+			DoUpdates: clause.AssignmentColumns([]string{"action_hash", "amount", "candidate_id", "bucket_id"}),
+		}).Create(&m).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}

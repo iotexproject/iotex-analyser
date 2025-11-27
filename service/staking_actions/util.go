@@ -1,4 +1,4 @@
-package main
+package staking_actions
 
 import (
 	"database/sql"
@@ -21,10 +21,10 @@ func getCandidateAddressByName(name string, height uint64) (string, error) {
 	return candidate.CandidateID, nil
 }
 
-func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
+func (b StakingActionPlugin) getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
 	var amount sql.NullString
 	zero := decimal.NewFromInt(0)
-	if err := tx.Model(&models.StakingActions{}).Select("sum(amount)").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
+	if err := tx.Model(b.ShadowTable(&models.StakingActions{})).Select("sum(amount)").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
 		return zero, err
 	}
 	if amount.String == "" {
@@ -37,18 +37,18 @@ func getBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal
 	return decmailAmount, nil
 }
 
-func getFixBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
+func (b StakingActionPlugin) getFixBucketSumAmountByBucketID(tx *gorm.DB, bucketID uint64) (decimal.Decimal, error) {
 	var amount sql.NullString
 	var count int64
 	zero := decimal.NewFromInt(0)
-	err := tx.Model(&models.StakingActions{}).Where("bucket_id=? and act_type='Unstake'", bucketID).Count(&count).Error
+	err := tx.Model(b.ShadowTable(&models.StakingActions{})).Where("bucket_id=? and act_type='Unstake'", bucketID).Count(&count).Error
 	if err != nil {
 		return zero, err
 	}
 	if count == 0 {
 		return zero, nil
 	}
-	if err := tx.Model(&models.StakingActions{}).Select("sum(amount)").Where("bucket_id=? and act_type<>'Unstake'", bucketID).Scan(&amount).Error; err != nil {
+	if err := tx.Model(b.ShadowTable(&models.StakingActions{})).Select("sum(amount)").Where("bucket_id=? and act_type<>'Unstake'", bucketID).Scan(&amount).Error; err != nil {
 		return zero, err
 	}
 	if amount.String == "" {
@@ -68,9 +68,9 @@ type BucketInfo struct {
 	Duration     uint32
 }
 
-func getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
+func (b StakingActionPlugin) getBucketInfoAddressByBucketID(tx *gorm.DB, bucketID uint64) (*BucketInfo, error) {
 	var bi BucketInfo
-	if err := tx.Model(&models.StakingActions{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
+	if err := tx.Model(b.ShadowTable(&models.StakingActions{})).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=?", bucketID).Order("id desc").Limit(1).Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil
@@ -83,17 +83,17 @@ func getAddresFromHash256(h hash.Hash256) (address.Address, error) {
 	return address.FromBytes(ethAddress.Bytes())
 }
 
-func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, error) {
+func (b StakingActionPlugin) getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, error) {
 	db := db.DB()
 	var ids []struct {
 		BucketID uint64
 	}
-	if err := db.Model(&models.StakingActions{}).Distinct("bucket_id").Where("block_height<=? and owner_address=?", height, addr).Find(&ids).Error; err != nil {
+	if err := db.Model(b.ShadowTable(&models.StakingActions{})).Distinct("bucket_id").Where("block_height<=? and owner_address=?", height, addr).Find(&ids).Error; err != nil {
 		return nil, err
 	}
 	bucketID := []uint64{}
 	for _, id := range ids {
-		bucketOwner, _ := getBucketOwnerWithHeight(id.BucketID, height)
+		bucketOwner, _ := b.getBucketOwnerWithHeight(id.BucketID, height)
 		if addr != bucketOwner {
 			continue
 		}
@@ -102,19 +102,19 @@ func getBucketIDsByAddressWithHeight(addr string, height uint64) ([]uint64, erro
 	return bucketID, nil
 }
 
-func getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
+func (b StakingActionPlugin) getBucketOwnerWithHeight(bucketID, height uint64) (string, error) {
 	var addr sql.NullString
 	db := db.DB()
-	if err := db.Model(&models.StakingActions{}).Select("owner_address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
+	if err := db.Model(b.ShadowTable(&models.StakingActions{})).Select("owner_address").Where("block_height<=? and bucket_id=?", height, bucketID).Order("id desc").Limit(1).Scan(&addr).Error; err != nil {
 		return "", err
 	}
 	return addr.String, nil
 }
 
-func getForwardToAddressByFrom(addr string) (string, error) {
+func (b StakingActionPlugin) getForwardToAddressByFrom(addr string) (string, error) {
 	var to string
 	db := db.DB()
-	if err := db.Model(&models.StakingActions{}).Select("forward_to").Where("owner_address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Limit(1).Scan(&to).Error; err != nil {
+	if err := db.Model(b.ShadowTable(&models.StakingActions{})).Select("forward_to").Where("owner_address=? and act_type='GovernaceForward' and forward_to!=''", addr).Order("id desc").Limit(1).Scan(&to).Error; err != nil {
 		return "", err
 	}
 	return to, nil

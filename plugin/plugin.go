@@ -31,3 +31,15 @@ type BatchAdapter interface {
 type DependentAdapter interface {
 	DependentPlugins() []string
 }
+
+type PluginShadow struct {
+	ShadowName  func(string) string
+	ShadowTable func(a any) any
+}
+
+var (
+	PluginSelf = PluginShadow{
+		ShadowName:  func(s string) string { return s },
+		ShadowTable: func(a any) any { return a },
+	}
+)

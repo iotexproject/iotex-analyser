@@ -18,7 +18,7 @@ type StakingActions struct {
 	Duration     uint32
 }
 
-type StakingActionsPatch struct {
+type StakingActionsShadow struct {
 	*StakingActions
 }
 
@@ -26,6 +26,6 @@ func (StakingActions) TableName() string {
 	return "staking_actions"
 }
 
-func (StakingActionsPatch) TableName() string {
-	return "staking_actions_patch"
+func (StakingActionsShadow) TableName() string {
+	return "staking_actions_shadow"
 }

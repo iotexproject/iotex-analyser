@@ -12,7 +12,7 @@ var Plugin = staking_actions.StakingActionPlugin{
 		ShadowName: func(s string) string { return s + "_shadow" },
 		ShadowTable: func(a plugin.Table) plugin.Table {
 			if s, ok := a.(*models.StakingActions); ok {
-				return &models.StakingActionsPatch{
+				return &models.StakingActionsShadow{
 					StakingActions: s,
 				}
 			}

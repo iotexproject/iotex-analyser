@@ -27,6 +27,14 @@ func (StakingBucket) TableName() string {
 	return "staking_buckets"
 }
 
+type StakingBucketShadow struct {
+	*StakingBucket
+}
+
+func (StakingBucketShadow) TableName() string {
+	return "staking_buckets_shadow"
+}
+
 type (
 	SystemStakingBucketRecordBase struct {
 		ID                   uint64          `gorm:"primary_key;" sql:"type:bigint"`

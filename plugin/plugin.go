@@ -34,12 +34,16 @@ type DependentAdapter interface {
 
 type PluginShadow struct {
 	ShadowName  func(string) string
-	ShadowTable func(a any) any
+	ShadowTable func(a Table) Table
+}
+
+type Table interface {
+	TableName() string
 }
 
 var (
 	PluginSelf = PluginShadow{
 		ShadowName:  func(s string) string { return s },
-		ShadowTable: func(a any) any { return a },
+		ShadowTable: func(a Table) Table { return a },
 	}
 )

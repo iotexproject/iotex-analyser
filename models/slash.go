@@ -1,6 +1,9 @@
 package models
 
-import "github.com/shopspring/decimal"
+import (
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+)
 
 type Slash struct {
 	BlockHeight     uint64          `gorm:"not null;unsigned;index;uniqueIndex:idx_block_operator" sql:"type:bigint"`
@@ -13,4 +16,12 @@ type Slash struct {
 
 func (Slash) TableName() string {
 	return "slash"
+}
+
+func FetchSlashByActionHash(hash string, tx *gorm.DB) ([]Slash, error) {
+	var slashes []Slash
+	if err := tx.Where("action_hash=?", hash).Find(&slashes).Error; err != nil {
+		return nil, err
+	}
+	return slashes, nil
 }

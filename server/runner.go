@@ -238,7 +238,7 @@ func (r *runner) Start(ctx context.Context) error {
 
 						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
 							count := tipHeight - nextHeight + 1
-							if uint64(p.BatchSize()) < count {
+							if p.BatchSize() > 0 && uint64(p.BatchSize()) < count {
 								count = uint64(p.BatchSize())
 							}
 							blks, err = r.dao.BatchGetBlocks(nextHeight, count)
@@ -300,8 +300,8 @@ func (r *runner) Start(ctx context.Context) error {
 							serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
 							pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
 
-							blks = blks[:0]
 							nextHeight += uint64(len(blks))
+							blks = blks[:0]
 							return false
 						}
 

@@ -14,7 +14,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	iap "github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
-	"github.com/iotexproject/iotex-core/v2/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/rodaine/table"
@@ -67,11 +66,11 @@ type RunnerStat struct {
 type Service struct {
 	stop   chan bool
 	once   *sync.Once
-	dao    blockdao.BlockDAO
+	dao    kernel.BatchBlockDao
 	logger *zap.Logger
 }
 
-func NewService(dao blockdao.BlockDAO) *Service {
+func NewService(dao kernel.BatchBlockDao) *Service {
 	s := &Service{
 		stop:   make(chan bool, 1),
 		once:   new(sync.Once),

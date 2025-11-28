@@ -66,7 +66,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 		err = dao.PutBlock(ctx, &blk)
 		require.NoError(err)
 		prevHash = blk.HashBlock()
-		blk1, err := GetBlockByHeightFromBlockDAO(uint64(i), dao)
+		blk1, err := GetBlockByHeightFromBlockDAO(uint64(i), NewLocalBatchBlockDao(dao))
 		require.NoError(err)
 		for k, r := range blk1.Receipts {
 			require.Equal(blkCache.Receipts[k].ActionHash, r.ActionHash)
@@ -75,7 +75,7 @@ func TestPutBlockAndGetBlockByHeight(t *testing.T) {
 	}
 
 	for i := 1; i <= numBlks; i++ {
-		blk, err := GetBlockByHeightFromBlockDAO(uint64(i), dao)
+		blk, err := GetBlockByHeightFromBlockDAO(uint64(i), NewLocalBatchBlockDao(dao))
 		require.NoError(err)
 		for k, r := range blk.Receipts {
 			require.Equal(blkCache.Receipts[k].ActionHash, r.ActionHash)

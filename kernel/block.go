@@ -14,7 +14,49 @@ import (
 	"github.com/pkg/errors"
 )
 
-func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao blockdao.BlockDAO) (blk *block.Block, err error) {
+type BatchBlockDao interface {
+	blockdao.BlockDAO
+	BatchGetBlocks(start, count uint64) (blks []*block.Block, err error)
+}
+
+type batchBlockDao struct {
+	blockdao.BlockDAO
+	cli iotexapi.APIServiceClient
+}
+
+func NewBatchBlockDao(dao blockdao.BlockDAO, cli iotexapi.APIServiceClient) BatchBlockDao {
+	return &batchBlockDao{
+		BlockDAO: dao,
+		cli:      cli,
+	}
+}
+
+func (b *batchBlockDao) BatchGetBlocks(start, count uint64) (blks []*block.Block, err error) {
+	return GetBlocksFromChain(context.Background(), start, count, b.cli)
+}
+
+type localBatchBlockDao struct {
+	blockdao.BlockDAO
+}
+
+func NewLocalBatchBlockDao(dao blockdao.BlockDAO) BatchBlockDao {
+	return &localBatchBlockDao{
+		BlockDAO: dao,
+	}
+}
+
+func (l *localBatchBlockDao) BatchGetBlocks(start, count uint64) (blks []*block.Block, err error) {
+	for i := uint64(0); i < count; i++ {
+		blk, err := GetBlockByHeightFromBlockDAO(start+i, l)
+		if err != nil {
+			return nil, err
+		}
+		blks = append(blks, blk)
+	}
+	return blks, nil
+}
+
+func GetBlockByHeightFromBlockDAO(blkHeight uint64, dao BatchBlockDao) (blk *block.Block, err error) {
 	// defer func() {
 	// 	if r := recover(); r != nil {
 	// 		switch x := r.(type) {
@@ -79,6 +121,18 @@ func GetBlockByHeightFromChain(ctx context.Context, height uint64) (*block.Block
 	cli := ChainClient()
 	count := uint64(1)
 	startHeight := height
+	blks, err := GetBlocksFromChain(ctx, startHeight, count, cli)
+	if err != nil {
+		return nil, err
+	}
+	if len(blks) == 0 {
+		return nil, errors.Errorf("block not found at height %d", height)
+	}
+	return blks[0], nil
+}
+
+func GetBlocksFromChain(ctx context.Context, start, count uint64, cli iotexapi.APIServiceClient) ([]*block.Block, error) {
+	startHeight := start
 	rawRequest := &iotexapi.GetRawBlocksRequest{
 		StartHeight:         startHeight,
 		Count:               count,
@@ -89,9 +143,9 @@ func GetBlockByHeightFromChain(ctx context.Context, height uint64) (*block.Block
 	if err != nil {
 		return nil, err
 	}
-
+	deser := block.NewDeserializer(config.EVMNetworkID())
+	var blocks []*block.Block
 	for _, blkInfo := range response.GetBlocks() {
-		deser := block.NewDeserializer(config.EVMNetworkID())
 		blk, err := deser.FromBlockProto(blkInfo.GetBlock())
 		if err != nil {
 			return nil, err
@@ -120,9 +174,7 @@ func GetBlockByHeightFromChain(ctx context.Context, height uint64) (*block.Block
 			actHash := hash.BytesToHash256(tlogs.ActionHash)
 			receipts[actHash].AddTransactionLogs(logs...)
 		}
-		if blk.Height() == height {
-			return blk, nil
-		}
+		blocks = append(blocks, blk)
 	}
-	return nil, errors.New("failed to get block by height")
+	return blocks, nil
 }

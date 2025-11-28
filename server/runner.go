@@ -11,7 +11,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
-	"github.com/iotexproject/iotex-core/v2/blockchain/blockdao"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -71,7 +70,7 @@ func GetRunnerStats() RunnerStats {
 }
 
 type runner struct {
-	dao       blockdao.BlockDAO
+	dao       kernel.BatchBlockDao
 	plugin    plugin.Adapter
 	status    pluginStatus
 	logger    *zap.Logger
@@ -81,7 +80,7 @@ type runner struct {
 	mu        sync.RWMutex
 }
 
-func newRunner(status pluginStatus, p plugin.Adapter, dao blockdao.BlockDAO) (*runner, error) {
+func newRunner(status pluginStatus, p plugin.Adapter, dao kernel.BatchBlockDao) (*runner, error) {
 	r := &runner{
 		dao:       dao,
 		status:    status,
@@ -238,23 +237,18 @@ func (r *runner) Start(ctx context.Context) error {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 
 						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
-							actionNum := 0
-							for ; nextHeight <= tipHeight; nextHeight++ {
-								blk, err := kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
-								if err != nil {
-									r.logger.Error("failed to read block from dao",
-										zap.Error(err),
-										zap.String("pluginName", r.plugin.Name()),
-										zap.Uint64("height", nextHeight),
-										zap.Uint64("tipHeight", tipHeight),
-									)
-									break
-								}
-								actionNum += len(blk.Actions)
-								blks = append(blks, blk)
-								if actionNum >= p.BatchSize() || nextHeight == tipHeight {
-									break
-								}
+							count := tipHeight - nextHeight + 1
+							if uint64(p.BatchSize()) < count {
+								count = uint64(p.BatchSize())
+							}
+							blks, err = r.dao.BatchGetBlocks(nextHeight, count)
+							if err != nil {
+								r.logger.Error("failed to batch read blocks from dao",
+									zap.Error(err),
+									zap.String("pluginName", r.plugin.Name()),
+									zap.Uint64("height", nextHeight),
+									zap.Uint64("tipHeight", tipHeight),
+								)
 							}
 						}
 					} else {
@@ -307,7 +301,7 @@ func (r *runner) Start(ctx context.Context) error {
 							pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
 
 							blks = blks[:0]
-							nextHeight++
+							nextHeight += uint64(len(blks))
 							return false
 						}
 

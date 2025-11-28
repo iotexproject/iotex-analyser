@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"math/big"
 	"net"
@@ -32,6 +33,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -60,7 +64,7 @@ var (
 
 type Server struct {
 	m         sync.RWMutex
-	dao       blockdao.BlockDAO
+	dao       kernel.BatchBlockDao
 	service   *Service
 	logger    *zap.Logger
 	isRunning *kernel.AtomicBool
@@ -274,11 +278,12 @@ func (srv *Server) startDaoService() error {
 			Tip: tip,
 		},
 	)
-	var dao blockdao.BlockDAO
+	var bdao kernel.BatchBlockDao
 	var err error
 	if config.Default.Iotex.CatchUpMode {
 		srv.logger.Warn("currently in catch-up mode, it will be rebuild dao service in momery")
-		dao = kernel.NewVirtualDao()
+		dao := kernel.NewVirtualDao()
+		bdao = kernel.NewLocalBatchBlockDao(dao)
 	} else {
 		deser := block.NewDeserializer(config.EVMNetworkID())
 		path := config.Default.BlockDB.DbPath
@@ -289,25 +294,43 @@ func (srv *Server) startDaoService() error {
 		var fdao blockdao.BlockStore
 		switch uri.Scheme {
 		case "grpc":
-			fdao = blockdao.NewGrpcBlockDAO(uri.Host, uri.Query().Get("insecure") == "true", deser)
+			insec := uri.Query().Get("insecure") == "true"
+			fdao = blockdao.NewGrpcBlockDAO(uri.Host, insec, deser)
+			dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
+			opts := []grpc.DialOption{}
+			if insec {
+				opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			} else {
+				opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})))
+			}
+			conn, err := grpc.NewClient(uri.Host, opts...)
+			if err != nil {
+				return err
+			}
+			cli := iotexapi.NewAPIServiceClient(conn)
+			bdao = kernel.NewBatchBlockDao(dao, cli)
 		case "file", "":
 			dbConfig := config.Default.BlockDB
 			dbConfig.DbPath = uri.Path
 			fdao, err = filedao.NewFileDAO(dbConfig, deser)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create file dao with path %s", uri.Path)
+			}
+			dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
+			bdao = kernel.NewLocalBatchBlockDao(dao)
 		default:
 			return errors.Errorf("unsupported blockdao scheme %s", uri.Scheme)
 		}
-		dao = blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 	}
-	if err := dao.Start(ctxDao); err != nil {
+	if err := bdao.Start(ctxDao); err != nil {
 		return err
 	}
-	daoHeight, err := dao.Height()
+	daoHeight, err := bdao.Height()
 	if err != nil {
 		return err
 	}
 	srv.logger.Info("successfully to loaded BlockDAO", zap.Uint64("daoHeight", daoHeight))
-	srv.dao = dao
+	srv.dao = bdao
 	go srv.startDaoWorker(ctxDao)
 	return nil
 }

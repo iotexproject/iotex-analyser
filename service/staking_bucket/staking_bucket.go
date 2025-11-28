@@ -523,7 +523,7 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 				if err != nil {
 					return err
 				}
-				stakedAmount := decmailAmount.Add(slash.Amount)
+				stakedAmount := decmailAmount.Add(slash.Amount.Neg())
 				voteWeight := getVoteWeight(info.Duration, stakedAmount.Coefficient(), info.AutoStake, true)
 
 				stakingBucket = models.StakingBucket{
@@ -541,7 +541,7 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 					AutoStake:        info.AutoStake,
 					ActType:          "SlashCandidate",
 					Duration:         info.Duration,
-					Amount:           slash.Amount,
+					Amount:           slash.Amount.Neg(),
 					Timestamp:        blk.Timestamp().Unix(),
 				}
 				if err := tx.Create(b.ShadowTable(&stakingBucket)).Error; err != nil {

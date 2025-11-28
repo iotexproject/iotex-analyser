@@ -369,7 +369,7 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 					ActHash:      actHash,
 					Candidate:    slash.CandidateID,
 					ActType:      "SlashCandidate",
-					Amount:       slash.Amount,
+					Amount:       slash.Amount.Neg(),
 					AutoStake:    info.AutoStake,
 					Duration:     info.Duration,
 				}

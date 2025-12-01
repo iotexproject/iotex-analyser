@@ -117,7 +117,7 @@ func (b StakingBucketPlugin) PutBlock(ctx context.Context, blk *block.Block) err
 }
 
 func (b StakingBucketPlugin) BatchSize() int {
-	return 1000
+	return 0
 }
 
 func (b StakingBucketPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {

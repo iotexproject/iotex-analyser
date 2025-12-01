@@ -74,7 +74,7 @@ func (b slashPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 }
 
 func (b slashPlugin) BatchSize() int {
-	return 1000
+	return 0
 }
 
 func (b slashPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {

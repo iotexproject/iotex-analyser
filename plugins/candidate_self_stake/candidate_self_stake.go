@@ -42,7 +42,7 @@ func (p *candidateSelfStakePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(p.Name(), &models.CandidateSelfStake{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", p.Name())
 	}
-	p.batchSize = 1000
+	p.batchSize = 0
 	return nil
 }
 

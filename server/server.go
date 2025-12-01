@@ -244,6 +244,10 @@ func (srv *Server) startRebuildBlockDaoWorker(ctx context.Context) error {
 				receipts[actHash].AddTransactionLogs(logs...)
 			}
 			if err := srv.dao.PutBlock(ctx, blk); err != nil {
+				if errors.Is(err, blockdao.ErrRemoteHeightTooLow) {
+					// ignore errors when remote height is too low
+					return nil
+				}
 				return errors.Wrap(err, "failed to build index for the block")
 			}
 			atomic.StoreUint64(&_daoHeight, blk.Height())

@@ -312,7 +312,7 @@ func (srv *Server) startDaoService() error {
 		case "file", "":
 			dbConfig := config.Default.BlockDB
 			dbConfig.DbPath = uri.Path
-			fdao, err = filedao.NewFileDAO(dbConfig, deser)
+			fdao, err = filedao.NewFileDAO(dbConfig.Config, deser)
 			if err != nil {
 				return errors.Wrapf(err, "failed to create file dao with path %s", uri.Path)
 			}

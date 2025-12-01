@@ -27,7 +27,7 @@ func TestTraceBlock(t *testing.T) {
 		},
 	)
 	deser := block.NewDeserializer(config.EVMNetworkID())
-	dao, err := filedao.NewFileDAO(config.Default.BlockDB, deser)
+	dao, err := filedao.NewFileDAO(config.Default.BlockDB.Config, deser)
 	require.NoError(t, err)
 	err = dao.Start(ctxDao)
 	require.NoError(t, err)

@@ -14,6 +14,8 @@ import (
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 )
 
@@ -238,10 +240,14 @@ func (r *runner) Start(ctx context.Context) error {
 
 						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
 							count := tipHeight - nextHeight + 1
-							if p.BatchSize() > 0 && uint64(p.BatchSize()) < count {
-								count = uint64(p.BatchSize())
+							batchSize := int(config.Default.BlockDB.BatchSize)
+							if p.BatchSize() > 0 {
+								batchSize = p.BatchSize()
 							}
-							blks, err = r.dao.BatchGetBlocks(nextHeight, count)
+							if batchSize > 0 && uint64(batchSize) < count {
+								count = uint64(batchSize)
+							}
+							blks, err = r.fetchBlocks(nextHeight, count)
 							if err != nil {
 								r.logger.Error("failed to batch read blocks from dao",
 									zap.Error(err),
@@ -365,4 +371,26 @@ func (r *runner) Stop(ctx context.Context) error {
 		return errors.Wrap(err, "failed to stop runner")
 	}
 	return nil
+}
+
+func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, error) {
+	if count == 0 {
+		return []*block.Block{}, nil
+	}
+	blks, err := r.dao.BatchGetBlocks(start, count)
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.ResourceExhausted {
+				r.logger.Warn("reducing batch size and retrying fetch blocks",
+					zap.String("pluginName", r.plugin.Name()),
+					zap.Uint64("start", start),
+					zap.Uint64("count", count),
+					zap.Error(err),
+				)
+				return r.fetchBlocks(start, count/2)
+			}
+		}
+		return nil, errors.Wrap(err, "failed to fetch blocks from dao")
+	}
+	return blks, nil
 }

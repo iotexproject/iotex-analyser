@@ -28,16 +28,19 @@ var (
 		Iotex: Iotex{
 			BatchSize: 64,
 		},
-		BlockDB: coredb.Config{
-			NumRetries:            3,
-			MaxCacheSize:          64,
-			BlockStoreBatchSize:   16,
-			V2BlocksToSplitDB:     1000000,
-			Compressor:            "Snappy",
-			CompressLegacy:        false,
-			SplitDBSizeMB:         0,
-			SplitDBHeight:         900000,
-			HistoryStateRetention: 2000,
+		BlockDB: Blockdao{
+			Config: coredb.Config{
+				NumRetries:            3,
+				MaxCacheSize:          64,
+				BlockStoreBatchSize:   16,
+				V2BlocksToSplitDB:     1000000,
+				Compressor:            "Snappy",
+				CompressLegacy:        false,
+				SplitDBSizeMB:         0,
+				SplitDBHeight:         900000,
+				HistoryStateRetention: 2000,
+			},
+			BatchSize: 512,
 		},
 		SubLogs: make(map[string]log.GlobalConfig),
 		Genesis: genesis.Default,
@@ -77,9 +80,13 @@ type (
 		Server   Server                      `yaml:"server"`
 		Database Database                    `yaml:"database"`
 		Iotex    Iotex                       `yaml:"iotex"`
-		BlockDB  coredb.Config               `yaml:"blockDB"`
+		BlockDB  Blockdao                    `yaml:"blockDB"`
 		Log      log.GlobalConfig            `yaml:"log" json:"-"`
 		SubLogs  map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
+	}
+	Blockdao struct {
+		coredb.Config `yaml:",inline"`
+		BatchSize     int `yaml:"batchSize"`
 	}
 )
 

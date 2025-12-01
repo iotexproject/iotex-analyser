@@ -50,10 +50,6 @@ func (b StakingActionPlugin) DependentPlugins() []string {
 	return []string{"candidate", "slash"}
 }
 
-func (b *StakingActionPlugin) Patch(name string) {
-
-}
-
 func (b StakingActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), b.ShadowTable(&models.StakingActions{})); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())

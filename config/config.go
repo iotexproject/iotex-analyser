@@ -26,7 +26,8 @@ var (
 			Addr: "/tmp/iotex-analyser.sock",
 		},
 		Iotex: Iotex{
-			BatchSize: 64,
+			BatchSize:          64,
+			MaxCallRecvMsgSize: 1024 * 1024 * 4, // 4MB
 		},
 		BlockDB: Blockdao{
 			Config: coredb.Config{
@@ -73,7 +74,8 @@ type (
 		CatchUpStartHeight uint64   `yaml:"catchUpStartHeight"`
 		ChainEndPoint      string   `yaml:"chainEndPoint" env:"IOTEX_CHAIN_END_POINT"`
 		ChainInsecure      bool     `yaml:"chainInsecure"`
-		BatchSize          uint64   `yaml:"batchSize"` //default 64, ~ 10 blocks
+		BatchSize          uint64   `yaml:"batchSize"`          //default 64, ~ 10 blocks
+		MaxCallRecvMsgSize int      `yaml:"maxCallRecvMsgSize"` //default 4MB, in bytes
 	}
 	Config struct {
 		Genesis  genesis.Genesis             `yaml:"genesis"`

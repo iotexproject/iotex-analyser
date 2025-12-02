@@ -307,6 +307,10 @@ func (srv *Server) startDaoService() error {
 			} else {
 				opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})))
 			}
+			maxRecvSize := config.Default.Iotex.MaxCallRecvMsgSize
+			if maxRecvSize > 0 {
+				opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxRecvSize)))
+			}
 			conn, err := grpc.NewClient(uri.Host, opts...)
 			if err != nil {
 				return err

@@ -201,6 +201,12 @@ func (r *runner) Start(ctx context.Context) error {
 		var nextHeight, tipHeight uint64
 		var err error
 		var blk *block.Block
+		batchSize := uint64(config.Default.BlockDB.BatchSize)
+		if p, ok := r.plugin.(plugin.BatchAdapter); ok {
+			if p.BatchSize() > 0 {
+				batchSize = uint64(p.BatchSize())
+			}
+		}
 		defer r.wg.Done()
 		for {
 			if !r.isRunning.Get() {
@@ -238,16 +244,12 @@ func (r *runner) Start(ctx context.Context) error {
 					if !config.Default.Iotex.CatchUpMode {
 						blk, err = kernel.GetBlockByHeightFromBlockDAO(nextHeight, r.dao)
 
-						if p, ok := r.plugin.(plugin.BatchAdapter); ok {
+						if _, ok := r.plugin.(plugin.BatchAdapter); ok {
 							count := tipHeight - nextHeight + 1
-							batchSize := int(config.Default.BlockDB.BatchSize)
-							if p.BatchSize() > 0 {
-								batchSize = p.BatchSize()
+							if batchSize > 0 && batchSize < count {
+								count = batchSize
 							}
-							if batchSize > 0 && uint64(batchSize) < count {
-								count = uint64(batchSize)
-							}
-							blks, err = r.fetchBlocks(nextHeight, count)
+							blks, batchSize, err = r.fetchBlocks(nextHeight, count)
 							if err != nil {
 								r.logger.Error("failed to batch read blocks from dao",
 									zap.Error(err),
@@ -373,9 +375,9 @@ func (r *runner) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, error) {
+func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, uint64, error) {
 	if count == 0 {
-		return []*block.Block{}, nil
+		return []*block.Block{}, count, nil
 	}
 	blks, err := r.dao.BatchGetBlocks(start, count)
 	if err != nil {
@@ -390,7 +392,7 @@ func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, error) {
 				return r.fetchBlocks(start, count/2)
 			}
 		}
-		return nil, errors.Wrap(err, "failed to fetch blocks from dao")
+		return nil, count, errors.Wrap(err, "failed to fetch blocks from dao")
 	}
-	return blks, nil
+	return blks, count, nil
 }

@@ -72,14 +72,15 @@ func GetRunnerStats() RunnerStats {
 }
 
 type runner struct {
-	dao       kernel.BatchBlockDao
-	plugin    plugin.Adapter
-	status    pluginStatus
-	logger    *zap.Logger
-	isRunning *kernel.AtomicBool
-	wg        *sync.WaitGroup
-	err       error
-	mu        sync.RWMutex
+	dao          kernel.BatchBlockDao
+	plugin       plugin.Adapter
+	status       pluginStatus
+	logger       *zap.Logger
+	isRunning    *kernel.AtomicBool
+	wg           *sync.WaitGroup
+	err          error
+	mu           sync.RWMutex
+	batchSizeMgr *batchSizeManager // 批次大小管理器
 }
 
 func newRunner(status pluginStatus, p plugin.Adapter, dao kernel.BatchBlockDao) (*runner, error) {
@@ -201,12 +202,16 @@ func (r *runner) Start(ctx context.Context) error {
 		var nextHeight, tipHeight uint64
 		var err error
 		var blk *block.Block
-		batchSize := uint64(config.Default.BlockDB.BatchSize)
+
+		// 初始化批次大小管理器
+		initialBatchSize := uint64(config.Default.BlockDB.BatchSize)
 		if p, ok := r.plugin.(plugin.BatchAdapter); ok {
 			if p.BatchSize() > 0 {
-				batchSize = uint64(p.BatchSize())
+				initialBatchSize = uint64(p.BatchSize())
 			}
 		}
+		r.batchSizeMgr = newBatchSizeManager(initialBatchSize, r.plugin.Name(), r.logger)
+
 		defer r.wg.Done()
 		for {
 			if !r.isRunning.Get() {
@@ -246,10 +251,11 @@ func (r *runner) Start(ctx context.Context) error {
 
 						if _, ok := r.plugin.(plugin.BatchAdapter); ok {
 							count := tipHeight - nextHeight + 1
-							if batchSize > 0 && batchSize < count {
-								count = batchSize
+							currentBatchSize := r.batchSizeMgr.getCurrent()
+							if currentBatchSize > 0 && currentBatchSize < count {
+								count = currentBatchSize
 							}
-							blks, batchSize, err = r.fetchBlocks(nextHeight, count)
+							blks, err = r.fetchBlocks(nextHeight, count)
 							if err != nil {
 								r.logger.Error("failed to batch read blocks from dao",
 									zap.Error(err),
@@ -257,6 +263,9 @@ func (r *runner) Start(ctx context.Context) error {
 									zap.Uint64("height", nextHeight),
 									zap.Uint64("tipHeight", tipHeight),
 								)
+							} else {
+								// 成功获取，尝试增加批次大小
+								r.batchSizeMgr.onSuccess()
 							}
 						}
 					} else {
@@ -375,24 +384,27 @@ func (r *runner) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, uint64, error) {
+func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, error) {
 	if count == 0 {
-		return []*block.Block{}, count, nil
+		return []*block.Block{}, nil
 	}
 	blks, err := r.dao.BatchGetBlocks(start, count)
 	if err != nil {
 		if s, ok := status.FromError(err); ok {
 			if s.Code() == codes.ResourceExhausted {
+				// 减小批次大小并重试
+				newCount := r.batchSizeMgr.onFailure(count)
 				r.logger.Warn("reducing batch size and retrying fetch blocks",
 					zap.String("pluginName", r.plugin.Name()),
 					zap.Uint64("start", start),
-					zap.Uint64("count", count),
+					zap.Uint64("oldCount", count),
+					zap.Uint64("newCount", newCount),
 					zap.Error(err),
 				)
-				return r.fetchBlocks(start, count/2)
+				return r.fetchBlocks(start, newCount)
 			}
 		}
-		return nil, count, errors.Wrap(err, "failed to fetch blocks from dao")
+		return nil, errors.Wrap(err, "failed to fetch blocks from dao")
 	}
-	return blks, count, nil
+	return blks, nil
 }

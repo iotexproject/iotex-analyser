@@ -10,13 +10,17 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert/yaml"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -38,6 +42,7 @@ func init() {
 }
 
 type blockActionPlugin struct {
+	batchSize int
 }
 
 func (b blockActionPlugin) Name() string {
@@ -48,10 +53,19 @@ func (b blockActionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b blockActionPlugin) Start(ctx context.Context) error {
+func (b *blockActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
 		&models.BlockAction{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
+		cfg := &Config{}
+		if err := yaml.Unmarshal(cfgData, cfg); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal plugin config: plugin %s, config %s", b.Name(), string(cfgData))
+		} else {
+			b.batchSize = cfg.BatchSize
+			slog.L().Info("read plugin config success", zap.String("plugin", b.Name()), zap.Any("config", cfg))
+		}
 	}
 	return nil
 }
@@ -99,6 +113,10 @@ func getAccount(selp *action.SealedEnvelope, receipt *action.Receipt) (address.A
 	}
 	dst, _ := selp.Destination()
 	return sender, dst, nil
+}
+
+func (b blockActionPlugin) BatchSize() int {
+	return b.batchSize
 }
 
 func (b blockActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {

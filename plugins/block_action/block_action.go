@@ -101,7 +101,32 @@ func getAccount(selp *action.SealedEnvelope, receipt *action.Receipt) (address.A
 	return sender, dst, nil
 }
 
+func (b blockActionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	var allActs []models.BlockAction
+	var from, to uint64
+	for i, blk := range blks {
+		acts, err := b.handleBlock(ctx, blk)
+		if err != nil {
+			return err
+		}
+		allActs = append(allActs, acts...)
+		if i == 0 {
+			from = blk.Height()
+		}
+		to = blk.Height()
+	}
+	return b.commitActs(allActs, from, to)
+}
+
 func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	acts, err := b.handleBlock(ctx, blk)
+	if err != nil {
+		return err
+	}
+	return b.commitActs(acts, blk.Height(), blk.Height())
+}
+
+func (b blockActionPlugin) handleBlock(ctx context.Context, blk *block.Block) ([]models.BlockAction, error) {
 	t := time.Now()
 	receipts := getReceiptsFromBlock(blk)
 	processTimeMetric.WithLabelValues(b.Name(), "getReceipts").Observe(time.Since(t).Seconds())
@@ -116,7 +141,7 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		}
 		sender, dst, err := getAccount(selp, receipt)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
+			return nil, errors.Wrapf(err, "failed to get accounts from action %s", actionHash)
 		}
 
 		gasPrice := decimal.NewFromBigInt(selp.GasPrice(), 0)
@@ -153,19 +178,18 @@ func (b blockActionPlugin) PutBlock(ctx context.Context, blk *block.Block) error
 		})
 	}
 	processTimeMetric.WithLabelValues(b.Name(), "makeData").Observe(time.Since(t).Seconds())
-	t = time.Now()
+	return acts, nil
+}
+
+func (b blockActionPlugin) commitActs(acts []models.BlockAction, from, to uint64) error {
+	t := time.Now()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("block_height = ?", blk.Height()).Delete(&models.BlockAction{}).Error; err != nil {
-			return err
-		}
-		processTimeMetric.WithLabelValues(b.Name(), "deleteIfExisted").Observe(time.Since(t).Seconds())
-		t = time.Now()
 		if err := tx.Model(&models.BlockAction{}).CreateInBatches(acts, 200).Error; err != nil {
 			return err
 		}
 		processTimeMetric.WithLabelValues(b.Name(), "insertData").Observe(time.Since(t).Seconds())
 		t = time.Now()
-		e := db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+		e := db.UpdateIndexHeightByTx(tx, b.Name(), to)
 		processTimeMetric.WithLabelValues(b.Name(), "updateIndex").Observe(time.Since(t).Seconds())
 		return e
 	})

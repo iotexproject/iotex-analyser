@@ -266,6 +266,16 @@ func (r *runner) Start(ctx context.Context) error {
 							} else {
 								// 成功获取，尝试增加批次大小
 								r.batchSizeMgr.onSuccess()
+								// limit blocks by tx count
+								maxTxs := count
+								txCount := uint64(0)
+								for i, blk := range blks {
+									txCount += uint64(len(blk.Actions))
+									if txCount > maxTxs {
+										blks = blks[:i+1]
+										break
+									}
+								}
 							}
 						}
 					} else {

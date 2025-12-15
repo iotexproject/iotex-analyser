@@ -202,6 +202,11 @@ func (b blockActionPlugin) handleBlock(ctx context.Context, blk *block.Block) ([
 func (b blockActionPlugin) commitActs(acts []models.BlockAction, from, to uint64) error {
 	t := time.Now()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("block_height >= ? AND block_height <= ?", from, to).Delete(&models.BlockAction{}).Error; err != nil {
+			return err
+		}
+		processTimeMetric.WithLabelValues(b.Name(), "deleteIfExisted").Observe(time.Since(t).Seconds())
+		t = time.Now()
 		if err := tx.Model(&models.BlockAction{}).CreateInBatches(acts, 200).Error; err != nil {
 			return err
 		}

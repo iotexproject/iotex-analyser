@@ -17,7 +17,6 @@ import (
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert/yaml"
 	"go.uber.org/zap"
@@ -27,19 +26,8 @@ import (
 const VERSION = "2.3.0"
 
 var (
-	processTimeMetric = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name:       "iotex_analyser_plugin_inner_processing_seconds_per_block",
-			Help:       "iotex analyser plugin inner processing seconds per block",
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		},
-		[]string{"name", "step"},
-	)
+	processTimeMetric = kernel.ProcessTimeMetric
 )
-
-func init() {
-	prometheus.MustRegister(processTimeMetric)
-}
 
 type blockActionPlugin struct {
 	batchSize int

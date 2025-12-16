@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -232,7 +233,7 @@ func (b blockActionPartitionPlugin) handleBlock(ctx context.Context, blk *block.
 			ContractAddress:    receipt.ContractAddress,
 			Status:             receipt.Status,
 			Timestamp:          time.Unix(blk.Timestamp().Unix(), 0),
-			ExecutionRevertMsg: receipt.ExecutionRevertMsg(),
+			ExecutionRevertMsg: strings.ReplaceAll(receipt.ExecutionRevertMsg(), string([]byte{0x00}), "0x00"),
 			Payload:            payload,
 		})
 	}

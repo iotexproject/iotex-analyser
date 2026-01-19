@@ -325,7 +325,9 @@ func (r *runner) Start(ctx context.Context) error {
 								zap.Int("batchSize", len(blks)),
 							)
 							serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
-							pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+							if len(blks) > 0 {
+								pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds() / float64(len(blks)))
+							}
 
 							nextHeight += uint64(len(blks))
 							blks = blks[:0]

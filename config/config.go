@@ -10,6 +10,7 @@ import (
 
 	"github.com/imdario/mergo"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/config"
 	coredb "github.com/iotexproject/iotex-core/v2/db"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	homedir "github.com/mitchellh/go-homedir"
@@ -78,13 +79,15 @@ type (
 		MaxCallRecvMsgSize int      `yaml:"maxCallRecvMsgSize"` //default 4MB, in bytes
 	}
 	Config struct {
-		Genesis  genesis.Genesis             `yaml:"genesis"`
-		Server   Server                      `yaml:"server"`
-		Database Database                    `yaml:"database"`
-		Iotex    Iotex                       `yaml:"iotex"`
-		BlockDB  Blockdao                    `yaml:"blockDB"`
-		Log      log.GlobalConfig            `yaml:"log" json:"-"`
-		SubLogs  map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
+		Genesis          genesis.Genesis             `yaml:"genesis"`
+		ChainConfig      config.Config               `yaml:"chainConfig"`
+		Server           Server                      `yaml:"server"`
+		Database         Database                    `yaml:"database"`
+		Iotex            Iotex                       `yaml:"iotex"`
+		BlockDB          Blockdao                    `yaml:"blockDB"`
+		BlockDAOProvider string                      `yaml:"blockDAOProvider"`
+		Log              log.GlobalConfig            `yaml:"log" json:"-"`
+		SubLogs          map[string]log.GlobalConfig `yaml:"subLogs" json:"-"`
 	}
 	Blockdao struct {
 		coredb.Config `yaml:",inline"`

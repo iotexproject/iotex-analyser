@@ -28,7 +28,6 @@ import (
 	"github.com/iotexproject/iotex-core/v2/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
-	"github.com/iotexproject/iotex-core/v2/pkg/probe"
 	"github.com/iotexproject/iotex-core/v2/server/itx"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
@@ -325,18 +324,12 @@ func (srv *Server) startDaoService(ctx context.Context) error {
 			if err != nil {
 				return errors.Wrapf(err, "failed to create chain server")
 			}
-			// liveness start
-			probeSvr := probe.New(config.Default.ChainConfig.System.HTTPStatsPort)
-			if err := probeSvr.Start(ctx); err != nil {
-				return errors.Wrapf(err, "failed to start chain probe server")
-			}
-			go itx.StartServer(ctx, svr, probeSvr, config.Default.ChainConfig)
 
 			cs := svr.ChainService(config.Default.ChainConfig.Chain.EVMNetworkID)
 			dao := cs.BlockDAO()
 			bdao = kernel.NewLocalBatchBlockDao(dao)
 
-		case "file":
+		default:
 			dbConfig := config.Default.BlockDB
 			dbConfig.DbPath = uri.Path
 			fdao, err := filedao.NewFileDAO(dbConfig.Config, deser)
@@ -345,9 +338,6 @@ func (srv *Server) startDaoService(ctx context.Context) error {
 			}
 			dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 			bdao = kernel.NewLocalBatchBlockDao(dao)
-
-		default:
-			return errors.Errorf("unsupported blockdao scheme %s", uri.Scheme)
 		}
 	}
 	if err := bdao.Start(ctxDao); err != nil {

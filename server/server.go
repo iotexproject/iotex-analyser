@@ -320,12 +320,15 @@ func (srv *Server) startDaoService(ctx context.Context) error {
 			bdao = kernel.NewBatchBlockDao(dao, cli)
 
 		case "p2p":
-			svr, err := itx.NewServer(config.Default.ChainConfig)
+			srv, err := itx.NewServer(config.Default.ChainConfig)
 			if err != nil {
 				return errors.Wrapf(err, "failed to create chain server")
 			}
+			if err := srv.Start(ctx); err != nil {
+				return err
+			}
 
-			cs := svr.ChainService(config.Default.ChainConfig.Chain.EVMNetworkID)
+			cs := srv.ChainService(config.Default.ChainConfig.Chain.EVMNetworkID)
 			dao := cs.BlockDAO()
 			bdao = kernel.NewLocalBatchBlockDao(dao)
 

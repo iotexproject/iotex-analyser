@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS block_action_partition (
 		`CREATE INDEX IF NOT EXISTS idx_bap_sender ON block_action_partition (sender)`,
 		`CREATE INDEX IF NOT EXISTS idx_bap_recipient ON block_action_partition (recipient)`,
 		`CREATE INDEX IF NOT EXISTS idx_bap_timestamp_date ON block_action_partition ((timestamp::date))`,
+		`CREATE INDEX IF NOT EXISTS idx_bap_action_type ON block_action_partition (action_type);`,
 	}
 	for _, stmt := range idxStmts {
 		if err := db.DB().Exec(stmt).Error; err != nil {

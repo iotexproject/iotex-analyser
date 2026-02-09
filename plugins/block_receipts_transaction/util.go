@@ -6,6 +6,7 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-analyser/plugins/block_receipts_transaction/model"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/shopspring/decimal"
@@ -63,8 +64,8 @@ func isContractAddress(addr string) bool {
 	return m.IsContract
 }
 
-func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64) ([]BlockReceiptTransaction, error) {
-	var brts []BlockReceiptTransaction
+func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64) ([]model.BlockReceiptTransaction, error) {
+	var brts []model.BlockReceiptTransaction
 	for _, transation := range transactionLogs {
 		transation := transation
 		amountDec := decimal.NewFromBigInt(transation.Amount, 0)
@@ -77,7 +78,7 @@ func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash 
 				recipient = addr.String()
 			}
 		}
-		brts = append(brts, BlockReceiptTransaction{
+		brts = append(brts, model.BlockReceiptTransaction{
 			BlockHeight: blkHeight,
 			ActionHash:  actionHash,
 			Type:        getActionType(transation.Type),

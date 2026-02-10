@@ -243,7 +243,7 @@ func (b blockActionPartitionPlugin) handleBlock(ctx context.Context, blk *block.
 	return acts, nil
 }
 
-func (b blockActionPartitionPlugin) ensurePartitions(tx *gorm.DB, from, to uint64) error {
+func (b blockActionPartitionPlugin) ensurePartitions(from, to uint64) error {
 	step := b.partitionStep
 	if step == 0 {
 		step = 1000000
@@ -253,7 +253,7 @@ func (b blockActionPartitionPlugin) ensurePartitions(tx *gorm.DB, from, to uint6
 	for p := start; p < end; p += step {
 		name := fmt.Sprintf("block_action_partition_p_%d", p)
 		stmt := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s PARTITION OF block_action_partition FOR VALUES FROM (%d) TO (%d)", name, p, p+step)
-		if err := tx.Exec(stmt).Error; err != nil {
+		if err := db.DB().Exec(stmt).Error; err != nil {
 			return err
 		}
 	}
@@ -261,11 +261,14 @@ func (b blockActionPartitionPlugin) ensurePartitions(tx *gorm.DB, from, to uint6
 }
 
 func (b blockActionPartitionPlugin) commitActs(acts []models.BlockActionPartition, from, to uint64) error {
+	// Transaction 1: Ensure partitions exist (separate transaction, DDL with implicit commit)
+	if err := b.ensurePartitions(from, to); err != nil {
+		return errors.Wrap(err, "failed to ensure partitions")
+	}
+
+	// Transaction 2: Insert data
 	t := time.Now()
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		if err := b.ensurePartitions(tx, from, to); err != nil {
-			return err
-		}
 		if err := tx.Where("block_height >= ? AND block_height <= ?", from, to).Delete(&models.BlockActionPartition{}).Error; err != nil {
 			return err
 		}

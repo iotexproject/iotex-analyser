@@ -28,6 +28,7 @@ import (
 	"github.com/iotexproject/iotex-core/v2/blockchain/filedao"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
+	"github.com/iotexproject/iotex-core/v2/server/itx"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -94,7 +95,7 @@ func (srv *Server) Start(ctx context.Context) error {
 	// }
 	srv.isRunning.Set(true)
 
-	if err := srv.startDaoService(); err != nil {
+	if err := srv.startDaoService(ctx); err != nil {
 		return errors.Wrap(err, "failed to start blockdao service")
 	}
 
@@ -274,7 +275,7 @@ func (srv *Server) startHTTPService() error {
 	return nil
 }
 
-func (srv *Server) startDaoService() error {
+func (srv *Server) startDaoService(ctx context.Context) error {
 	var tip protocol.TipInfo
 	ctxDao := protocol.WithBlockchainCtx(
 		genesis.WithGenesisContext(context.Background(), genesis.Default),
@@ -295,11 +296,11 @@ func (srv *Server) startDaoService() error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse chain db path %s", path)
 		}
-		var fdao blockdao.BlockStore
-		switch uri.Scheme {
+
+		switch config.Default.BlockDAOProvider {
 		case "grpc":
 			insec := uri.Query().Get("insecure") == "true"
-			fdao = blockdao.NewGrpcBlockDAO(uri.Host, insec, deser)
+			fdao := blockdao.NewGrpcBlockDAO(uri.Host, insec, deser)
 			dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 			opts := []grpc.DialOption{}
 			if insec {
@@ -317,17 +318,29 @@ func (srv *Server) startDaoService() error {
 			}
 			cli := iotexapi.NewAPIServiceClient(conn)
 			bdao = kernel.NewBatchBlockDao(dao, cli)
-		case "file", "":
+
+		case "p2p":
+			srv, err := itx.NewServer(config.Default.ChainConfig)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create chain server")
+			}
+			if err := srv.Start(ctx); err != nil {
+				return err
+			}
+
+			cs := srv.ChainService(config.Default.ChainConfig.Chain.EVMNetworkID)
+			dao := cs.BlockDAO()
+			bdao = kernel.NewLocalBatchBlockDao(dao)
+
+		default:
 			dbConfig := config.Default.BlockDB
 			dbConfig.DbPath = uri.Path
-			fdao, err = filedao.NewFileDAO(dbConfig.Config, deser)
+			fdao, err := filedao.NewFileDAO(dbConfig.Config, deser)
 			if err != nil {
 				return errors.Wrapf(err, "failed to create file dao with path %s", uri.Path)
 			}
 			dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 			bdao = kernel.NewLocalBatchBlockDao(dao)
-		default:
-			return errors.Errorf("unsupported blockdao scheme %s", uri.Scheme)
 		}
 	}
 	if err := bdao.Start(ctxDao); err != nil {

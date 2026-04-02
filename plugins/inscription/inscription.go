@@ -133,6 +133,10 @@ func (b tokenPlugin) putBlock(ctx context.Context, gormTx *gorm.DB, blk *block.B
 			slog.L().Debug("skip action: not a utf8 string", zap.Any("hash", hex.EncodeToString(actHash[:])))
 			continue
 		}
+		if ethTx.To() == nil {
+			slog.L().Debug("skip action: contract creation", zap.Any("hash", hex.EncodeToString(actHash[:])))
+			continue
+		}
 		fromAddr, _ := address.FromBytes(act.SenderAddress().Bytes())
 		toAddr, _ := address.FromBytes(ethTx.To().Bytes())
 		actHashStr := hex.EncodeToString(actHash[:])

@@ -160,12 +160,12 @@ func (m metricsPlugin) updateBlockMetrics(wg *sync.WaitGroup) {
 func (m metricsPlugin) updateBlockGasPrice(wg *sync.WaitGroup) {
 	defer wg.Done()
 	metric := "block_gas_price"
-	blkHeight, err := db.GetIndexHeight("block_action")
+	blkHeight, err := db.GetIndexHeight("block_action_partition")
 	if err != nil {
 		return
 	}
 	var gasprice sql.NullString
-	if err := db.DB().Model(&models.BlockAction{}).Select("avg(gas_price)").Where("block_height = ?", blkHeight).Scan(&gasprice).Error; err != nil {
+	if err := db.DB().Model(&models.BlockActionPartition{}).Select("avg(gas_price)").Where("block_height = ?", blkHeight).Scan(&gasprice).Error; err != nil {
 		log.L().Error("failed to get block action", zap.Error(err))
 		return
 	}

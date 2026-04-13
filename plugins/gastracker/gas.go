@@ -100,6 +100,9 @@ func (b gasTrackerPlugin) track() error {
 		return nil
 	}
 	tipBlk := recentBlocks[len(recentBlocks)-1]
+	if tipBlk.BaseFee() == nil {
+		return nil
+	}
 	oracle.LastBlock = tipBlk.Height()
 	oracle.GasUsedRatio = make([]float64, 0, 4)
 	for _, blk := range recentBlocks {

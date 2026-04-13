@@ -96,6 +96,20 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 		}
 	}()
+	go func() {
+		statsTicker := time.NewTicker(time.Second * 60)
+		defer statsTicker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-statsTicker.C:
+				for _, r := range getRunners() {
+					r.logStats(s.logger)
+				}
+			}
+		}
+	}()
 	return nil
 }
 

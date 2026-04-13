@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -81,6 +82,12 @@ type runner struct {
 	err          error
 	mu           sync.RWMutex
 	batchSizeMgr *batchSizeManager // 批次大小管理器
+
+	// stats tracking
+	startNano       atomic.Int64
+	startHeight     atomic.Uint64
+	blocksProcessed atomic.Uint64
+	txsProcessed    atomic.Uint64
 }
 
 func newRunner(status pluginStatus, p plugin.Adapter, dao kernel.BatchBlockDao) (*runner, error) {
@@ -212,6 +219,7 @@ func (r *runner) Start(ctx context.Context) error {
 		}
 		r.batchSizeMgr = newBatchSizeManager(initialBatchSize, r.plugin.Name(), r.logger)
 
+		statsInitialized := false
 		defer r.wg.Done()
 		for {
 			if !r.isRunning.Get() {
@@ -232,6 +240,11 @@ func (r *runner) Start(ctx context.Context) error {
 				if err != nil {
 					r.logger.Error("failed to get next height, retrying...", zap.Error(err))
 					continue
+				}
+				if !statsInitialized {
+					r.startHeight.Store(nextHeight - 1)
+					r.startNano.Store(time.Now().UnixNano())
+					statsInitialized = true
 				}
 				r.logger.Debug("succefully to fetch plugin meta",
 					zap.String("pluginName", r.plugin.Name()),
@@ -327,6 +340,12 @@ func (r *runner) Start(ctx context.Context) error {
 							serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(nextHeight))
 							if len(blks) > 0 {
 								pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds() / float64(len(blks)))
+								var txCount uint64
+								for _, b := range blks {
+									txCount += uint64(len(b.Actions))
+								}
+								r.blocksProcessed.Add(uint64(len(blks)))
+								r.txsProcessed.Add(txCount)
 							}
 
 							nextHeight += uint64(len(blks))
@@ -352,12 +371,24 @@ func (r *runner) Start(ctx context.Context) error {
 						)
 						serverMetrics.WithLabelValues("plugin", r.plugin.Name()).Set(float64(blk.Height()))
 						pluginProcessingSecondsPerBlockMetrics.WithLabelValues(r.plugin.Name()).Observe(time.Since(timeStart).Seconds())
+						r.blocksProcessed.Add(1)
+						r.txsProcessed.Add(uint64(len(blk.Actions)))
 						nextHeight++
 						return false
 					}
 
 					if putBlocks() {
 						break
+					}
+					// stop when reaching configured stop height
+					if stopHeight := config.Default.Iotex.StopHeight; stopHeight > 0 && nextHeight > stopHeight {
+						r.logStats(r.logger)
+						r.logger.Info("reached stop height, plugin done",
+							zap.String("plugin", r.plugin.Name()),
+							zap.Uint64("stopHeight", stopHeight),
+						)
+						r.isRunning.Set(false)
+						return
 					}
 				}
 			}
@@ -394,6 +425,47 @@ func (r *runner) Stop(ctx context.Context) error {
 		return errors.Wrap(err, "failed to stop runner")
 	}
 	return nil
+}
+
+func (r *runner) logStats(logger *zap.Logger) {
+	startNano := r.startNano.Load()
+	if startNano == 0 {
+		return
+	}
+	elapsed := float64(time.Now().UnixNano()-startNano) / float64(time.Second)
+	if elapsed < 1 {
+		return
+	}
+	blocks := r.blocksProcessed.Load()
+	txs := r.txsProcessed.Load()
+	blocksPerSec := float64(blocks) / elapsed
+	txsPerSec := float64(txs) / elapsed
+
+	currentHeight := r.startHeight.Load() + blocks
+	etaStr := "N/A"
+	totalChainBlocks := config.Default.Iotex.TotalChainBlocks
+	if totalChainBlocks == 0 {
+		totalChainBlocks = 46_000_000
+	}
+	if totalChainBlocks > currentHeight && blocksPerSec > 0 {
+		remaining := totalChainBlocks - currentHeight
+		etaSecs := float64(remaining) / blocksPerSec
+		d := time.Duration(etaSecs * float64(time.Second))
+		days := int(d.Hours()) / 24
+		hours := int(d.Hours()) % 24
+		mins := int(d.Minutes()) % 60
+		etaStr = fmt.Sprintf("%dd%dh%dm", days, hours, mins)
+	}
+
+	logger.Info("plugin processing stats",
+		zap.String("plugin", r.plugin.Name()),
+		zap.Uint64("currentHeight", currentHeight),
+		zap.Uint64("blocksProcessed", blocks),
+		zap.Uint64("txsProcessed", txs),
+		zap.Float64("blocks/sec", blocksPerSec),
+		zap.Float64("txs/sec", txsPerSec),
+		zap.String("ETA", etaStr),
+	)
 }
 
 func (r *runner) fetchBlocks(start, count uint64) ([]*block.Block, error) {

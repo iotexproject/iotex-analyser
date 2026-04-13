@@ -278,8 +278,12 @@ func (r *runner) Start(ctx context.Context) error {
 							} else {
 								// 成功获取，尝试增加批次大小
 								r.batchSizeMgr.onSuccess()
-								// limit blocks by tx count
-								maxTxs := count
+								// limit blocks by total tx count to prevent OOM on high-tx blocks
+								// Use count * 500 as the tx limit (e.g., 1000 blocks * 500 = 500K txs max).
+								// Previously maxTxs was set to count (block count), which conflated
+								// block count with tx count — at high-tx heights (~350 txs/block),
+								// this truncated batches to ~3 blocks, wasting 99.7% of fetched data.
+								maxTxs := count * 500
 								txCount := uint64(0)
 								for i, blk := range blks {
 									txCount += uint64(len(blk.Actions))

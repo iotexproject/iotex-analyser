@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -380,16 +379,6 @@ func (r *runner) Start(ctx context.Context) error {
 					if putBlocks() {
 						break
 					}
-					// stop when reaching configured stop height
-					if stopHeight := config.Default.Iotex.StopHeight; stopHeight > 0 && nextHeight > stopHeight {
-						r.logStats(r.logger)
-						r.logger.Info("reached stop height, plugin done",
-							zap.String("plugin", r.plugin.Name()),
-							zap.Uint64("stopHeight", stopHeight),
-						)
-						r.isRunning.Set(false)
-						return
-					}
 				}
 			}
 		}
@@ -442,20 +431,6 @@ func (r *runner) logStats(logger *zap.Logger) {
 	txsPerSec := float64(txs) / elapsed
 
 	currentHeight := r.startHeight.Load() + blocks
-	etaStr := "N/A"
-	totalChainBlocks := config.Default.Iotex.TotalChainBlocks
-	if totalChainBlocks == 0 {
-		totalChainBlocks = 46_000_000
-	}
-	if totalChainBlocks > currentHeight && blocksPerSec > 0 {
-		remaining := totalChainBlocks - currentHeight
-		etaSecs := float64(remaining) / blocksPerSec
-		d := time.Duration(etaSecs * float64(time.Second))
-		days := int(d.Hours()) / 24
-		hours := int(d.Hours()) % 24
-		mins := int(d.Minutes()) % 60
-		etaStr = fmt.Sprintf("%dd%dh%dm", days, hours, mins)
-	}
 
 	logger.Info("plugin processing stats",
 		zap.String("plugin", r.plugin.Name()),
@@ -464,7 +439,6 @@ func (r *runner) logStats(logger *zap.Logger) {
 		zap.Uint64("txsProcessed", txs),
 		zap.Float64("blocks/sec", blocksPerSec),
 		zap.Float64("txs/sec", txsPerSec),
-		zap.String("ETA", etaStr),
 	)
 }
 

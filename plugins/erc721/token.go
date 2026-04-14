@@ -189,7 +189,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					for _, t := range log.Topics {
 						topics = topics + hex.EncodeToString(t[:]) + "\t"
 					}
-					slog.L().Warn("unknown event", zap.String("contract", log.Address), zap.Uint64("blockHeight", log.BlockHeight), zap.String("topics", topics))
+					slog.L().Debug("unknown event", zap.String("contract", log.Address), zap.Uint64("blockHeight", log.BlockHeight), zap.String("topics", topics))
 
 				}
 				for _, addr := range holders {

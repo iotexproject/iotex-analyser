@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"math/big"
 
+	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
@@ -11,11 +13,14 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.0"
+const VERSION = "2.1.0"
 
 type blockSupplyPlugin struct {
 	tipHeight uint64
 	supplies  []*models.BlockSupply
+	// runningBalance tracks cumulative net balance (in_flow - out_flow) for each
+	// tracked address in memory, so putBlock only needs a cheap per-block point query.
+	runningBalance map[string]*big.Int
 }
 
 func (b *blockSupplyPlugin) Name() string {
@@ -31,22 +36,42 @@ func (b *blockSupplyPlugin) DependentPlugins() []string {
 }
 
 func (b *blockSupplyPlugin) Start(ctx context.Context) error {
-
 	if err := db.AutoMigrate(b.Name(), &models.BlockSupply{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
+	// Load cumulative balances once at current tip height to seed runningBalance.
+	// putBlock will then only issue cheap single-block delta queries per block.
+	tipHeight, err := db.GetIndexHeight(b.Name())
+	if err != nil {
+		return errors.Wrap(err, "failed to get index height for block_supply")
+	}
+	trackedAddrs := []string{address.ZeroAddress, lockAddresses}
+	b.runningBalance = make(map[string]*big.Int, len(trackedAddrs))
+	for _, addr := range trackedAddrs {
+		bal, err := accountBalanceByHeight(tipHeight, addr)
+		if err != nil {
+			return errors.Wrapf(err, "failed to init running balance for %s", addr)
+		}
+		b.runningBalance[addr] = bal
+	}
 	return nil
 }
 
 func (b *blockSupplyPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
 
-	totalSupply, err := getTotalSupply(blkHeight)
-	if err != nil {
-		return err
+	// Apply per-block delta for each tracked address (O(1) point query).
+	for _, addr := range []string{address.ZeroAddress, lockAddresses} {
+		delta, err := accountBalanceDeltaAtHeight(blkHeight, addr)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get balance delta at height %d for %s", blkHeight, addr)
+		}
+		b.runningBalance[addr].Add(b.runningBalance[addr], delta)
 	}
-	totalCirculatingSupply, err := getTotalCirculatingSupply(blkHeight, totalSupply)
+
+	totalSupply := computeTotalSupply(b.runningBalance[address.ZeroAddress])
+	totalCirculatingSupply, err := computeTotalCirculatingSupply(totalSupply, b.runningBalance[lockAddresses])
 	if err != nil {
 		return err
 	}

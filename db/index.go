@@ -19,6 +19,14 @@ type IndexHeight struct {
 
 var indexCache sync.Map
 
+// ClearIndexCache clears the in-memory index height cache, intended for testing only.
+func ClearIndexCache() {
+	indexCache.Range(func(k, _ any) bool {
+		indexCache.Delete(k)
+		return true
+	})
+}
+
 func UpdateIndexHeightByTx(tx *gorm.DB, name string, height uint64) error {
 	indexCache.Store(name, height)
 	return tx.Model(&IndexHeight{}).Where("name = ?", name).UpdateColumn("height", height).Error

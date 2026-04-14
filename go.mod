@@ -16,7 +16,7 @@ require (
 	github.com/iotexproject/iotex-core/v2 v2.3.0
 	github.com/iotexproject/iotex-election v0.3.8-0.20251015031218-8df952babca1
 	github.com/iotexproject/iotex-proto v0.6.5
-	github.com/lib/pq v1.0.0
+	github.com/lib/pq v1.10.9
 	github.com/millken/gocache v1.0.5
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -112,6 +112,7 @@ require (
 	github.com/ethereum/c-kzg-4844 v1.0.0 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fergusstrange/embedded-postgres v1.34.0 // indirect
 	github.com/fjl/gencodec v0.0.0-20230517082657-f9840df7b83e // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
@@ -312,6 +313,7 @@ require (
 	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913 // indirect
 	github.com/xsleonard/go-merkle v1.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect

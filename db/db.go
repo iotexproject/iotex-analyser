@@ -65,6 +65,11 @@ func DB() *gorm.DB {
 	return db
 }
 
+// SetDB overrides the global DB connection, intended for testing only.
+func SetDB(gormDB *gorm.DB) {
+	db = gormDB
+}
+
 // AutoMigrate run auto migration for given models
 func AutoMigrate(index string, dst ...interface{}) error {
 	height, err := GetIndexHeight(index)

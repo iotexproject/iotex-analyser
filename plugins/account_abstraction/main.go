@@ -203,6 +203,6 @@ func (b *accountAbstractionPlugin) Version() string {
 }
 
 // exported
-var Plugin = &accountAbstractionPlugin{
+var Plugin = accountAbstractionPlugin{
 	cfg: &config{},
 }

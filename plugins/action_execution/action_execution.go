@@ -15,17 +15,19 @@ import (
 const VERSION = "2.0.2"
 
 type actionExecutionPlugin struct {
+	tipHeight uint64
+	actions   []*ActionExecution
 }
 
-func (b actionExecutionPlugin) Name() string {
+func (b *actionExecutionPlugin) Name() string {
 	return "action_execution"
 }
 
-func (b actionExecutionPlugin) Type() plugin.Type {
+func (b *actionExecutionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b actionExecutionPlugin) Start(ctx context.Context) error {
+func (b *actionExecutionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &ActionExecution{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -46,48 +48,74 @@ func getDataFromAction(act action.Action) (string, []byte, error) {
 	}
 }
 
-func (b actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	actions := blk.Actions
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		for _, selp := range actions {
-			actionHash, _ := selp.Hash()
-			act := selp.Action()
-			var contract string
-			var data []byte
-			var err error
-			if contract, data, err = getDataFromAction(act); err != nil {
-				continue
-			}
-			ae := &ActionExecution{
-				BlockHeight: blk.Height(),
-				ActionHash:  hex.EncodeToString(actionHash[:]),
-				Contract:    contract,
-				Data:        data,
-			}
-
-			for _, receipt := range blk.Receipts {
-				if receipt.ActionHash == actionHash {
-					ae.ReceiptContractAddress = receipt.ContractAddress
-					break
-				}
-			}
-			if err := tx.Create(ae).Error; err != nil {
-				return err
+func (b *actionExecutionPlugin) putBlock(ctx context.Context, blk *block.Block) error {
+	for _, selp := range blk.Actions {
+		actionHash, _ := selp.Hash()
+		act := selp.Action()
+		contract, data, err := getDataFromAction(act)
+		if err != nil {
+			continue
+		}
+		ae := &ActionExecution{
+			BlockHeight: blk.Height(),
+			ActionHash:  hex.EncodeToString(actionHash[:]),
+			Contract:    contract,
+			Data:        data,
+		}
+		for _, receipt := range blk.Receipts {
+			if receipt.ActionHash == actionHash {
+				ae.ReceiptContractAddress = receipt.ContractAddress
+				break
 			}
 		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-	})
-
-	return err
-}
-
-func (b actionExecutionPlugin) Stop(ctx context.Context) error {
+		b.actions = append(b.actions, ae)
+	}
 	return nil
 }
 
-func (b actionExecutionPlugin) Version() string {
+func (b *actionExecutionPlugin) commit() error {
+	actions := b.actions
+	b.actions = nil
+	tipHeight := b.tipHeight
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if len(actions) > 0 {
+			if err := tx.CreateInBatches(actions, 200).Error; err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
+	})
+}
+
+func (b *actionExecutionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *actionExecutionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+	b.tipHeight = blks[len(blks)-1].Height()
+	return b.commit()
+}
+
+func (b *actionExecutionPlugin) BatchSize() int {
+	return 1000
+}
+
+func (b *actionExecutionPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b *actionExecutionPlugin) Version() string {
 	return VERSION
 }
 
 // exported
-var Plugin = actionExecutionPlugin{}
+var Plugin = &actionExecutionPlugin{}

@@ -14,21 +14,23 @@ import (
 const VERSION = "2.0.0"
 
 type blockSupplyPlugin struct {
+	tipHeight uint64
+	supplies  []*models.BlockSupply
 }
 
-func (b blockSupplyPlugin) Name() string {
+func (b *blockSupplyPlugin) Name() string {
 	return "block_supply"
 }
 
-func (b blockSupplyPlugin) Type() plugin.Type {
+func (b *blockSupplyPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b blockSupplyPlugin) DependentPlugins() []string {
+func (b *blockSupplyPlugin) DependentPlugins() []string {
 	return []string{"account_income"}
 }
 
-func (b blockSupplyPlugin) Start(ctx context.Context) error {
+func (b *blockSupplyPlugin) Start(ctx context.Context) error {
 
 	if err := db.AutoMigrate(b.Name(), &models.BlockSupply{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
@@ -37,39 +39,68 @@ func (b blockSupplyPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b blockSupplyPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func (b *blockSupplyPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
 
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		totalSupply, err := getTotalSupply(blkHeight)
-		if err != nil {
-			return err
-		}
-		totalCirculatingSupply, err := getTotalCirculatingSupply(blkHeight, totalSupply)
-		if err != nil {
-			return err
-		}
-		bm := models.BlockSupply{
-			BlockHeight:            blkHeight,
-			TotalSupply:            totalSupply,
-			TotalCirculatingSupply: totalCirculatingSupply,
-		}
-
-		if err := tx.Create(&bm).Error; err != nil {
-			return err
-		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blkHeight)
+	totalSupply, err := getTotalSupply(blkHeight)
+	if err != nil {
+		return err
+	}
+	totalCirculatingSupply, err := getTotalCirculatingSupply(blkHeight, totalSupply)
+	if err != nil {
+		return err
+	}
+	b.supplies = append(b.supplies, &models.BlockSupply{
+		BlockHeight:            blkHeight,
+		TotalSupply:            totalSupply,
+		TotalCirculatingSupply: totalCirculatingSupply,
 	})
-	return err
-}
-
-func (b blockSupplyPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (b blockSupplyPlugin) Version() string {
+func (b *blockSupplyPlugin) commit() error {
+	supplies := b.supplies
+	b.supplies = nil
+	tipHeight := b.tipHeight
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if len(supplies) > 0 {
+			if err := tx.Model(&models.BlockSupply{}).CreateInBatches(supplies, 1000).Error; err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
+	})
+}
+
+func (b *blockSupplyPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *blockSupplyPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+	b.tipHeight = blks[len(blks)-1].Height()
+	return b.commit()
+}
+
+func (b *blockSupplyPlugin) BatchSize() int {
+	return 1000
+}
+
+func (b *blockSupplyPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b *blockSupplyPlugin) Version() string {
 	return VERSION
 }
 
 // exported
-var Plugin = blockSupplyPlugin{}
+var Plugin = &blockSupplyPlugin{}

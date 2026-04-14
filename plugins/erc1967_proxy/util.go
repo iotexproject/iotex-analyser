@@ -11,7 +11,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/v2/action"
-	"gorm.io/gorm"
 )
 
 // https://github.com/OpenZeppelin/openzeppelin-upgrades/blob/master/packages/plugin-hardhat/src/utils/factories.ts#L6
@@ -49,7 +48,8 @@ func isProxyAddress(addr string) bool {
 	return m.IsContract && Sha256ProxyDeployBytecode == hash.BytesToHash256(m.ContractByteCode)
 }
 
-func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gorm.DB) error {
+func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64) ([]models.Erc1967Proxy, error) {
+	var proxies []models.Erc1967Proxy
 	for _, log := range logs {
 		topics := log.Topics
 		if log.Address == "" || len(topics) < 2 || !isProxyAddress(log.Address) {
@@ -62,19 +62,16 @@ func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, tx *gor
 			}{}
 			err := kernel.UnpackLog(erc1967ProxyABI, &event, "Upgraded", log)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			originAddress, _ := address.FromHex(event.Implementation.Hex())
-			m := models.Erc1967Proxy{
+			proxies = append(proxies, models.Erc1967Proxy{
 				BlockHeight:   blkHeight,
 				ActionHash:    actionHash,
 				ProxyAddress:  log.Address,
 				OriginAddress: originAddress.String(),
-			}
-			if err = tx.Create(&m).Error; err != nil {
-				return err
-			}
+			})
 		}
 	}
-	return nil
+	return proxies, nil
 }

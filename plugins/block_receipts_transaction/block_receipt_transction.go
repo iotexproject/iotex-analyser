@@ -28,21 +28,24 @@ const (
 )
 
 type blockReceiptTransactionPlugin struct {
+	tipHeight uint64
+	minHeight uint64
+	brts      []BlockReceiptTransaction
 }
 
-func (b blockReceiptTransactionPlugin) Name() string {
+func (b *blockReceiptTransactionPlugin) Name() string {
 	return "block_receipt_transaction"
 }
 
-func (b blockReceiptTransactionPlugin) Type() plugin.Type {
+func (b *blockReceiptTransactionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b blockReceiptTransactionPlugin) DependentPlugins() []string {
+func (b *blockReceiptTransactionPlugin) DependentPlugins() []string {
 	return []string{"account_meta"}
 }
 
-func (b blockReceiptTransactionPlugin) Start(ctx context.Context) error {
+func (b *blockReceiptTransactionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &BlockReceiptTransaction{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
@@ -75,38 +78,67 @@ func (b blockReceiptTransactionPlugin) Start(ctx context.Context) error {
 	return err
 }
 
-func (b blockReceiptTransactionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func (b *blockReceiptTransactionPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 	receipts := blk.Receipts
-	var brts []BlockReceiptTransaction
 	for _, receipt := range receipts {
 		receipt := receipt
 		actionHash := hex.EncodeToString(receipt.ActionHash[:])
-		//transaction
 		brt, err := handleTransactionLogs(receipt.TransactionLogs(), actionHash, blk.Height())
 		if err != nil {
 			return err
 		}
-		brts = append(brts, brt...)
+		b.brts = append(b.brts, brt...)
 	}
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("block_height = ?", blk.Height()).Delete(&BlockReceiptTransaction{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&BlockReceiptTransaction{}).CreateInBatches(brts, 200).Error; err != nil {
-			return err
-		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-	})
-	return err
-}
-
-func (b blockReceiptTransactionPlugin) Stop(ctx context.Context) error {
+	if b.minHeight == 0 {
+		b.minHeight = blk.Height()
+	}
 	return nil
 }
 
-func (b blockReceiptTransactionPlugin) Version() string {
+func (b *blockReceiptTransactionPlugin) commit() error {
+	brts := b.brts
+	tipHeight := b.tipHeight
+	b.brts = nil
+	b.minHeight = 0
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if len(brts) > 0 {
+			if err := tx.Model(&BlockReceiptTransaction{}).CreateInBatches(brts, 200).Error; err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
+	})
+}
+
+func (b *blockReceiptTransactionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *blockReceiptTransactionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+	b.tipHeight = blks[len(blks)-1].Height()
+	return b.commit()
+}
+
+func (b *blockReceiptTransactionPlugin) BatchSize() int {
+	return 1000
+}
+
+func (b *blockReceiptTransactionPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b *blockReceiptTransactionPlugin) Version() string {
 	return VERSION
 }
 
 // exported
-var Plugin = blockReceiptTransactionPlugin{}
+var Plugin = &blockReceiptTransactionPlugin{}

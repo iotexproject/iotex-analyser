@@ -21,6 +21,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ERC20ABI is the ABI of ERC20 contract
@@ -76,17 +77,21 @@ func initAddress() error {
 }
 
 type tokenPlugin struct {
+	tipHeight uint64
+	transfers []*models.Erc20Transfer
+	approvals []*models.Erc20Approval
+	holders   map[string]*models.Erc20Holder
 }
 
-func (b tokenPlugin) Name() string {
+func (b *tokenPlugin) Name() string {
 	return "erc20"
 }
 
-func (b tokenPlugin) Type() plugin.Type {
+func (b *tokenPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b tokenPlugin) Start(ctx context.Context) error {
+func (b *tokenPlugin) Start(ctx context.Context) error {
 	if err := initAddress(); err != nil {
 		return errors.Wrap(err, "cannot init address")
 	}
@@ -99,175 +104,208 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		for _, receipt := range blk.Receipts {
-			if receipt.Status != successStatus {
+func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
+	if b.holders == nil {
+		b.holders = make(map[string]*models.Erc20Holder)
+	}
+	for _, receipt := range blk.Receipts {
+		if receipt.Status != successStatus {
+			continue
+		}
+		actionHash := hex.EncodeToString(receipt.ActionHash[:])
+		for _, log := range receipt.Logs() {
+			if log.Address == "" || len(log.Topics) < 2 {
 				continue
 			}
-			actionHash := hex.EncodeToString(receipt.ActionHash[:])
-			for _, log := range receipt.Logs() {
-				if log.Address == "" || len(log.Topics) < 2 {
-					continue
+			data := hex.EncodeToString(log.Data)
+			var topics string
+			for _, t := range log.Topics {
+				topics += hex.EncodeToString(t[:])
+			}
+			//skip if not erc20 or wiotx
+			if !isErc20(log.Address, topics, data) {
+				continue
+			}
+			var holderAddrs []string
+			switch log.Topics[0] {
+			/**
+			 * Transfer(address indexed from, address indexed to, uint256 value);
+			 */
+			case Transfer:
+				event := struct {
+					From  common.Address
+					To    common.Address
+					Value *big.Int
+				}{}
+				err := kernel.UnpackLog(erc20ABI, &event, "Transfer", log)
+				if err != nil {
+					return err
 				}
-				data := hex.EncodeToString(log.Data)
+				amount := decimal.NewFromBigInt(event.Value, 0)
+				fromAddr, _ := address.FromBytes(event.From.Bytes())
+				toAddr, _ := address.FromBytes(event.To.Bytes())
+				b.transfers = append(b.transfers, &models.Erc20Transfer{
+					BlockHeight:     blk.Height(),
+					ActionHash:      actionHash,
+					ContractAddress: log.Address,
+					Amount:          amount,
+					Sender:          fromAddr.String(),
+					Recipient:       toAddr.String(),
+					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				})
+				holderAddrs = []string{fromAddr.String(), toAddr.String()}
+
+			//Approval(address indexed owner, address indexed spender, uint256 value);
+			case Approval:
+				event := struct {
+					Owner   common.Address
+					Spender common.Address
+					Value   *big.Int
+				}{}
+				err := kernel.UnpackLog(erc20ABI, &event, "Approval", log)
+				if err != nil {
+					return err
+				}
+				amount := decimal.NewFromBigInt(event.Value, 0)
+				owner, _ := address.FromBytes(event.Owner.Bytes())
+				spender, _ := address.FromBytes(event.Spender.Bytes())
+				b.approvals = append(b.approvals, &models.Erc20Approval{
+					BlockHeight:     blk.Height(),
+					ActionHash:      actionHash,
+					ContractAddress: log.Address,
+					Amount:          amount,
+					Owner:           owner.String(),
+					Spender:         spender.String(),
+					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				})
+			//Deposit(address indexed dst, uint wad);
+			case Deposit:
+				event := struct {
+					Dst common.Address
+					Wad *big.Int
+				}{}
+				err := kernel.UnpackLog(erc20ABI, &event, "Deposit", log)
+				if err != nil {
+					return errors.WithMessagef(err, "Deposit event: %v", &event)
+				}
+				amount := decimal.NewFromBigInt(event.Wad, 0)
+				to, _ := address.FromBytes(event.Dst.Bytes())
+				b.transfers = append(b.transfers, &models.Erc20Transfer{
+					BlockHeight:     blk.Height(),
+					ActionHash:      actionHash,
+					ContractAddress: log.Address,
+					Amount:          amount,
+					Sender:          "",
+					Recipient:       to.String(),
+					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				})
+				holderAddrs = []string{to.String()}
+			//Withdrawal(address indexed src, uint wad);
+			case Withdrawal:
+				event := struct {
+					Src common.Address
+					Wad *big.Int
+				}{}
+				err := kernel.UnpackLog(erc20ABI, &event, "Withdrawal", log)
+				if err != nil {
+					return errors.WithMessagef(err, "Withdrawal event: %v", &event)
+				}
+				amount := decimal.NewFromBigInt(event.Wad, 0)
+				from, _ := address.FromBytes(event.Src.Bytes())
+				b.transfers = append(b.transfers, &models.Erc20Transfer{
+					BlockHeight:     blk.Height(),
+					ActionHash:      actionHash,
+					ContractAddress: log.Address,
+					Amount:          amount,
+					Sender:          from.String(),
+					Recipient:       "",
+					Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
+				})
+				holderAddrs = []string{from.String()}
+			default:
 				var topics string
 				for _, t := range log.Topics {
-					topics += hex.EncodeToString(t[:])
+					topics = topics + hex.EncodeToString(t[:]) + "\t"
 				}
-				//skip if not erc20 or wiotx
-				if !isErc20(log.Address, topics, data) {
+				slog.L().Warn("unknown event", zap.String("contract", log.Address), zap.Uint64("blockHeight", log.BlockHeight), zap.String("topics", topics))
+			}
+			for _, addr := range holderAddrs {
+				if addr == "" {
 					continue
 				}
-				var holders []string
-				switch log.Topics[0] {
-				/**
-				 * Transfer(address indexed from, address indexed to, uint256 value);
-				 */
-				case Transfer:
-					event := struct {
-						From  common.Address
-						To    common.Address
-						Value *big.Int
-					}{}
-					err := kernel.UnpackLog(erc20ABI, &event, "Transfer", log)
-					if err != nil {
-						return err
-					}
-					amount := decimal.NewFromBigInt(event.Value, 0)
-					fromAddr, _ := address.FromBytes(event.From.Bytes())
-					toAddr, _ := address.FromBytes(event.To.Bytes())
-					model := models.Erc20Transfer{
-						BlockHeight:     blk.Height(),
-						ActionHash:      actionHash,
-						ContractAddress: log.Address,
-						Amount:          amount,
-						Sender:          fromAddr.String(),
-						Recipient:       toAddr.String(),
-						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-					}
-					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, errFailedInsertTable)
-					}
-					holders = []string{fromAddr.String(), toAddr.String()}
-
-				//Approval(address indexed owner, address indexed spender, uint256 value);
-				case Approval:
-					event := struct {
-						Owner   common.Address
-						Spender common.Address
-						Value   *big.Int
-					}{}
-					err := kernel.UnpackLog(erc20ABI, &event, "Approval", log)
-					if err != nil {
-						return err
-					}
-					amount := decimal.NewFromBigInt(event.Value, 0)
-					owner, _ := address.FromBytes(event.Owner.Bytes())
-					spender, _ := address.FromBytes(event.Spender.Bytes())
-					model := models.Erc20Approval{
-						BlockHeight:     blk.Height(),
-						ActionHash:      actionHash,
-						ContractAddress: log.Address,
-						Amount:          amount,
-						Owner:           owner.String(),
-						Spender:         spender.String(),
-						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-					}
-					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, errFailedInsertTable)
-					}
-				//Deposit(address indexed dst, uint wad);
-				case Deposit:
-					event := struct {
-						Dst common.Address
-						Wad *big.Int
-					}{}
-					err := kernel.UnpackLog(erc20ABI, &event, "Deposit", log)
-					if err != nil {
-						return errors.WithMessagef(err, "Deposit event: %v", &event)
-					}
-					amount := decimal.NewFromBigInt(event.Wad, 0)
-					to, _ := address.FromBytes(event.Dst.Bytes())
-					model := models.Erc20Transfer{
-						BlockHeight:     blk.Height(),
-						ActionHash:      actionHash,
-						ContractAddress: log.Address,
-						Amount:          amount,
-						Sender:          "",
-						Recipient:       to.String(),
-						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-					}
-					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, errFailedInsertTable)
-					}
-					holders = []string{to.String()}
-				//Withdrawal(address indexed src, uint wad);
-				case Withdrawal:
-					event := struct {
-						Src common.Address
-						Wad *big.Int
-					}{}
-					err := kernel.UnpackLog(erc20ABI, &event, "Withdrawal", log)
-					if err != nil {
-						return errors.WithMessagef(err, "Withdrawal event: %v", &event)
-					}
-					amount := decimal.NewFromBigInt(event.Wad, 0)
-					from, _ := address.FromBytes(event.Src.Bytes())
-					model := models.Erc20Transfer{
-						BlockHeight:     blk.Height(),
-						ActionHash:      actionHash,
-						ContractAddress: log.Address,
-						Amount:          amount,
-						Sender:          from.String(),
-						Recipient:       "",
-						Timestamp:       time.Unix(blk.Timestamp().Unix(), 0),
-					}
-					if err := tx.Create(&model).Error; err != nil {
-						return errors.Wrap(err, errFailedInsertTable)
-					}
-					holders = []string{from.String()}
-				default:
-					var topics string
-					for _, t := range log.Topics {
-						topics = topics + hex.EncodeToString(t[:]) + "\t"
-					}
-					slog.L().Warn("unknown event", zap.String("contract", log.Address), zap.Uint64("blockHeight", log.BlockHeight), zap.String("topics", topics))
-
-				}
-				for _, addr := range holders {
-					if addr == "" {
-						continue
-					}
-					model := models.Erc20Holder{
+				key := log.Address + ":" + addr
+				if _, exists := b.holders[key]; !exists {
+					b.holders[key] = &models.Erc20Holder{
 						ContractAddress: log.Address,
 						Holder:          addr,
-					}
-					if err := tx.Where("contract_address = ? and holder= ?", log.Address, addr).First(&model).Error; err != nil {
-						if err != gorm.ErrRecordNotFound {
-							return err
-						}
-						if err := tx.Create(&model).Error; err != nil {
-							return err
-						}
 					}
 				}
 			}
 		}
-
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-	})
-
-	return err
-}
-
-func (b tokenPlugin) Stop(ctx context.Context) error {
+	}
 	return nil
 }
 
-func (b tokenPlugin) Version() string {
+func (b *tokenPlugin) commit() error {
+	transfers := b.transfers
+	approvals := b.approvals
+	holders := make([]*models.Erc20Holder, 0, len(b.holders))
+	for _, h := range b.holders {
+		holders = append(holders, h)
+	}
+	b.transfers = nil
+	b.approvals = nil
+	b.holders = nil
+	tipHeight := b.tipHeight
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if len(transfers) > 0 {
+			if err := tx.CreateInBatches(transfers, 200).Error; err != nil {
+				return errors.Wrap(err, errFailedInsertTable)
+			}
+		}
+		if len(approvals) > 0 {
+			if err := tx.CreateInBatches(approvals, 200).Error; err != nil {
+				return errors.Wrap(err, errFailedInsertTable)
+			}
+		}
+		if len(holders) > 0 {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(holders, 200).Error; err != nil {
+				return errors.Wrap(err, errFailedInsertTable)
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
+	})
+}
+
+func (b *tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+	b.tipHeight = blks[len(blks)-1].Height()
+	return b.commit()
+}
+
+func (b *tokenPlugin) BatchSize() int {
+	return 1000
+}
+
+func (b *tokenPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b *tokenPlugin) Version() string {
 	return VERSION
 }
 
 // exported
-var Plugin = tokenPlugin{}
+var Plugin = &tokenPlugin{}

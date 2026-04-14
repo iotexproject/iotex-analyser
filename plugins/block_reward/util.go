@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/v2/action"
@@ -13,10 +14,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func getCandidateNameByAddress(tx *gorm.DB, addr string) (string, error) {
+func getCandidateNameByAddress(addr string) (string, error) {
 	name, err := gocache.Memoize("000"+addr, func() (interface{}, error) {
 		var cand models.Candidate
-		if err := tx.Model(cand).Where("reward_address=?", addr).Order("id desc").Take(&cand).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		if err := db.DB().Model(cand).Where("reward_address=?", addr).Order("id desc").Take(&cand).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", err
 		}
 		return cand.Name, nil
@@ -24,17 +25,18 @@ func getCandidateNameByAddress(tx *gorm.DB, addr string) (string, error) {
 	return name.(string), err
 }
 
-func handleRewardInfoMap(tx *gorm.DB, blkHeight uint64, epochNum uint64, receipt *action.Receipt, rewardInfoMap map[string]*kernel.RewardInfo) error {
+func collectRewardRows(blkHeight uint64, epochNum uint64, receipt *action.Receipt, rewardInfoMap map[string]*kernel.RewardInfo) ([]models.BlockReward, error) {
 	if len(rewardInfoMap) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	var rows []models.BlockReward
 	for addr, reward := range rewardInfoMap {
-		candName, err := getCandidateNameByAddress(tx, addr)
+		candName, err := getCandidateNameByAddress(addr)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		m := models.BlockReward{
+		rows = append(rows, models.BlockReward{
 			BlockHeight:     blkHeight,
 			EpochNumber:     epochNum,
 			RewardAddress:   addr,
@@ -44,10 +46,7 @@ func handleRewardInfoMap(tx *gorm.DB, blkHeight uint64, epochNum uint64, receipt
 			EpochReward:     decimal.NewFromBigInt(reward.EpochReward, 0),
 			FoundationBonus: decimal.NewFromBigInt(reward.FoundationBonus, 0),
 			PriorityBonus:   decimal.NewFromBigInt(reward.PriorityBonus, 0),
-		}
-		if err := tx.Create(&m).Error; err != nil {
-			return err
-		}
+		})
 	}
-	return nil
+	return rows, nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"gorm.io/gorm"
 
 	"github.com/iotexproject/iotex-analyser/db"
@@ -17,7 +18,6 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
-	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -73,18 +73,20 @@ type config struct {
 }
 
 type accountAbstractionPlugin struct {
-	cfg *config
+	cfg       *config
+	tipHeight uint64
+	records   []*AccountAbstractionAccountDeployed
 }
 
-func (b accountAbstractionPlugin) Name() string {
+func (b *accountAbstractionPlugin) Name() string {
 	return "account_abstraction"
 }
 
-func (b accountAbstractionPlugin) Type() plugin.Type {
+func (b *accountAbstractionPlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b accountAbstractionPlugin) Start(ctx context.Context) error {
+func (b *accountAbstractionPlugin) Start(ctx context.Context) error {
 	height, err := db.GetIndexHeight(b.Name())
 	if err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
@@ -120,58 +122,87 @@ func (b accountAbstractionPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b accountAbstractionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		for _, receipt := range blk.Receipts {
-			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+func (b *accountAbstractionPlugin) putBlock(ctx context.Context, blk *block.Block) error {
+	for _, receipt := range blk.Receipts {
+		if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+			continue
+		}
+		actionHash := hex.EncodeToString(receipt.ActionHash[:])
+		for _, l := range receipt.Logs() {
+			if l.Address != b.cfg.EntryPoint || l.Topics[0] != deployedHash {
 				continue
 			}
-			actionHash := hex.EncodeToString(receipt.ActionHash[:])
-			for _, l := range receipt.Logs() {
-				if l.Address != b.cfg.EntryPoint || l.Topics[0] != deployedHash {
-					continue
-				}
-				event := struct {
-					UserOpHash common.Hash
-					Sender     common.Address
-					Factory    common.Address
-					Paymaster  common.Address
-				}{}
-				err := kernel.UnpackLog(eventABI, &event, "AccountDeployed", l)
-				if err != nil {
-					return errors.Wrap(err, "failed to unpack AccountDeployed")
-				}
-				sender, _ := address.FromBytes(event.Sender.Bytes())
-				factory, _ := address.FromBytes(event.Factory.Bytes())
-				paymaster, _ := address.FromBytes(event.Paymaster.Bytes())
-				model := AccountAbstractionAccountDeployed{
-					BlockHeight: blk.Height(),
-					ActionHash:  actionHash,
-					UserOpHash:  hex.EncodeToString(event.UserOpHash[:]),
-					Sender:      sender.String(),
-					Factory:     factory.String(),
-					Paymaster:   paymaster.String(),
-				}
-				if err := tx.Create(&model).Error; err != nil {
-					return errors.Wrap(err, "failed to create tx")
-				}
+			event := struct {
+				UserOpHash common.Hash
+				Sender     common.Address
+				Factory    common.Address
+				Paymaster  common.Address
+			}{}
+			err := kernel.UnpackLog(eventABI, &event, "AccountDeployed", l)
+			if err != nil {
+				return errors.Wrap(err, "failed to unpack AccountDeployed")
 			}
+			sender, _ := address.FromBytes(event.Sender.Bytes())
+			factory, _ := address.FromBytes(event.Factory.Bytes())
+			paymaster, _ := address.FromBytes(event.Paymaster.Bytes())
+			b.records = append(b.records, &AccountAbstractionAccountDeployed{
+				BlockHeight: blk.Height(),
+				ActionHash:  actionHash,
+				UserOpHash:  hex.EncodeToString(event.UserOpHash[:]),
+				Sender:      sender.String(),
+				Factory:     factory.String(),
+				Paymaster:   paymaster.String(),
+			})
 		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
-	})
-
-	return err
-}
-
-func (b accountAbstractionPlugin) Stop(ctx context.Context) error {
+	}
 	return nil
 }
 
-func (b accountAbstractionPlugin) Version() string {
+func (b *accountAbstractionPlugin) commit() error {
+	records := b.records
+	b.records = nil
+	tipHeight := b.tipHeight
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if len(records) > 0 {
+			if err := tx.CreateInBatches(records, 200).Error; err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
+	})
+}
+
+func (b *accountAbstractionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *accountAbstractionPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+	b.tipHeight = blks[len(blks)-1].Height()
+	return b.commit()
+}
+
+func (b *accountAbstractionPlugin) BatchSize() int {
+	return 1000
+}
+
+func (b *accountAbstractionPlugin) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (b *accountAbstractionPlugin) Version() string {
 	return Version
 }
 
 // exported
-var Plugin = accountAbstractionPlugin{
+var Plugin = &accountAbstractionPlugin{
 	cfg: &config{},
 }

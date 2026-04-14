@@ -21,17 +21,19 @@ import (
 )
 
 type actionTypePlugin struct {
+	tipHeight uint64
+	ats       []*models.ActionType
 }
 
-func (b actionTypePlugin) Name() string {
+func (b *actionTypePlugin) Name() string {
 	return "action_type"
 }
 
-func (b actionTypePlugin) Type() plugin.Type {
+func (b *actionTypePlugin) Type() plugin.Type {
 	return plugin.TypeStandard
 }
 
-func (b actionTypePlugin) Start(ctx context.Context) error {
+func (b *actionTypePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
 		&models.ActionType{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
@@ -56,8 +58,7 @@ func (b actionTypePlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	ats := make([]*models.ActionType, 0, len(blk.Actions))
+func (b *actionTypePlugin) putBlock(ctx context.Context, blk *block.Block) error {
 	getReceipt := func(h hash.Hash256) *action.Receipt {
 		for _, r := range blk.Receipts {
 			if r.ActionHash == h {
@@ -109,24 +110,52 @@ func (b actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error 
 		default:
 			return errors.Errorf("unknown tx type %d", act.Envelope.TxType())
 		}
-		ats = append(ats, at)
+		b.ats = append(b.ats, at)
 	}
+	return nil
+}
 
+func (b *actionTypePlugin) commit() error {
+	ats := b.ats
+	b.ats = nil
+	tipHeight := b.tipHeight
 	return db.DB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.CreateInBatches(ats, 200).Error; err != nil {
 			return errors.Wrap(err, "failed to insert action types")
 		}
-		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
+		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
 	})
 }
 
-func (b actionTypePlugin) Stop(ctx context.Context) error {
+func (b *actionTypePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	if err := b.putBlock(ctx, blk); err != nil {
+		return err
+	}
+	b.tipHeight = blk.Height()
+	return b.commit()
+}
+
+func (b *actionTypePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	for _, blk := range blks {
+		if err := b.putBlock(ctx, blk); err != nil {
+			return err
+		}
+	}
+	b.tipHeight = blks[len(blks)-1].Height()
+	return b.commit()
+}
+
+func (b *actionTypePlugin) BatchSize() int {
+	return 1000
+}
+
+func (b *actionTypePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (b actionTypePlugin) Version() string {
+func (b *actionTypePlugin) Version() string {
 	return "0.0.1"
 }
 
 // exported
-var Plugin = actionTypePlugin{}
+var Plugin = &actionTypePlugin{}

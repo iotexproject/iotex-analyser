@@ -20,9 +20,10 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-const VERSION = "2.0.7"
+const VERSION = "2.1.0"
 
 var (
 	ActiveBlockProducers []string
@@ -33,9 +34,11 @@ type Config struct {
 }
 
 type blockMetaPlugin struct {
-	cfg       Config
-	tipHeight uint64
-	metas     []models.BlockMeta
+	cfg            Config
+	tipHeight      uint64
+	metas          []models.BlockMeta
+	// candidateCache maps operator_address → candidate name, refreshed once per epoch.
+	candidateCache map[string]string
 }
 
 func (b *blockMetaPlugin) Name() string {
@@ -88,7 +91,7 @@ func (b *blockMetaPlugin) putBlock(ctx context.Context, blk *block.Block) error 
 	if err != nil {
 		return err
 	}
-	producerName := getCandidateName(blkHeight, blk.ProducerAddress())
+	producerName := b.lookupCandidateName(blkHeight, blk.ProducerAddress())
 	expectedProducerAddr := ""
 	expectedProducerName := ""
 	if len(ActiveBlockProducers) > 0 {
@@ -96,7 +99,7 @@ func (b *blockMetaPlugin) putBlock(ctx context.Context, blk *block.Block) error 
 		if blk.ProducerAddress() == expectedProducerAddr {
 			expectedProducerName = producerName
 		} else {
-			expectedProducerName = getCandidateName(blkHeight, expectedProducerAddr)
+			expectedProducerName = b.lookupCandidateName(blkHeight, expectedProducerAddr)
 		}
 	}
 
@@ -134,8 +137,9 @@ func (b *blockMetaPlugin) commit() error {
 	b.metas = nil
 	tipHeight := b.tipHeight
 	return db.DB().Transaction(func(tx *gorm.DB) error {
-		for i := range metas {
-			if err := tx.Save(&metas[i]).Error; err != nil {
+		if len(metas) > 0 {
+			if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).
+				CreateInBatches(metas, 1000).Error; err != nil {
 				return err
 			}
 		}
@@ -193,7 +197,25 @@ func (b *blockMetaPlugin) updateActiveBlockProducers(chainClient iotexapi.APISer
 		ActiveBlockProducers = append(ActiveBlockProducers, activeBlockProducer.Address)
 	}
 
+	// Batch-prefetch candidate names for all active BPs at the epoch start height.
+	epochHeight := kernel.GetEpochHeight(epochNumber)
+	cache, err := getCandidateNamesBatch(epochHeight, ActiveBlockProducers)
+	if err != nil {
+		return errors.Wrap(err, "failed to prefetch candidate names")
+	}
+	b.candidateCache = cache
 	return nil
+}
+
+// lookupCandidateName returns the candidate name for addr, using the in-memory
+// cache when available and falling back to a DB query on cache miss.
+func (b *blockMetaPlugin) lookupCandidateName(height uint64, addr string) string {
+	if b.candidateCache != nil {
+		if name, ok := b.candidateCache[addr]; ok {
+			return name
+		}
+	}
+	return getCandidateName(height, addr)
 }
 
 func (b *blockMetaPlugin) reviseEpochNumber() {

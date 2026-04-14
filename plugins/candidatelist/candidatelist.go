@@ -109,4 +109,4 @@ func (b *candidateListPlugin) Version() string {
 }
 
 // exported
-var Plugin = &candidateListPlugin{}
+var Plugin = candidateListPlugin{}

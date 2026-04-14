@@ -294,7 +294,7 @@ func loadPluginFile(path string) (iap.Adapter, error) {
 
 	adapter, ok := funcSymbol.(iap.Adapter)
 	if !ok {
-		return nil, errors.New("unexpected type from module symbol")
+		return nil, errors.Errorf("unexpected type from module symbol: %+v", path)
 	}
 	return adapter, nil
 }

@@ -103,4 +103,4 @@ func (b *blockSupplyPlugin) Version() string {
 }
 
 // exported
-var Plugin = &blockSupplyPlugin{}
+var Plugin = blockSupplyPlugin{}

@@ -103,4 +103,4 @@ func (b *probationPlugin) Version() string {
 }
 
 // exported
-var Plugin = &probationPlugin{}
+var Plugin = probationPlugin{}

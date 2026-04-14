@@ -158,4 +158,4 @@ func (b *actionTypePlugin) Version() string {
 }
 
 // exported
-var Plugin = &actionTypePlugin{}
+var Plugin = actionTypePlugin{}

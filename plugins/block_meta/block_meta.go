@@ -228,4 +228,4 @@ func (b *blockMetaPlugin) reviseEpochNumber() {
 }
 
 // exported
-var Plugin = &blockMetaPlugin{}
+var Plugin = blockMetaPlugin{}

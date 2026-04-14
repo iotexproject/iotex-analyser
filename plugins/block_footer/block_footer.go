@@ -93,4 +93,4 @@ func (b *blockFooterPlugin) Version() string {
 }
 
 // exported
-var Plugin = &blockFooterPlugin{}
+var Plugin = blockFooterPlugin{}

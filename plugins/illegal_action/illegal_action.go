@@ -108,4 +108,4 @@ func (b *illegalActionPlugin) Version() string {
 }
 
 // exported
-var Plugin = &illegalActionPlugin{}
+var Plugin = illegalActionPlugin{}

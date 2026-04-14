@@ -167,4 +167,4 @@ func (b *blockReceiptPlugin) Version() string {
 }
 
 // exported
-var Plugin = &blockReceiptPlugin{}
+var Plugin = blockReceiptPlugin{}

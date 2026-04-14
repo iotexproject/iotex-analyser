@@ -296,4 +296,4 @@ func (b *tokenPlugin) Version() string {
 }
 
 // exported
-var Plugin = &tokenPlugin{}
+var Plugin = tokenPlugin{}

@@ -118,4 +118,4 @@ func (b *actionExecutionPlugin) Version() string {
 }
 
 // exported
-var Plugin = &actionExecutionPlugin{}
+var Plugin = actionExecutionPlugin{}

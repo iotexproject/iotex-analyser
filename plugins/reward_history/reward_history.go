@@ -146,4 +146,4 @@ func (b *rewardHistoryPlugin) Version() string {
 }
 
 // exported
-var Plugin = &rewardHistoryPlugin{}
+var Plugin = rewardHistoryPlugin{}

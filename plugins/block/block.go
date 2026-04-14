@@ -110,4 +110,4 @@ func (b *blockPlugin) Version() string {
 }
 
 // exported
-var Plugin = &blockPlugin{}
+var Plugin = blockPlugin{}

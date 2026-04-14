@@ -141,4 +141,4 @@ func (b *blockReceiptTransactionPlugin) Version() string {
 }
 
 // exported
-var Plugin = &blockReceiptTransactionPlugin{}
+var Plugin = blockReceiptTransactionPlugin{}

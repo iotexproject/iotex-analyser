@@ -110,4 +110,4 @@ func (b *erc1967Proxy) Version() string {
 }
 
 // exported
-var Plugin = &erc1967Proxy{}
+var Plugin = erc1967Proxy{}

@@ -116,4 +116,4 @@ func (b *blockRewardPlugin) Version() string {
 }
 
 // exported
-var Plugin = &blockRewardPlugin{}
+var Plugin = blockRewardPlugin{}

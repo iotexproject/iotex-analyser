@@ -43,309 +43,329 @@ func (b accountVotePlugin) Start(ctx context.Context) error {
 }
 
 func (b accountVotePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		var accountVote AccountVote
-		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
-		for _, selp := range blk.Actions {
-			actionHash, _ := selp.Hash()
-			actions[actionHash] = selp
-		}
-		for _, receipt := range blk.Receipts {
-
-			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
-				continue
-			}
-			selp, ok := actions[receipt.ActionHash]
-			if !ok {
-				continue
-			}
-			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			act := selp.Action()
-			switch a := act.(type) {
-			case *action.CreateStake:
-				cadidateAddr, err := getCandidateAddressByName(a.Candidate())
-				if err != nil {
-					return err
-				}
-				actionHash, _ := selp.Hash()
-				bucketID, err := getBucketIDByActHash(hex.EncodeToString(actionHash[:]))
-				if err != nil {
-					return err
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     sender.String(),
-					Candidate:   cadidateAddr,
-					Amount:      decimal.NewFromBigInt(a.Amount(), 0),
-					ActType:     "StakeCreate",
-					AutoStake:   a.AutoStake(),
-					Duration:    a.Duration(),
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-			case *action.TransferStake:
-				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
-				}
-				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     info.Address,
-					Candidate:   info.Candidate,
-					AutoStake:   info.AutoStake,
-					ActType:     "TransferStake",
-					Duration:    info.Duration,
-					Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     a.VoterAddress().String(),
-					Candidate:   info.Candidate,
-					AutoStake:   info.AutoStake,
-					ActType:     "TransferStake",
-					Duration:    info.Duration,
-					Amount:      decmailAmount,
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-			case *action.Restake:
-				bucketID := a.BucketIndex()
-				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     sender.String(),
-					Candidate:   info.Candidate,
-					AutoStake:   a.AutoStake(),
-					ActType:     "Restake",
-					Duration:    a.Duration(),
-					Amount:      decimal.NewFromInt(0),
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-			case *action.ChangeCandidate:
-				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
-				}
-				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     info.Address,
-					Candidate:   info.Candidate,
-					AutoStake:   info.AutoStake,
-					ActType:     "ChangeCandidate",
-					Duration:    info.Duration,
-					Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-				cadidateAddr, err := getCandidateAddressByName(a.Candidate())
-				if err != nil {
-					return err
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     info.Address,
-					Candidate:   cadidateAddr,
-					AutoStake:   info.AutoStake,
-					ActType:     "ChangeCandidate",
-					Duration:    info.Duration,
-					Amount:      decmailAmount,
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-			case *action.DepositToStake:
-				bucketID := a.BucketIndex()
-				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     info.Address,
-					Candidate:   info.Candidate,
-					AutoStake:   info.AutoStake,
-					ActType:     "DepositToStake",
-					Duration:    info.Duration,
-					Amount:      decimal.NewFromBigInt(a.Amount(), 0),
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-			case *action.Unstake:
-				bucketID := a.BucketIndex()
-				decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrap(err, "getBucketSumAmountByBucketID error")
-				}
-				info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-				if err != nil {
-					return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-				}
-				accountVote = AccountVote{
-					BlockHeight: blk.Height(),
-					BucketID:    bucketID,
-					Address:     sender.String(),
-					Candidate:   info.Candidate,
-					AutoStake:   info.AutoStake,
-					ActType:     "Unstake",
-					Duration:    info.Duration,
-					Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
-				}
-				if err := tx.Create(&accountVote).Error; err != nil {
-					return err
-				}
-			}
-			for _, log := range receipt.Logs() {
-				if log.Address != GovernaceForwardAddress {
-					continue
-				}
-				if len(log.Topics) < 2 {
-					return errors.New("topics len must >= 2")
-				}
-				topics := log.Topics
-				funcHash := hex.EncodeToString(topics[0][:])
-				switch funcHash {
-				case GovernaceForwardToHash:
-					from, err := getAddresFromHash256(topics[1])
-					if err != nil {
-						return err
-					}
-					to, err := getAddresFromHash256(topics[2])
-					if err != nil {
-						return err
-					}
-					bucketIDs, err := getBucketIDsByAddressWithHeight(from.String(), blk.Height())
-					if err != nil {
-						return err
-					}
-					for _, bucketID := range bucketIDs {
-						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
-						if err != nil {
-							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
-						}
-						info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-						if err != nil {
-							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-						}
-						if info.Address != from.String() {
-							continue
-						}
-						accountVote = AccountVote{
-							BlockHeight: blk.Height(),
-							BucketID:    bucketID,
-							Address:     info.Address,
-							ForwardTo:   to.String(),
-							Candidate:   info.Candidate,
-							AutoStake:   info.AutoStake,
-							ActType:     "GovernaceForward",
-							Duration:    info.Duration,
-							Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
-						}
-						if err := tx.Create(&accountVote).Error; err != nil {
-							return err
-						}
-						accountVote = AccountVote{
-							BlockHeight: blk.Height(),
-							BucketID:    bucketID,
-							Address:     to.String(),
-							Candidate:   info.Candidate,
-							AutoStake:   info.AutoStake,
-							ActType:     "GovernaceForward",
-							Duration:    info.Duration,
-							Amount:      decmailAmount,
-						}
-						if err := tx.Create(&accountVote).Error; err != nil {
-							return err
-						}
-					}
-				case GovernaceCacelHash:
-					from, err := getAddresFromHash256(topics[1])
-					if err != nil {
-						return err
-					}
-					to, err := getForwardToAddressByFrom(from.String())
-					if err != nil {
-						return err
-					}
-					bucketIDs, err := getBucketIDsByAddressWithHeight(to, blk.Height())
-					if err != nil {
-						return err
-					}
-					for _, bucketID := range bucketIDs {
-						decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
-						if err != nil {
-							return errors.Wrapf(err, "getBucketSumAmountByBucketID error, bucketID: %d", bucketID)
-						}
-						info, err := getBucketInfoAddressByBucketID(tx, bucketID)
-						if err != nil {
-							return errors.Wrap(err, "getBucketInfoAddressByBucketID error")
-						}
-						if info.Address != from.String() {
-							continue
-						}
-						accountVote = AccountVote{
-							BlockHeight: blk.Height(),
-							BucketID:    bucketID,
-							Address:     to,
-							ForwardTo:   from.String(),
-							Candidate:   info.Candidate,
-							AutoStake:   info.AutoStake,
-							ActType:     "GovernaceCacel",
-							Duration:    info.Duration,
-							Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
-						}
-						if err := tx.Create(&accountVote).Error; err != nil {
-							return err
-						}
-						accountVote = AccountVote{
-							BlockHeight: blk.Height(),
-							BucketID:    bucketID,
-							Address:     info.Address,
-							Candidate:   info.Candidate,
-							AutoStake:   info.AutoStake,
-							ActType:     "GovernaceCacel",
-							Duration:    info.Duration,
-							Amount:      decmailAmount,
-						}
-						if err := tx.Create(&accountVote).Error; err != nil {
-							return err
-						}
-					}
-				}
-			}
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := b.handleBlock(ctx, blk, tx); err != nil {
+			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
+}
 
-	return errors.Wrap(err, "")
+func (b accountVotePlugin) BatchSize() int {
+	return 0 // use default batch size from runner
+}
+
+func (b accountVotePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		for _, blk := range blks {
+			if err := b.handleBlock(ctx, blk, tx); err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blks[len(blks)-1].Height())
+	})
+}
+
+func (b accountVotePlugin) handleBlock(ctx context.Context, blk *block.Block, tx *gorm.DB) error {
+	actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
+	for _, selp := range blk.Actions {
+		actionHash, _ := selp.Hash()
+		actions[actionHash] = selp
+	}
+
+	var accountVote AccountVote
+	for _, receipt := range blk.Receipts {
+		if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+			continue
+		}
+		selp, ok := actions[receipt.ActionHash]
+		if !ok {
+			continue
+		}
+		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+		act := selp.Action()
+		switch a := act.(type) {
+		case *action.CreateStake:
+			cadidateAddr, err := getCandidateAddressByName(a.Candidate())
+			if err != nil {
+				return err
+			}
+			actionHash, _ := selp.Hash()
+			bucketID, err := getBucketIDByActHash(hex.EncodeToString(actionHash[:]))
+			if err != nil {
+				return err
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     sender.String(),
+				Candidate:   cadidateAddr,
+				Amount:      decimal.NewFromBigInt(a.Amount(), 0),
+				ActType:     "StakeCreate",
+				AutoStake:   a.AutoStake(),
+				Duration:    a.Duration(),
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+		case *action.TransferStake:
+			bucketID := a.BucketIndex()
+			decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+			if err != nil {
+				return err
+			}
+			info, err := getBucketInfoByBucketID(tx, bucketID)
+			if err != nil {
+				return errors.Wrap(err, "getBucketInfoByBucketID")
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     info.Address,
+				Candidate:   info.Candidate,
+				AutoStake:   info.AutoStake,
+				ActType:     "TransferStake",
+				Duration:    info.Duration,
+				Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     a.VoterAddress().String(),
+				Candidate:   info.Candidate,
+				AutoStake:   info.AutoStake,
+				ActType:     "TransferStake",
+				Duration:    info.Duration,
+				Amount:      decmailAmount,
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+		case *action.Restake:
+			bucketID := a.BucketIndex()
+			info, err := getBucketInfoByBucketID(tx, bucketID)
+			if err != nil {
+				return errors.Wrap(err, "getBucketInfoByBucketID")
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     sender.String(),
+				Candidate:   info.Candidate,
+				AutoStake:   a.AutoStake(),
+				ActType:     "Restake",
+				Duration:    a.Duration(),
+				Amount:      decimal.NewFromInt(0),
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+		case *action.ChangeCandidate:
+			bucketID := a.BucketIndex()
+			decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+			if err != nil {
+				return err
+			}
+			info, err := getBucketInfoByBucketID(tx, bucketID)
+			if err != nil {
+				return errors.Wrap(err, "getBucketInfoByBucketID")
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     info.Address,
+				Candidate:   info.Candidate,
+				AutoStake:   info.AutoStake,
+				ActType:     "ChangeCandidate",
+				Duration:    info.Duration,
+				Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+			cadidateAddr, err := getCandidateAddressByName(a.Candidate())
+			if err != nil {
+				return err
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     info.Address,
+				Candidate:   cadidateAddr,
+				AutoStake:   info.AutoStake,
+				ActType:     "ChangeCandidate",
+				Duration:    info.Duration,
+				Amount:      decmailAmount,
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+		case *action.DepositToStake:
+			bucketID := a.BucketIndex()
+			info, err := getBucketInfoByBucketID(tx, bucketID)
+			if err != nil {
+				return errors.Wrap(err, "getBucketInfoByBucketID")
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     info.Address,
+				Candidate:   info.Candidate,
+				AutoStake:   info.AutoStake,
+				ActType:     "DepositToStake",
+				Duration:    info.Duration,
+				Amount:      decimal.NewFromBigInt(a.Amount(), 0),
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+		case *action.Unstake:
+			bucketID := a.BucketIndex()
+			decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+			if err != nil {
+				return err
+			}
+			info, err := getBucketInfoByBucketID(tx, bucketID)
+			if err != nil {
+				return errors.Wrap(err, "getBucketInfoByBucketID")
+			}
+			accountVote = AccountVote{
+				BlockHeight: blk.Height(),
+				BucketID:    bucketID,
+				Address:     sender.String(),
+				Candidate:   info.Candidate,
+				AutoStake:   info.AutoStake,
+				ActType:     "Unstake",
+				Duration:    info.Duration,
+				Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+			}
+			if err := tx.Create(&accountVote).Error; err != nil {
+				return err
+			}
+		}
+		for _, log := range receipt.Logs() {
+			if log.Address != GovernaceForwardAddress {
+				continue
+			}
+			if len(log.Topics) < 2 {
+				return errors.New("topics len must >= 2")
+			}
+			topics := log.Topics
+			funcHash := hex.EncodeToString(topics[0][:])
+			switch funcHash {
+			case GovernaceForwardToHash:
+				from, err := getAddresFromHash256(topics[1])
+				if err != nil {
+					return err
+				}
+				to, err := getAddresFromHash256(topics[2])
+				if err != nil {
+					return err
+				}
+				bucketIDs, err := getBucketIDsByAddressWithHeight(tx, from.String(), blk.Height())
+				if err != nil {
+					return err
+				}
+				for _, bucketID := range bucketIDs {
+					decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+					if err != nil {
+						return err
+					}
+					info, err := getBucketInfoByBucketID(tx, bucketID)
+					if err != nil {
+						return errors.Wrap(err, "getBucketInfoByBucketID")
+					}
+					if info.Address != from.String() {
+						continue
+					}
+					accountVote = AccountVote{
+						BlockHeight: blk.Height(),
+						BucketID:    bucketID,
+						Address:     info.Address,
+						ForwardTo:   to.String(),
+						Candidate:   info.Candidate,
+						AutoStake:   info.AutoStake,
+						ActType:     "GovernaceForward",
+						Duration:    info.Duration,
+						Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+					}
+					if err := tx.Create(&accountVote).Error; err != nil {
+						return err
+					}
+					accountVote = AccountVote{
+						BlockHeight: blk.Height(),
+						BucketID:    bucketID,
+						Address:     to.String(),
+						Candidate:   info.Candidate,
+						AutoStake:   info.AutoStake,
+						ActType:     "GovernaceForward",
+						Duration:    info.Duration,
+						Amount:      decmailAmount,
+					}
+					if err := tx.Create(&accountVote).Error; err != nil {
+						return err
+					}
+				}
+			case GovernaceCacelHash:
+				from, err := getAddresFromHash256(topics[1])
+				if err != nil {
+					return err
+				}
+				to, err := getForwardToAddressByFrom(tx, from.String())
+				if err != nil {
+					return err
+				}
+				bucketIDs, err := getBucketIDsByAddressWithHeight(tx, to, blk.Height())
+				if err != nil {
+					return err
+				}
+				for _, bucketID := range bucketIDs {
+					decmailAmount, err := getBucketSumAmountByBucketID(tx, bucketID)
+					if err != nil {
+						return err
+					}
+					info, err := getBucketInfoByBucketID(tx, bucketID)
+					if err != nil {
+						return errors.Wrap(err, "getBucketInfoByBucketID")
+					}
+					if info.Address != from.String() {
+						continue
+					}
+					accountVote = AccountVote{
+						BlockHeight: blk.Height(),
+						BucketID:    bucketID,
+						Address:     to,
+						ForwardTo:   from.String(),
+						Candidate:   info.Candidate,
+						AutoStake:   info.AutoStake,
+						ActType:     "GovernaceCacel",
+						Duration:    info.Duration,
+						Amount:      decmailAmount.Mul(decimal.NewFromInt(-1)),
+					}
+					if err := tx.Create(&accountVote).Error; err != nil {
+						return err
+					}
+					accountVote = AccountVote{
+						BlockHeight: blk.Height(),
+						BucketID:    bucketID,
+						Address:     info.Address,
+						Candidate:   info.Candidate,
+						AutoStake:   info.AutoStake,
+						ActType:     "GovernaceCacel",
+						Duration:    info.Duration,
+						Amount:      decmailAmount,
+					}
+					if err := tx.Create(&accountVote).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (b accountVotePlugin) Stop(ctx context.Context) error {

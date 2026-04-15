@@ -1,16 +1,24 @@
-#can not work on alpine3.14
+# syntax=docker/dockerfile:1.4
 FROM golang:1.23-bullseye AS builder
 WORKDIR /app
 
-# ENV GO111MODULE on
-# ENV GOPROXY https://goproxy.cn
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    make gcc git libc-dev build-essential \
+ && rm -rf /var/lib/apt/lists/*
 
-# RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
-RUN apt-get update && apt-get install -y make gcc git libc-dev build-essential
+# Copy go.mod / go.sum first so dependency download can be cached separately
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
-RUN go mod download
-RUN make
+
+# Parallel build with BuildKit cache mounts for go modules and build cache.
+# `make all` recursively invokes `make -j$(nproc) plugins` to parallelise the
+# per-plugin go build invocations declared in the Makefile.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    make all
 
 FROM golang:1.23-bullseye
 

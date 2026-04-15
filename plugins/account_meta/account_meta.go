@@ -212,4 +212,4 @@ func (b *accountMetaPlugin) Version() string {
 }
 
 // exported
-var Plugin = &accountMetaPlugin{}
+var Plugin = accountMetaPlugin{}

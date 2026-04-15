@@ -8,15 +8,6 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 )
 
-func appendIfMissing(slice []string, s string) []string {
-	for _, element := range slice {
-		if element == s {
-			return slice
-		}
-	}
-	return append(slice, s)
-}
-
 func accountMeta(addr string) (*iotextypes.AccountMeta, error) {
 
 	ctx := context.Background()
@@ -28,4 +19,19 @@ func accountMeta(addr string) (*iotextypes.AccountMeta, error) {
 	}
 
 	return resp.AccountMeta, nil
+}
+
+func chunkStrings(items []string, chunkSize int) [][]string {
+	if chunkSize <= 0 || len(items) == 0 {
+		return nil
+	}
+	chunks := make([][]string, 0, (len(items)+chunkSize-1)/chunkSize)
+	for start := 0; start < len(items); start += chunkSize {
+		end := start + chunkSize
+		if end > len(items) {
+			end = len(items)
+		}
+		chunks = append(chunks, items[start:end])
+	}
+	return chunks
 }

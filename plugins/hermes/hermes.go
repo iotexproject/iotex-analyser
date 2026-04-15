@@ -92,12 +92,14 @@ func (b hermesPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	blkHeight := blk.Height()
 	epochNum := kernel.GetEpochNum(blkHeight)
 	epochHeight := kernel.GetEpochHeight(epochNum)
+	fairbankEpochNum := kernel.GetEpochNum(kernel.FairbankEffectiveHeight())
 	chainClient := kernel.ChainClient()
 	var candidateList *iotextypes.CandidateListV2
 	var voteBucketList *iotextypes.VoteBucketList
 	var probationList *iotextypes.ProbationCandidateList
 	var err error
-	if blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
+
+	if epochNum > fairbankEpochNum && blkHeight == epochHeight && blkHeight >= kernel.FairbankEffectiveHeight() {
 		err = db.DB().Transaction(func(tx *gorm.DB) error {
 			if err := rebuildAccountRewardTable(tx, epochNum-1); err != nil {
 				return err

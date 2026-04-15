@@ -71,7 +71,7 @@ func (b erc20MetaPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 					continue
 				}
 				var count int64
-				err := tx.Model(&models.Erc20Holder{}).Where("contract_address = ?", log.Address).Count(&count).Error
+				err := tx.Table("erc20_holders_v2").Where("contract_address = ?", log.Address).Count(&count).Error
 				if err != nil {
 					return errors.New("failed to count erc20 holder")
 				}

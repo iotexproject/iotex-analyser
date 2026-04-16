@@ -1,13 +1,24 @@
-name: build_image
+name: Build and Push Docker Image
 
 on:
   push:
     branches:
       - main
-      - testing-bench
-      - "qevan/**"
-    tags: ["v*.*.*"]
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-*"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (branch, tag, or commit SHA) to build'
+        required: false
+        default: 'main'
+        type: string
+      push_image:
+        description: 'Push image to registry'
+        required: false
+        default: true
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -24,13 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
 
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.push_image == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -41,12 +53,13 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=tag
-            type=sha,format=short
+            type=sha,prefix=sha-
+            type=sha,prefix=manual-,enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -54,7 +67,7 @@ jobs:
           platforms: linux/amd64
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.push_image == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

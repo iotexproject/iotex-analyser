@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1.4
-FROM golang:1.23-bullseye AS builder
+FROM golang:1.23-alpine AS builder
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    make gcc git libc-dev build-essential \
- && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache make gcc git musl-dev
 
 # Copy go.mod / go.sum first so dependency download can be cached separately
 COPY go.mod go.sum ./
@@ -20,7 +18,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     make all
 
-FROM golang:1.23-bullseye
+FROM alpine
+
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 COPY --from=builder /app/*.so /app/

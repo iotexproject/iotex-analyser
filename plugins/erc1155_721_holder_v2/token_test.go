@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"os"
@@ -214,6 +215,33 @@ func TestTokenPluginPutBlockERC1155TransferBatch(t *testing.T) {
 	})
 }
 
+func TestTokenPluginPutBlockERC1155TransferRejectsUnderflow(t *testing.T) {
+	p := newStartedPlugin(t)
+
+	contract := ioAddressFromCommon(common.HexToAddress("0x8a00000000000000000000000000000000000001"))
+	markERC1155Contract(contract)
+
+	holderACommon := common.HexToAddress("0x8b00000000000000000000000000000000000001")
+	holderBCommon := common.HexToAddress("0x8c00000000000000000000000000000000000001")
+	holderA := ioAddressFromCommon(holderACommon)
+
+	require.NoError(t, p.PutBlock(context.Background(), makeBlockWithReceipts(t, 1,
+		receiptWithLogs(22, successStatus, erc1155TransferSingleLog(t, contract, common.Address{}, common.Address{}, holderACommon, big.NewInt(1), big.NewInt(5))),
+	)))
+
+	err := p.PutBlock(context.Background(), makeBlockWithReceipts(t, 2,
+		receiptWithLogs(23, successStatus, erc1155TransferSingleLog(t, contract, common.Address{}, holderACommon, holderBCommon, big.NewInt(1), big.NewInt(6))),
+	))
+	require.ErrorContains(t, err, "holder balance underflow")
+	assertHolders(t, []holderSnapshot{
+		{ContractAddress: contract, Holder: holderA, ErcType: 1155, TokenID: "1", TokenValue: "5"},
+	})
+
+	height, err := dbpkg.GetIndexHeight(p.Name())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), height)
+}
+
 func TestTokenPluginPutBlockSameBlockStateChaining(t *testing.T) {
 	p := newStartedPlugin(t)
 
@@ -237,6 +265,171 @@ func TestTokenPluginPutBlockSameBlockStateChaining(t *testing.T) {
 		{ContractAddress: contract, Holder: holderB, ErcType: 1155, TokenID: "7", TokenValue: "6"},
 		{ContractAddress: contract, Holder: holderC, ErcType: 1155, TokenID: "7", TokenValue: "4"},
 	})
+}
+
+func TestTokenPluginPutBlocksMatchesSequential(t *testing.T) {
+	contract721 := ioAddressFromCommon(common.HexToAddress("0xa100000000000000000000000000000000000001"))
+	contract1155 := ioAddressFromCommon(common.HexToAddress("0xa200000000000000000000000000000000000002"))
+	holderACommon := common.HexToAddress("0xa300000000000000000000000000000000000003")
+	holderBCommon := common.HexToAddress("0xa400000000000000000000000000000000000004")
+	holderCCommon := common.HexToAddress("0xa500000000000000000000000000000000000005")
+
+	buildBlocks := func(t *testing.T) []*block.Block {
+		t.Helper()
+		return []*block.Block{
+			makeBlockWithReceipts(t, 1,
+				receiptWithLogs(40, successStatus,
+					erc721TransferLog(t, contract721, common.Address{}, holderACommon, big.NewInt(1)),
+					erc1155TransferSingleLog(t, contract1155, common.Address{}, common.Address{}, holderACommon, big.NewInt(9), big.NewInt(10)),
+				),
+			),
+			makeBlockWithReceipts(t, 2,
+				receiptWithLogs(41, successStatus,
+					erc721TransferLog(t, contract721, holderACommon, holderBCommon, big.NewInt(1)),
+					erc1155TransferBatchLog(t, contract1155, common.Address{}, holderACommon, holderBCommon, []*big.Int{big.NewInt(9)}, []*big.Int{big.NewInt(4)}),
+				),
+			),
+			makeBlockWithReceipts(t, 3,
+				receiptWithLogs(42, successStatus,
+					erc1155TransferSingleLog(t, contract1155, common.Address{}, holderBCommon, holderCCommon, big.NewInt(9), big.NewInt(1)),
+				),
+			),
+		}
+	}
+
+	setupContracts := func() {
+		markERC721Contract(contract721)
+		markERC1155Contract(contract1155)
+	}
+
+	seq := newStartedPlugin(t)
+	setupContracts()
+	for _, blk := range buildBlocks(t) {
+		require.NoError(t, seq.PutBlock(context.Background(), blk))
+	}
+	seqRows := loadHolders(t)
+	seqHeight, err := dbpkg.GetIndexHeight(seq.Name())
+	require.NoError(t, err)
+
+	resetTestState(t)
+	batch := newStartedPlugin(t)
+	setupContracts()
+	require.NoError(t, batch.PutBlocks(context.Background(), buildBlocks(t)))
+	batchRows := loadHolders(t)
+	batchHeight, err := dbpkg.GetIndexHeight(batch.Name())
+	require.NoError(t, err)
+
+	require.Equal(t, seqHeight, batchHeight)
+	require.ElementsMatch(t, seqRows, batchRows)
+}
+
+func TestTokenPluginPutBlockRejectsMalformedERC721Log(t *testing.T) {
+	p := newStartedPlugin(t)
+
+	contract := ioAddressFromCommon(common.HexToAddress("0xa600000000000000000000000000000000000001"))
+	holderCommon := common.HexToAddress("0xa700000000000000000000000000000000000001")
+	markERC721Contract(contract)
+
+	err := p.PutBlock(context.Background(), makeBlockWithReceipts(t, 4,
+		receiptWithLogs(43, successStatus, &action.Log{
+			Address: contract,
+			Topics: []hash.Hash256{
+				Transfer,
+				topicFromCommonAddress(holderCommon),
+			},
+		}),
+	))
+	require.ErrorContains(t, err, "failed to unpack Transfer on action: "+actionHashHex(43))
+	assertHolders(t, nil)
+
+	height, err := dbpkg.GetIndexHeight(p.Name())
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), height)
+}
+
+func TestTokenPluginPutBlockRejectsMalformedERC1155Logs(t *testing.T) {
+	tests := []struct {
+		name string
+		log  *action.Log
+	}{
+		{
+			name: "transfer-single",
+			log: &action.Log{
+				Address: ioAddressFromCommon(common.HexToAddress("0xa800000000000000000000000000000000000001")),
+				Topics: []hash.Hash256{
+					HashTransferSingle,
+					topicFromCommonAddress(common.HexToAddress("0xa810000000000000000000000000000000000001")),
+					topicFromCommonAddress(common.HexToAddress("0xa820000000000000000000000000000000000001")),
+					topicFromCommonAddress(common.HexToAddress("0xa830000000000000000000000000000000000001")),
+				},
+				Data: []byte{0x01, 0x02, 0x03},
+			},
+		},
+		{
+			name: "transfer-batch",
+			log: &action.Log{
+				Address: ioAddressFromCommon(common.HexToAddress("0xa900000000000000000000000000000000000001")),
+				Topics: []hash.Hash256{
+					HashTransferBatch,
+					topicFromCommonAddress(common.HexToAddress("0xa910000000000000000000000000000000000001")),
+					topicFromCommonAddress(common.HexToAddress("0xa920000000000000000000000000000000000001")),
+					topicFromCommonAddress(common.HexToAddress("0xa930000000000000000000000000000000000001")),
+				},
+				Data: []byte{0x04, 0x05, 0x06},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newStartedPlugin(t)
+			markERC1155Contract(tc.log.Address)
+
+			err := p.PutBlock(context.Background(), makeBlockWithReceipts(t, 5,
+				receiptWithLogs(44, successStatus, tc.log),
+			))
+			require.Error(t, err)
+			assertHolders(t, nil)
+
+			height, err := dbpkg.GetIndexHeight(p.Name())
+			require.NoError(t, err)
+			require.Equal(t, uint64(0), height)
+		})
+	}
+}
+
+func TestTokenPluginPutBlocksRollsBackOnDBFailure(t *testing.T) {
+	p := newStartedPlugin(t)
+
+	contract := ioAddressFromCommon(common.HexToAddress("0xaa00000000000000000000000000000000000001"))
+	markERC1155Contract(contract)
+
+	holderACommon := common.HexToAddress("0xab00000000000000000000000000000000000001")
+	holderBCommon := common.HexToAddress("0xac00000000000000000000000000000000000001")
+	holderA := ioAddressFromCommon(holderACommon)
+	holderB := ioAddressFromCommon(holderBCommon)
+
+	require.NoError(t, p.PutBlock(context.Background(), makeBlockWithReceipts(t, 1,
+		receiptWithLogs(45, successStatus, erc1155TransferSingleLog(t, contract, common.Address{}, common.Address{}, holderACommon, big.NewInt(3), big.NewInt(5))),
+	)))
+	assertHolders(t, []holderSnapshot{
+		{ContractAddress: contract, Holder: holderA, ErcType: 1155, TokenID: "3", TokenValue: "5"},
+	})
+
+	installFailingHolderUpsertTrigger(t, holderB)
+	err := p.PutBlocks(context.Background(), []*block.Block{
+		makeBlockWithReceipts(t, 2,
+			receiptWithLogs(46, successStatus, erc1155TransferSingleLog(t, contract, common.Address{}, holderACommon, holderBCommon, big.NewInt(3), big.NewInt(5))),
+		),
+	})
+	require.ErrorContains(t, err, "forced holder upsert failure")
+	assertHolders(t, []holderSnapshot{
+		{ContractAddress: contract, Holder: holderA, ErcType: 1155, TokenID: "3", TokenValue: "5"},
+	})
+
+	height, err := dbpkg.GetIndexHeight(p.Name())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), height)
 }
 
 func newStartedPlugin(t *testing.T) *tokenPlugin {
@@ -291,6 +484,13 @@ func receiptWithLogs(seed byte, status uint64, logs ...*action.Log) *action.Rece
 		ActionHash: actionHash,
 	}
 	return r.AddLogs(logs...)
+}
+
+func actionHashHex(seed byte) string {
+	var actionHash hash.Hash256
+	actionHash[0] = seed
+	actionHash[31] = seed
+	return hex.EncodeToString(actionHash[:])
 }
 
 func erc721TransferLog(t *testing.T, contract string, from, to common.Address, tokenID *big.Int) *action.Log {
@@ -391,4 +591,26 @@ func loadHolders(t *testing.T) []holderSnapshot {
 func assertHolders(t *testing.T, expected []holderSnapshot) {
 	t.Helper()
 	require.ElementsMatch(t, expected, loadHolders(t))
+}
+
+func installFailingHolderUpsertTrigger(t *testing.T, holder string) {
+	t.Helper()
+	tableName := Erc1155721Holder{}.TableName()
+	require.NoError(t, testGormDB.Exec("DROP TRIGGER IF EXISTS fail_holder_upsert_trigger ON "+tableName).Error)
+	require.NoError(t, testGormDB.Exec("DROP FUNCTION IF EXISTS fail_holder_upsert()").Error)
+	require.NoError(t, testGormDB.Exec(fmt.Sprintf(`
+CREATE FUNCTION fail_holder_upsert() RETURNS trigger AS $$
+BEGIN
+	IF NEW.holder = '%s' THEN
+		RAISE EXCEPTION 'forced holder upsert failure';
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+`, holder)).Error)
+	require.NoError(t, testGormDB.Exec("CREATE TRIGGER fail_holder_upsert_trigger BEFORE INSERT OR UPDATE ON "+tableName+" FOR EACH ROW EXECUTE FUNCTION fail_holder_upsert()").Error)
+	t.Cleanup(func() {
+		_ = testGormDB.Exec("DROP TRIGGER IF EXISTS fail_holder_upsert_trigger ON " + tableName).Error
+		_ = testGormDB.Exec("DROP FUNCTION IF EXISTS fail_holder_upsert()").Error
+	})
 }

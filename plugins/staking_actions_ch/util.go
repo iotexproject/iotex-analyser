@@ -19,7 +19,7 @@ func getCandidateAddressByName(name string, height uint64) (string, error) {
 func (b stakingActionChPlugin) getBucketSumAmountFromCacheByBucketID(bucketID uint64) (decimal.Decimal, error) {
 	var amount sql.NullString
 	zero := decimal.NewFromInt(0)
-	if err := chDB.Model(&StakingActions{}).Select("sum(toDecimal128(amount, 10))").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
+	if err := chDB.Model(&StakingActions{}).Select("sum(toDecimal256(amount, 10))").Where("bucket_id=?", bucketID).Scan(&amount).Error; err != nil {
 		return zero, err
 	}
 
@@ -59,7 +59,7 @@ func (b stakingActionChPlugin) getFixBucketSumAmountFromCacheByBucketID(bucketID
 	if count == 0 {
 		return zero, nil
 	}
-	if err := chDB.Model(&StakingActions{}).Select("sum(toDecimal128(amount, 10))").Where("bucket_id=? and act_type<>'Unstake'", bucketID).Scan(&amount).Error; err != nil {
+	if err := chDB.Model(&StakingActions{}).Select("sum(toDecimal256(amount, 10))").Where("bucket_id=? and act_type<>'Unstake'", bucketID).Scan(&amount).Error; err != nil {
 		return zero, err
 	}
 
@@ -100,7 +100,7 @@ func (b stakingActionChPlugin) getBucketInfoAddressFromCacheByBucketID(bucketID 
 		}
 	}
 
-	if err := chDB.Model(&StakingActions{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=? and toDecimal128(amount, 10) > 0", bucketID).Order("block_height desc, index desc").Limit(1).Scan(&bi).Error; err != nil {
+	if err := chDB.Model(&StakingActions{}).Select("owner_address,candidate,auto_stake,duration").Where("bucket_id=? and toDecimal256(amount, 10) > 0", bucketID).Order("block_height desc, index desc").Limit(1).Scan(&bi).Error; err != nil {
 		return nil, err
 	}
 	return &bi, nil

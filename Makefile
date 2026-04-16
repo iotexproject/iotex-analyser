@@ -15,17 +15,19 @@ GOBUILD=$(GOCMD) build -tags 'nosilkworm,generic' -ldflags="-s -w"
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 PLUGIN_DIRECTORIES = $(wildcard plugins/*)
+PLUGIN_SOS = $(notdir $(addsuffix .so,$(PLUGIN_DIRECTORIES)))
 
 .PHONY: plugins plugin build proto all run
 
-all : clean plugins build
+all:
+	$(MAKE) clean
+	$(MAKE) -j$(shell nproc) plugins
+	$(MAKE) build
 
-plugins:
-	for plugin in $(PLUGIN_DIRECTORIES) ; do \
-		so=`echo $${plugin}.so | sed 's/plugins\///g'` ; \
-		echo "$(GOBUILD) -o $$so -buildmode=plugin $$plugin/*.go" ; \
-		$(GOBUILD) -o $$so -buildmode=plugin $$plugin/*.go ; \
-	done
+plugins: $(PLUGIN_SOS)
+
+%.so:
+	$(GOBUILD) -o $@ -buildmode=plugin plugins/$*/*.go
 
 
 plugin:

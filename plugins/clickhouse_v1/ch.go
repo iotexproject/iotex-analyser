@@ -36,6 +36,8 @@ type clickhouseV1Plugin struct {
 	logs            []*LogV1
 	transactionLogs []*TransactionLogV1
 	accountIncome   []*AccountIncomeV1
+	accountContract map[string]bool
+	accountLookup   accountContractLookup
 }
 
 func (b clickhouseV1Plugin) Name() string {
@@ -87,7 +89,17 @@ func (b *clickhouseV1Plugin) Start(ctx context.Context) error {
 	}
 	preDelete = cfg.PreDelete
 	b.batchSize = cfg.BatchSize
+	if b.accountContract == nil {
+		b.accountContract = make(map[string]bool)
+	}
 	return nil
+}
+
+func (b *clickhouseV1Plugin) lookupAccountContractFlags(addrs []string) (map[string]bool, error) {
+	if b.accountLookup != nil {
+		return b.accountLookup(addrs)
+	}
+	return loadAccountContractFlags(addrs)
 }
 
 func (b clickhouseV1Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
@@ -147,6 +159,9 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 	})
 
 	receipts := getReceiptsFromBlock(blk)
+	if err := warmAccountContractCache(blk.Receipts, b.accountContract, b.lookupAccountContractFlags); err != nil {
+		return errors.Wrap(err, "failed to warm account contract cache")
+	}
 	for _, selp := range blk.Actions {
 		actionHash, _ := selp.Hash()
 		receipt, ok := receipts[actionHash]
@@ -196,7 +211,7 @@ func (b *clickhouseV1Plugin) putBlock(ctx context.Context, blk *block.Block) err
 			return err
 		}
 		b.logs = append(b.logs, brl...)
-		brt, err := handleTransactionLogs(receipt.TransactionLogs(), actionHash, blk.Height(), blk.Timestamp().Unix())
+		brt, err := handleTransactionLogs(receipt.TransactionLogs(), actionHash, blk.Height(), blk.Timestamp().Unix(), b.accountContract)
 		if err != nil {
 			return err
 		}
@@ -338,7 +353,7 @@ func handleLogs(logs []*action.Log, actionHash string, blkHeight uint64, blkTime
 	return brls, nil
 }
 
-func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64, blkTime int64) ([]*TransactionLogV1, error) {
+func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash string, blkHeight uint64, blkTime int64, accountContract map[string]bool) ([]*TransactionLogV1, error) {
 	var brts []*TransactionLogV1
 	for _, transation := range transactionLogs {
 		transation := transation
@@ -357,7 +372,7 @@ func handleTransactionLogs(transactionLogs []*action.TransactionLog, actionHash 
 			ActionHash:  actionHash,
 			Type:        getActionType(transation.Type),
 			Amount:      amountDec,
-			Internal:    isContractAddress(transation.Sender),
+			Internal:    accountContract[transation.Sender],
 			Sender:      transation.Sender,
 			Recipient:   recipient,
 			Timestamp:   time.Unix(blkTime, 0),

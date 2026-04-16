@@ -370,4 +370,4 @@ func (b stakingActionChPlugin) Version() string {
 }
 
 // exported
-var Plugin = &stakingActionChPlugin{}
+var Plugin = stakingActionChPlugin{}

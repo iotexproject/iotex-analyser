@@ -112,6 +112,12 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, actHa
 		if err != nil {
 			return err
 		}
+		if event == nil {
+			// No matching staking-protocol log in this receipt (e.g. logs all
+			// come from a user contract). Parser returns (nil, nil) to signal
+			// "nothing to index"; skip without creating a row.
+			return nil
+		}
 		createData := models.CandidateSelfStake{
 			BlockHeight: blkHeight,
 			ActionHash:  hex.EncodeToString(actHash),
@@ -126,6 +132,9 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, actHa
 		event, err := kernel.ParseCandidateActivateEvent(logs)
 		if err != nil {
 			return err
+		}
+		if event == nil {
+			return nil
 		}
 		createData := &models.CandidateSelfStake{
 			BlockHeight: blkHeight,
@@ -144,6 +153,9 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, actHa
 		event, err := kernel.ParseCandidateEndorsementEvent(logs)
 		if err != nil {
 			return err
+		}
+		if event == nil {
+			return nil
 		}
 		createData := &models.CandidateSelfStake{
 			BlockHeight: blkHeight,

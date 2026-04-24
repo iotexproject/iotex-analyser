@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/shopspring/decimal"
 )
 
@@ -190,14 +189,6 @@ type AccountIncomeV1 struct {
 
 func (AccountIncomeV1) TableName() string {
 	return "account_incomes"
-}
-
-func isContractAddress(addr string) bool {
-	m := &models.AccountMeta{}
-	if err := m.ByAddress(addr); err != nil {
-		return false
-	}
-	return m.IsContract
 }
 
 func AutoMigrate(index string, dst ...interface{}) (uint64, error) {

@@ -10,8 +10,9 @@ import (
 
 // Config defines the config for plugin clickhouse
 type Config struct {
-	DSN       string `yaml:"dsn"`
-	BatchSize int    `yaml:"batchSize"`
+	DSN                  string `yaml:"dsn"`
+	BatchSize            int    `yaml:"batchSize"`
+	BucketStateCacheSize int    `yaml:"bucketStateCacheSize"`
 }
 
 var chDB *gorm.DB

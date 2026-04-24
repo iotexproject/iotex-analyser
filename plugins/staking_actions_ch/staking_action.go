@@ -32,9 +32,11 @@ const (
 )
 
 type stakingActionChPlugin struct {
-	batchSize      int
-	tipHeight      uint64
-	stakingActions []*StakingActions
+	batchSize         int
+	tipHeight         uint64
+	stakingActions    []*StakingActions
+	bucketStateCache  *bucketStateCache
+	pendingBucketInfo map[uint64]*pendingBucketState
 }
 
 func (b stakingActionChPlugin) Name() string {
@@ -56,7 +58,8 @@ func (b stakingActionChPlugin) DependentPlugins() []string {
 func (b *stakingActionChPlugin) Start(ctx context.Context) error {
 	var err error
 	cfg := &Config{
-		DSN: "tcp://127.0.0.1:8321",
+		DSN:                  "tcp://127.0.0.1:8321",
+		BucketStateCacheSize: defaultBucketStateCacheSize,
 	}
 	if cfgData, ok := kernel.GetPluginConfigCtx(ctx); ok {
 		if err = yaml.Unmarshal(cfgData, cfg); err != nil {
@@ -70,10 +73,16 @@ func (b *stakingActionChPlugin) Start(ctx context.Context) error {
 	}
 
 	b.batchSize = cfg.BatchSize
+	b.bucketStateCache = newBucketStateCache(cfg.BucketStateCacheSize)
+	b.pendingBucketInfo = make(map[uint64]*pendingBucketState)
 	return nil
 }
 
-func (b stakingActionChPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+func (b *stakingActionChPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	b.ensureBucketStateCache()
+	if err := b.preloadBucketStates(collectBucketIDs(blks)); err != nil {
+		return err
+	}
 	for _, blk := range blks {
 		if err := b.putBlock(ctx, blk); err != nil {
 			return err
@@ -83,7 +92,11 @@ func (b stakingActionChPlugin) PutBlocks(ctx context.Context, blks []*block.Bloc
 	return b.commit()
 }
 
-func (b stakingActionChPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func (b *stakingActionChPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	b.ensureBucketStateCache()
+	if err := b.preloadBucketStates(collectBucketIDs([]*block.Block{blk})); err != nil {
+		return err
+	}
 	if err := b.putBlock(ctx, blk); err != nil {
 		return err
 	}
@@ -135,7 +148,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 				return errors.New("can not found bucketID with actHash:" + actHash)
 			}
 
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -159,7 +172,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			if err != nil {
 				return errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -200,7 +213,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 					return errors.Wrapf(err, errBucketSumAmount, bucketID)
 				}
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -224,7 +237,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			if err != nil {
 				return errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -242,7 +255,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			if err != nil {
 				return err
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -265,7 +278,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			if err != nil {
 				return errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -289,7 +302,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			if err != nil {
 				return errors.Wrap(err, errBucketInfoAddressByBucketID)
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -308,7 +321,7 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			if !ok {
 				return errors.New("can not found bucketID with actHash:" + actHash)
 			}
-			b.stakingActions = append(b.stakingActions, &StakingActions{
+			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),
 				Index:        index,
 				BucketID:     bucketID,
@@ -328,14 +341,22 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 	return nil
 }
 
+func (b *stakingActionChPlugin) appendStakingActions(actions ...*StakingActions) {
+	b.stakingActions = append(b.stakingActions, actions...)
+	b.recordPendingStakingAction(actions...)
+}
+
 func (b *stakingActionChPlugin) commit() error {
 	if len(b.stakingActions) > 0 {
 		if err := chDB.Model(&StakingActions{}).CreateInBatches(b.stakingActions, len(b.stakingActions)+1).Error; err != nil {
 			slog.L().Error("put stakingActions ", zap.String("plugin", b.Name()), zap.Int("stakingActions", len(b.stakingActions)))
 			b.stakingActions = b.stakingActions[:0]
+			b.pendingBucketInfo = make(map[uint64]*pendingBucketState)
 			return err
 		}
+		b.applyPendingBucketStates()
 		b.stakingActions = b.stakingActions[:0]
+		b.pendingBucketInfo = make(map[uint64]*pendingBucketState)
 	}
 	return db.UpdateIndexHeight(b.Name(), b.tipHeight)
 }

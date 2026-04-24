@@ -20,6 +20,21 @@ func (m *AccountMeta) ByAddress(addr string) error {
 	return db.DB().Model(m).Where("address = ?", addr).Take(&m).Error
 }
 
+func LoadAccountContractFlags(addrs []string) (map[string]bool, error) {
+	flags := make(map[string]bool, len(addrs))
+	if len(addrs) == 0 {
+		return flags, nil
+	}
+	var rows []AccountMeta
+	if err := db.DB().Model(&AccountMeta{}).Select("address", "is_contract").Where("address IN ?", addrs).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		flags[row.Address] = row.IsContract
+	}
+	return flags, nil
+}
+
 type AccountActionCountType int
 
 const (

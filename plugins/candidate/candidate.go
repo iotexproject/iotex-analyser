@@ -69,7 +69,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 		}
 
 		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
+		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight, tx); err != nil {
 			return err
 		}
 
@@ -92,7 +92,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 		}
 
 		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight); err != nil {
+		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight, tx); err != nil {
 			return err
 		}
 
@@ -117,7 +117,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 		}
 
 		candidate := &models.Candidate{}
-		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight); err != nil {
+		if err := candidate.FetchByCandidateIDWithHeight(bucket.CandidateAddress, blkHeight, tx); err != nil {
 			return err
 		}
 
@@ -155,7 +155,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 					// candidateID = common.BytesToAddress(log.Topics[2][:])
 					candidateID, _ = address.FromBytes(log.Topics[2][:])
 					candidate := &models.Candidate{}
-					if err := candidate.FetchByCandidateIDWithHeight(candidateID.String(), blkHeight); err != nil {
+					if err := candidate.FetchByCandidateIDWithHeight(candidateID.String(), blkHeight, tx); err != nil {
 						return err
 					}
 					createData := models.Candidate{
@@ -176,30 +176,54 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 	}
 	return nil
 }
-func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
-		for _, selp := range blk.Actions {
-			actionHash, _ := selp.Hash()
-			actions[actionHash] = selp
-		}
+func handleBlock(blk *block.Block, tx *gorm.DB) error {
+	actions := make(map[hash.Hash256]*action.SealedEnvelope, len(blk.Actions))
+	for _, selp := range blk.Actions {
+		actionHash, _ := selp.Hash()
+		actions[actionHash] = selp
+	}
 
-		for _, receipt := range blk.Receipts {
-			if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
-				continue
-			}
-			selp, ok := actions[receipt.ActionHash]
-			if !ok {
-				continue
-			}
-			sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
-			if err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, tx); err != nil {
-				return err
-			}
+	for _, receipt := range blk.Receipts {
+		if receipt.Status != uint64(iotextypes.ReceiptStatus_Success) {
+			continue
+		}
+		selp, ok := actions[receipt.ActionHash]
+		if !ok {
+			continue
+		}
+		sender, _ := address.FromBytes(selp.SrcPubkey().Hash())
+		if err := handleAction(selp.Action(), receipt.Logs(), blk.Height(), sender, tx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b candidatePlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		if err := handleBlock(blk, tx); err != nil {
+			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())
 	})
-	return err
+}
+
+func (b candidatePlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	if len(blks) == 0 {
+		return nil
+	}
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		for _, blk := range blks {
+			if err := handleBlock(blk, tx); err != nil {
+				return err
+			}
+		}
+		return db.UpdateIndexHeightByTx(tx, b.Name(), blks[len(blks)-1].Height())
+	})
+}
+
+func (b candidatePlugin) BatchSize() int {
+	return 0 // use runner default (config.BlockDB.BatchSize)
 }
 
 func (b candidatePlugin) Stop(ctx context.Context) error {

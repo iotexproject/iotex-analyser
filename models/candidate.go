@@ -39,24 +39,16 @@ func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 	return m, err
 }
 
-func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64) error {
-	var err error
-	db := db.DB()
-	err = db.Model(m).Where("block_height <=? and owner_address = ?", height, owner).Order("block_height desc,id desc").Take(&m).Error
-	return err
+func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64, tx *gorm.DB) error {
+	return tx.Model(m).Where("block_height <=? and owner_address = ?", height, owner).Order("block_height desc,id desc").Take(&m).Error
 }
 
 func (m *Candidate) FetchByOperatorAddressWithHeight(operator string, height uint64, tx *gorm.DB) error {
-	var err error
-	err = tx.Model(m).Where("block_height <=? and operator_address = ?", height, operator).Order("block_height desc,id desc").Take(&m).Error
-	return err
+	return tx.Model(m).Where("block_height <=? and operator_address = ?", height, operator).Order("block_height desc,id desc").Take(&m).Error
 }
 
-func (m *Candidate) FetchByCandidateIDWithHeight(candidateID string, height uint64) error {
-	var err error
-	db := db.DB()
-	err = db.Model(m).Where("block_height <=? and candidate_id = ?", height, candidateID).Order("block_height desc,id desc").Take(&m).Error
-	return err
+func (m *Candidate) FetchByCandidateIDWithHeight(candidateID string, height uint64, tx *gorm.DB) error {
+	return tx.Model(m).Where("block_height <=? and candidate_id = ?", height, candidateID).Order("block_height desc,id desc").Take(&m).Error
 }
 
 func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {

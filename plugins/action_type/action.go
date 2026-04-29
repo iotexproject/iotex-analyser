@@ -95,6 +95,15 @@ func (b *actionTypePlugin) putBlock(ctx context.Context, blk *block.Block) error
 			}
 			at.BlobGasPrice = decimal.NewFromBigInt(receipt.BlobGasPrice, 0)
 			fallthrough
+		case action.SetCodeTxType:
+			if auths := act.Envelope.SetCodeAuthorizations(); len(auths) > 0 {
+				authBytes, err := json.Marshal(auths)
+				if err != nil {
+					return errors.Wrap(err, "failed to marshal auth list")
+				}
+				at.AuthList = authBytes
+			}
+			fallthrough
 		case action.DynamicFeeTxType:
 			at.GasFeeCap = decimal.NewFromBigInt(act.GasFeeCap(), 0)
 			at.GasTipCap = decimal.NewFromBigInt(act.GasTipCap(), 0)

@@ -48,6 +48,8 @@ type ActionType struct {
 	BlobFeeCap   decimal.Decimal `gorm:"type:decimal(42,0)"`
 	BlobHashes   pq.StringArray  `gorm:"type:text[]"`
 	BlobGasPrice decimal.Decimal `gorm:"type:decimal(42,0)"`
+	// setcode tx (EIP-7702)
+	AuthList datatypes.JSON `gorm:"type:jsonb"`
 }
 
 func (ActionType) TableName() string {

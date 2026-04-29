@@ -299,7 +299,7 @@ func (srv *Server) startDaoService() error {
 		switch uri.Scheme {
 		case "grpc":
 			insec := uri.Query().Get("insecure") == "true"
-			fdao = blockdao.NewGrpcBlockDAO(uri.Host, insec, deser)
+			fdao = blockdao.NewGrpcBlockDAO(uri.Host, insec, deser, 100)
 			dao := blockdao.NewBlockDAOWithIndexersAndCache(fdao, nil, 100)
 			opts := []grpc.DialOption{}
 			if insec {

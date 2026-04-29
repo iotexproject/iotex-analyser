@@ -40,15 +40,27 @@ func (m *Candidate) FetchByName(name string) (*Candidate, error) {
 }
 
 func (m *Candidate) FetchByOwnerAddressWithHeight(owner string, height uint64, tx *gorm.DB) error {
-	return tx.Model(m).Where("block_height <=? and owner_address = ?", height, owner).Order("block_height desc,id desc").Take(&m).Error
+	return tx.Model(&Candidate{}).Where("block_height <= ? AND owner_address = ?", height, owner).Order("block_height DESC, id DESC").Take(m).Error
 }
 
 func (m *Candidate) FetchByOperatorAddressWithHeight(operator string, height uint64, tx *gorm.DB) error {
-	return tx.Model(m).Where("block_height <=? and operator_address = ?", height, operator).Order("block_height desc,id desc").Take(&m).Error
+	return tx.Model(&Candidate{}).Where("block_height <= ? AND operator_address = ?", height, operator).Order("block_height DESC, id DESC").Take(m).Error
 }
 
 func (m *Candidate) FetchByCandidateIDWithHeight(candidateID string, height uint64, tx *gorm.DB) error {
-	return tx.Model(m).Where("block_height <=? and candidate_id = ?", height, candidateID).Order("block_height desc,id desc").Take(&m).Error
+	return tx.Model(&Candidate{}).Where("block_height <= ? AND candidate_id = ?", height, candidateID).Order("block_height DESC, id DESC").Take(m).Error
+}
+
+// FetchByOwnerOrOperatorWithHeight finds the latest candidate row whose
+// `owner_address` OR `operator_address` matches the supplied address.
+// CandidateUpdate / CandidateTransferOwnership are accepted by the chain when
+// signed by either the owner or the (current) operator, so the plugin must
+// look up the candidate via either field.
+func (m *Candidate) FetchByOwnerOrOperatorWithHeight(addr string, height uint64, tx *gorm.DB) error {
+	return tx.Model(&Candidate{}).
+		Where("block_height <= ? AND (owner_address = ? OR operator_address = ?)", height, addr, addr).
+		Order("block_height DESC, id DESC").
+		Take(m).Error
 }
 
 func (m *Candidate) FetchByNameWithHeight(name string, height uint64) error {

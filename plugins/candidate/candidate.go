@@ -68,8 +68,12 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			rewardAddress = a.RewardAddress().String()
 		}
 
+		// CandidateUpdate is accepted by the chain when signed by either the
+		// owner or the operator (e.g. testnet block 43063855 — operator was
+		// changed at 43063850 and the new operator immediately calls
+		// CandidateUpdate). Look up the candidate by either field.
 		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight, tx); err != nil {
+		if err := candidate.FetchByOwnerOrOperatorWithHeight(sender.String(), blkHeight, tx); err != nil {
 			return err
 		}
 
@@ -77,7 +81,7 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			BlockHeight:     blkHeight,
 			Name:            a.Name(),
 			OperatorAddress: a.OperatorAddress().String(),
-			OwnerAddress:    sender.String(),
+			OwnerAddress:    candidate.OwnerAddress, // preserve existing owner; operator-signed updates must NOT rewrite the owner field
 			RewardAddress:   rewardAddress,
 			CandidateID:     candidate.CandidateID,
 			ActType:         "CandidateUpdate",
@@ -91,8 +95,10 @@ func handleAction(act action.Action, logs []*action.Log, blkHeight uint64, sende
 			newOwner = a.NewOwner().String()
 		}
 
+		// CandidateTransferOwnership is also accepted from owner or operator
+		// per the staking protocol; same lookup pattern as CandidateUpdate.
 		candidate := &models.Candidate{}
-		if err := candidate.FetchByOwnerAddressWithHeight(sender.String(), blkHeight, tx); err != nil {
+		if err := candidate.FetchByOwnerOrOperatorWithHeight(sender.String(), blkHeight, tx); err != nil {
 			return err
 		}
 

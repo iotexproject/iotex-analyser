@@ -86,6 +86,26 @@ func AutoMigrate(index string, dst ...interface{}) error {
 	return nil
 }
 
+// EnsureTables creates any of the given tables that don't already exist,
+// without dropping any data. Intended for tables introduced after a plugin
+// was first deployed: AutoMigrate's drop-then-recreate only runs at index
+// height 0, so on upgrade new tables would otherwise never be created.
+//
+// Safe to call alongside AutoMigrate: at height 0 the tables AutoMigrate
+// just created exist already, so EnsureTables is a no-op; at height > 0
+// AutoMigrate is a no-op and EnsureTables creates only what's missing.
+func EnsureTables(dst ...interface{}) error {
+	for _, m := range dst {
+		if db.Migrator().HasTable(m) {
+			continue
+		}
+		if err := db.Migrator().CreateTable(m); err != nil {
+			return fmt.Errorf("ensure table %T: %w", m, err)
+		}
+	}
+	return nil
+}
+
 func LoadDBFromEnv() (*gorm.DB, error) {
 	_, err := config.New(os.Getenv("ConfigPath"))
 	if err != nil {

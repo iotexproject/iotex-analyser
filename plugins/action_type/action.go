@@ -43,6 +43,12 @@ func (b *actionTypePlugin) Start(ctx context.Context) error {
 		&models.Authorization{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
+	// Authorization was added after action_type was first deployed; on existing
+	// installs AutoMigrate is a no-op (height > 0) so create it explicitly if
+	// missing.
+	if err := db.EnsureTables(&models.Authorization{}); err != nil {
+		return errors.Wrapf(err, "failed to ensure authorization table for plugin %s", b.Name())
+	}
 	height, err := db.GetIndexHeight(b.Name())
 	if err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())

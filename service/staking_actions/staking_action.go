@@ -3,6 +3,7 @@ package staking_actions
 import (
 	"context"
 	"encoding/hex"
+	stderrors "errors"
 	"math/big"
 	"strconv"
 	"time"
@@ -18,12 +19,10 @@ import (
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
-	corelog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
@@ -69,6 +68,12 @@ func (b StakingActionPlugin) DependentPlugins() []string {
 func (b StakingActionPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), b.ShadowTable(&models.StakingActions{}), &models.CandidateExitQueue{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	// CandidateExitQueue was added after staking_actions was first deployed;
+	// on existing installs AutoMigrate is a no-op (height > 0) so create it
+	// explicitly if missing.
+	if err := db.EnsureTables(&models.CandidateExitQueue{}); err != nil {
+		return errors.Wrapf(err, "failed to ensure candidate_exit_queue table for plugin %s", b.Name())
 	}
 
 	var ok bool
@@ -504,11 +509,14 @@ func scheduledAtFromLogsOrChain(logs []*action.Log, candidateIdentity string, bl
 	}
 	v, fallbackErr := readScheduledAtFromChain(candidateIdentity, blockHeight)
 	if fallbackErr != nil {
-		corelog.L().Warn("scheduledAt fallback to chain ReadState failed; storing 0",
-			zap.String("candidate", candidateIdentity),
-			zap.Uint64("height", blockHeight),
-			zap.Error(fallbackErr))
-		return 0, nil
+		// Propagate the failure rather than persisting an incorrect 0 — without
+		// scheduledAt the eligible-from column is meaningless, and downstream
+		// consumers can't tell "unknown" from a real 0 once it's in the DB.
+		// Halting the indexer here lets the operator fix the chain client and
+		// reindex this block instead of getting silent data corruption.
+		return 0, errors.Wrapf(fallbackErr,
+			"scheduledAt fallback ReadState failed for candidate %s at height %d",
+			candidateIdentity, blockHeight)
 	}
 	return v, nil
 }
@@ -585,10 +593,14 @@ func (b StakingActionPlugin) updateExitQueue(tx *gorm.DB, actType string, height
 		return tx.Create(row).Error
 	case "ScheduleCandidateDeactivation":
 		var row models.CandidateExitQueue
-		if err := tx.Where("candidate_identity = ? AND status = ?", cand.CandidateID, "requested").
+		err := tx.Where("candidate_identity = ? AND status = ?", cand.CandidateID, "requested").
 			Order("id DESC").
-			First(&row).Error; err != nil {
-			return errors.Wrapf(err, "no 'requested' row to schedule for candidate %s", cand.CandidateID)
+			First(&row).Error
+		switch {
+		case stderrors.Is(err, gorm.ErrRecordNotFound):
+			return errors.Errorf("no 'requested' row to schedule for candidate %s", cand.CandidateID)
+		case err != nil:
+			return errors.Wrapf(err, "failed to look up 'requested' row for candidate %s", cand.CandidateID)
 		}
 		return tx.Model(&models.CandidateExitQueue{}).
 			Where("id = ?", row.ID).
@@ -600,10 +612,14 @@ func (b StakingActionPlugin) updateExitQueue(tx *gorm.DB, actType string, height
 			}).Error
 	case "CandidateDeactivateConfirm":
 		var row models.CandidateExitQueue
-		if err := tx.Where("candidate_identity = ? AND status = ?", cand.CandidateID, "scheduled").
+		err := tx.Where("candidate_identity = ? AND status = ?", cand.CandidateID, "scheduled").
 			Order("id DESC").
-			First(&row).Error; err != nil {
-			return errors.Wrapf(err, "no 'scheduled' row to confirm for candidate %s", cand.CandidateID)
+			First(&row).Error
+		switch {
+		case stderrors.Is(err, gorm.ErrRecordNotFound):
+			return errors.Errorf("no 'scheduled' row to confirm for candidate %s", cand.CandidateID)
+		case err != nil:
+			return errors.Wrapf(err, "failed to look up 'scheduled' row for candidate %s", cand.CandidateID)
 		}
 		return tx.Model(&models.CandidateExitQueue{}).
 			Where("id = ?", row.ID).

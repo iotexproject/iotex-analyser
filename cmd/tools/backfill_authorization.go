@@ -80,8 +80,10 @@ func backfillAuthorization(c *cli.Context) error {
 
 		if len(auths) > 0 {
 			if err := gdb.Transaction(func(tx *gorm.DB) error {
-				return tx.Clauses(clause.OnConflict{DoNothing: true}).
-					CreateInBatches(auths, 200).Error
+				return tx.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "action_hash"}, {Name: "index"}},
+					DoNothing: true,
+				}).CreateInBatches(auths, 200).Error
 			}); err != nil {
 				return fmt.Errorf("insert authorizations: %w", err)
 			}

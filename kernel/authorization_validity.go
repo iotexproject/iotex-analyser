@@ -45,8 +45,12 @@ func ComputeAuthorizationValidity(
 	chainID *uint256.Int,
 	authNonce uint64,
 ) (bool, error) {
-	// Rule 1: chain_id must be 0 or match network chain id.
-	networkChainID := uint64(config.Default.Iotex.EVMNetworkID)
+	// Rule 1: chain_id must be 0 or match network chain id. Use the package
+	// accessor — config.Default.Iotex.EVMNetworkID can be 0 when the YAML
+	// omits evmNetworkID (e.g. callers that set the id via SetEVMNetworkID
+	// atomically), which would otherwise mark every non-zero chain_id auth
+	// as invalid.
+	networkChainID := uint64(config.EVMNetworkID())
 	if chainID != nil && !chainID.IsZero() && chainID.Uint64() != networkChainID {
 		return false, nil
 	}

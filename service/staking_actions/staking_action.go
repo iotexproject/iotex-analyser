@@ -3,23 +3,38 @@ package staking_actions
 import (
 	"context"
 	"encoding/hex"
+	stderrors "errors"
 	"math/big"
+	"strconv"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	gethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.2"
+const VERSION = "2.2.0"
+
+var (
+	// topic hashes for exit queue events, computed from ABI event signatures
+	topicDeactivationRequested = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivationRequested(address)")))
+	topicDeactivationScheduled = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivationScheduled(address,uint64)")))
+	topicDeactivated           = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivated(address)")))
+)
 
 const (
 	// h := hash.Hash160b([]byte("staking"))
@@ -51,8 +66,14 @@ func (b StakingActionPlugin) DependentPlugins() []string {
 }
 
 func (b StakingActionPlugin) Start(ctx context.Context) error {
-	if err := db.AutoMigrate(b.Name(), b.ShadowTable(&models.StakingActions{})); err != nil {
+	if err := db.AutoMigrate(b.Name(), b.ShadowTable(&models.StakingActions{}), &models.CandidateExitQueue{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	// CandidateExitQueue was added after staking_actions was first deployed;
+	// on existing installs AutoMigrate is a no-op (height > 0) so create it
+	// explicitly if missing.
+	if err := db.EnsureTables(&models.CandidateExitQueue{}); err != nil {
+		return errors.Wrapf(err, "failed to ensure candidate_exit_queue table for plugin %s", b.Name())
 	}
 
 	var ok bool
@@ -373,7 +394,240 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 					return err
 				}
 			}
+		case *action.CandidateDeactivate:
+			candidateIdentity, err := candidateIdentityFromLogs(receipt.Logs(), topicDeactivationRequested, topicDeactivated)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get candidate identity for CandidateDeactivate, actHash: %s", actHash)
+			}
+			cand := &models.Candidate{}
+			if err := cand.FetchByCandidateIDWithHeight(candidateIdentity, blk.Height(), tx); err != nil {
+				return errors.Wrapf(err, "failed to fetch candidate by identity %s", candidateIdentity)
+			}
+			actType := "CandidateDeactivateRequest"
+			if a.Op() == action.CandidateDeactivateOpConfirm {
+				actType = "CandidateDeactivateConfirm"
+			}
+			stakingAction = models.StakingActions{
+				BlockHeight:  blk.Height(),
+				Sender:       sender.String(),
+				OwnerAddress: cand.OwnerAddress,
+				ActHash:      actHash,
+				Candidate:    candidateIdentity,
+				ActType:      actType,
+			}
+			if err := tx.Create(b.ShadowTable(&stakingAction)).Error; err != nil {
+				return err
+			}
+			if err := b.updateExitQueue(tx, actType, blk.Height(), actHash, cand, 0); err != nil {
+				return errors.Wrapf(err, "failed to update exit queue for %s, actHash: %s", actType, actHash)
+			}
+		case *action.ScheduleCandidateDeactivation:
+			candidateIdentity := a.Delegate().String()
+			scheduledAt, err := scheduledAtFromLogsOrChain(receipt.Logs(), candidateIdentity, blk.Height())
+			if err != nil {
+				return errors.Wrapf(err, "failed to get scheduledAt for ScheduleCandidateDeactivation, actHash: %s", actHash)
+			}
+			cand := &models.Candidate{}
+			if err := cand.FetchByCandidateIDWithHeight(candidateIdentity, blk.Height(), tx); err != nil {
+				return errors.Wrapf(err, "failed to fetch candidate by identity %s", candidateIdentity)
+			}
+			stakingAction = models.StakingActions{
+				BlockHeight:  blk.Height(),
+				Sender:       sender.String(),
+				OwnerAddress: cand.OwnerAddress,
+				ActHash:      actHash,
+				Candidate:    candidateIdentity,
+				ActType:      "ScheduleCandidateDeactivation",
+			}
+			if err := tx.Create(b.ShadowTable(&stakingAction)).Error; err != nil {
+				return err
+			}
+			if err := b.updateExitQueue(tx, "ScheduleCandidateDeactivation", blk.Height(), actHash, cand, scheduledAt); err != nil {
+				return errors.Wrapf(err, "failed to update exit queue for ScheduleCandidateDeactivation, actHash: %s", actHash)
+			}
 		}
+	}
+	return nil
+}
+
+// candidateIdentityFromLogs extracts the candidate IoTeX address from staking protocol receipt logs.
+// It matches the first log whose topic[0] is one of the provided event topics.
+func candidateIdentityFromLogs(logs []*action.Log, topics ...hash.Hash256) (string, error) {
+	for _, log := range logs {
+		if log.Address != StakingProtocolAddress || len(log.Topics) < 2 {
+			continue
+		}
+		for _, topic := range topics {
+			if log.Topics[0] == topic {
+				addr, err := iotexAddrFromTopic(log.Topics[1])
+				if err != nil {
+					return "", err
+				}
+				return addr.String(), nil
+			}
+		}
+	}
+	return "", errors.New("candidate identity not found in receipt logs")
+}
+
+// errLogDataTooShort signals that the schedule event was found but its data
+// payload is missing/short. iotex-core <=v2.4.0 has a bug in receipt_log.go
+// Build() that drops r.data on the postFairbankMigration path; only the schedule
+// event exposes it (the only deactivation event with non-indexed inputs).
+var errLogDataTooShort = errors.New("CandidateDeactivationScheduled log data too short")
+
+// scheduledAtFromLogs decodes the scheduled block height from a
+// CandidateDeactivationScheduled event log. Returns errLogDataTooShort if the
+// event is present but its data payload is missing — callers that have access
+// to a chain client should fall back to chain state via scheduledAtFromLogsOrChain.
+func scheduledAtFromLogs(logs []*action.Log) (uint64, error) {
+	for _, log := range logs {
+		if log.Address != StakingProtocolAddress || len(log.Topics) < 2 {
+			continue
+		}
+		if log.Topics[0] == topicDeactivationScheduled {
+			if len(log.Data) < 32 {
+				return 0, errLogDataTooShort
+			}
+			return new(big.Int).SetBytes(log.Data[len(log.Data)-8:]).Uint64(), nil
+		}
+	}
+	return 0, errors.New("CandidateDeactivationScheduled event not found in receipt logs")
+}
+
+// scheduledAtFromLogsOrChain wraps scheduledAtFromLogs with a fallback that
+// queries chain state at the schedule block when log.Data was dropped by the
+// chain bug. Confirm in iotex-core does NOT reset DeactivatedAt, so the
+// historical read at the schedule block always carries the correct value.
+func scheduledAtFromLogsOrChain(logs []*action.Log, candidateIdentity string, blockHeight uint64) (uint64, error) {
+	v, err := scheduledAtFromLogs(logs)
+	if err == nil {
+		return v, nil
+	}
+	if !errors.Is(err, errLogDataTooShort) {
+		return 0, err
+	}
+	v, fallbackErr := readScheduledAtFromChain(candidateIdentity, blockHeight)
+	if fallbackErr != nil {
+		// Propagate the failure rather than persisting an incorrect 0 — without
+		// scheduledAt the eligible-from column is meaningless, and downstream
+		// consumers can't tell "unknown" from a real 0 once it's in the DB.
+		// Halting the indexer here lets the operator fix the chain client and
+		// reindex this block instead of getting silent data corruption.
+		return 0, errors.Wrapf(fallbackErr,
+			"scheduledAt fallback ReadState failed for candidate %s at height %d",
+			candidateIdentity, blockHeight)
+	}
+	return v, nil
+}
+
+// readScheduledAtFromChain calls ReadState(CANDIDATE_BY_ADDRESS, Height=blockHeight) and
+// returns the candidate's DeactivatedAt at that height.
+func readScheduledAtFromChain(candidateIdentity string, blockHeight uint64) (uint64, error) {
+	cli := kernel.ChainClient()
+	if cli == nil {
+		return 0, errors.New("chain client unavailable")
+	}
+	methodBytes, err := proto.Marshal(&iotexapi.ReadStakingDataMethod{
+		Method: iotexapi.ReadStakingDataMethod_CANDIDATE_BY_ADDRESS,
+	})
+	if err != nil {
+		return 0, err
+	}
+	reqBytes, err := proto.Marshal(&iotexapi.ReadStakingDataRequest{
+		Request: &iotexapi.ReadStakingDataRequest_CandidateByAddress_{
+			CandidateByAddress: &iotexapi.ReadStakingDataRequest_CandidateByAddress{
+				OwnerAddr: candidateIdentity,
+				Id:        candidateIdentity,
+			},
+		},
+	})
+	if err != nil {
+		return 0, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := cli.ReadState(ctx, &iotexapi.ReadStateRequest{
+		ProtocolID: []byte("staking"),
+		MethodName: methodBytes,
+		Arguments:  [][]byte{reqBytes},
+		Height:     strconv.FormatUint(blockHeight, 10),
+	})
+	if err != nil {
+		return 0, errors.Wrap(err, "ReadState(CANDIDATE_BY_ADDRESS) failed")
+	}
+	var c iotextypes.CandidateV2
+	if err := proto.Unmarshal(resp.Data, &c); err != nil {
+		return 0, errors.Wrap(err, "unmarshal CandidateV2")
+	}
+	if c.OwnerAddress == "" && c.Id == "" {
+		return 0, errors.Errorf("candidate %q not found at height %d", candidateIdentity, blockHeight)
+	}
+	return c.DeactivatedAt, nil
+}
+
+// iotexAddrFromTopic converts a 32-byte topic (right-padded ETH address) to an IoTeX address.
+func iotexAddrFromTopic(topic hash.Hash256) (address.Address, error) {
+	ethAddr := common.BytesToAddress(topic[12:])
+	return address.FromBytes(ethAddr.Bytes())
+}
+
+// updateExitQueue upserts the candidate_exit_queue row based on the action type.
+//
+// Schedule/Confirm look up the latest matching row by id DESC and update by
+// primary key, rather than UPDATE WHERE (candidate_identity, status). This
+// pins each Schedule/Confirm to exactly one preceding row even if multiple
+// historical rows for the same candidate exist (e.g. after a previous full
+// exit cycle plus reactivation, or stale `requested`/`scheduled` rows left
+// behind by missed indexing).
+func (b StakingActionPlugin) updateExitQueue(tx *gorm.DB, actType string, height uint64, actHash string, cand *models.Candidate, scheduledAt uint64) error {
+	switch actType {
+	case "CandidateDeactivateRequest":
+		row := &models.CandidateExitQueue{
+			CandidateName:     cand.Name,
+			CandidateIdentity: cand.CandidateID,
+			Status:            "requested",
+			RequestHeight:     height,
+			RequestHash:       actHash,
+		}
+		return tx.Create(row).Error
+	case "ScheduleCandidateDeactivation":
+		var row models.CandidateExitQueue
+		err := tx.Where("candidate_identity = ? AND status = ?", cand.CandidateID, "requested").
+			Order("id DESC").
+			First(&row).Error
+		switch {
+		case stderrors.Is(err, gorm.ErrRecordNotFound):
+			return errors.Errorf("no 'requested' row to schedule for candidate %s", cand.CandidateID)
+		case err != nil:
+			return errors.Wrapf(err, "failed to look up 'requested' row for candidate %s", cand.CandidateID)
+		}
+		return tx.Model(&models.CandidateExitQueue{}).
+			Where("id = ?", row.ID).
+			Updates(map[string]interface{}{
+				"status":          "scheduled",
+				"schedule_height": height,
+				"schedule_hash":   actHash,
+				"scheduled_at":    scheduledAt,
+			}).Error
+	case "CandidateDeactivateConfirm":
+		var row models.CandidateExitQueue
+		err := tx.Where("candidate_identity = ? AND status = ?", cand.CandidateID, "scheduled").
+			Order("id DESC").
+			First(&row).Error
+		switch {
+		case stderrors.Is(err, gorm.ErrRecordNotFound):
+			return errors.Errorf("no 'scheduled' row to confirm for candidate %s", cand.CandidateID)
+		case err != nil:
+			return errors.Wrapf(err, "failed to look up 'scheduled' row for candidate %s", cand.CandidateID)
+		}
+		return tx.Model(&models.CandidateExitQueue{}).
+			Where("id = ?", row.ID).
+			Updates(map[string]interface{}{
+				"status":         "confirmed",
+				"confirm_height": height,
+				"confirm_hash":   actHash,
+			}).Error
 	}
 	return nil
 }

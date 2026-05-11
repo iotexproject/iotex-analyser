@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
 
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
@@ -23,6 +26,7 @@ import (
 type actionTypePlugin struct {
 	tipHeight uint64
 	ats       []*models.ActionType
+	auths     []*models.Authorization
 }
 
 func (b *actionTypePlugin) Name() string {
@@ -35,8 +39,15 @@ func (b *actionTypePlugin) Type() plugin.Type {
 
 func (b *actionTypePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(),
-		&models.ActionType{}); err != nil {
+		&models.ActionType{},
+		&models.Authorization{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	// Authorization was added after action_type was first deployed; on existing
+	// installs AutoMigrate is a no-op (height > 0) so create it explicitly if
+	// missing.
+	if err := db.EnsureTables(&models.Authorization{}); err != nil {
+		return errors.Wrapf(err, "failed to ensure authorization table for plugin %s", b.Name())
 	}
 	height, err := db.GetIndexHeight(b.Name())
 	if err != nil {
@@ -96,12 +107,19 @@ func (b *actionTypePlugin) putBlock(ctx context.Context, blk *block.Block) error
 			at.BlobGasPrice = decimal.NewFromBigInt(receipt.BlobGasPrice, 0)
 			fallthrough
 		case action.SetCodeTxType:
-			if auths := act.Envelope.SetCodeAuthorizations(); len(auths) > 0 {
-				authBytes, err := json.Marshal(auths)
+			if authList := act.Envelope.SetCodeAuthorizations(); len(authList) > 0 {
+				authBytes, err := json.Marshal(authList)
 				if err != nil {
 					return errors.Wrap(err, "failed to marshal auth list")
 				}
 				at.AuthList = authBytes
+				for i, auth := range authList {
+					authRow, err := authorizationRow(ctx, at.Hash, blk.Height(), i, auth)
+					if err != nil {
+						return errors.Wrapf(err, "failed to build authorization row for %s[%d]", at.Hash, i)
+					}
+					b.auths = append(b.auths, authRow)
+				}
 			}
 			fallthrough
 		case action.DynamicFeeTxType:
@@ -127,10 +145,17 @@ func (b *actionTypePlugin) putBlock(ctx context.Context, blk *block.Block) error
 func (b *actionTypePlugin) commit() error {
 	ats := b.ats
 	b.ats = nil
+	auths := b.auths
+	b.auths = nil
 	tipHeight := b.tipHeight
 	return db.DB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.CreateInBatches(ats, 200).Error; err != nil {
 			return errors.Wrap(err, "failed to insert action types")
+		}
+		if len(auths) > 0 {
+			if err := tx.CreateInBatches(auths, 200).Error; err != nil {
+				return errors.Wrap(err, "failed to insert authorizations")
+			}
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), tipHeight)
 	})
@@ -164,6 +189,38 @@ func (b *actionTypePlugin) Stop(ctx context.Context) error {
 
 func (b *actionTypePlugin) Version() string {
 	return "0.0.1"
+}
+
+// authorizationRow builds an Authorization model from a SetCodeAuthorization
+// and populates its Valid field via kernel.ComputeAuthorizationValidity, which
+// queries an eth archive RPC endpoint.
+func authorizationRow(ctx context.Context, actionHash string, blockHeight uint64, index int, auth ethtypes.SetCodeAuthorization) (*models.Authorization, error) {
+	row := &models.Authorization{
+		ActionHash:  actionHash,
+		BlockHeight: blockHeight,
+		Index:       index,
+		ChainID:     auth.ChainID.Hex(),
+		Address:     strings.ToLower(auth.Address.Hex()),
+		Nonce:       fmt.Sprintf("0x%x", auth.Nonce),
+		YParity:     fmt.Sprintf("0x%x", auth.V),
+		R:           auth.R.Hex(),
+		S:           auth.S.Hex(),
+	}
+	authority, recoverErr := auth.Authority()
+	if recoverErr != nil {
+		// Signature did not recover a valid authority → invalid auth.
+		invalid := false
+		row.Valid = &invalid
+		return row, nil
+	}
+	row.Authority = strings.ToLower(authority.Hex())
+
+	valid, err := kernel.ComputeAuthorizationValidity(ctx, authority, blockHeight, &auth.ChainID, auth.Nonce)
+	if err != nil {
+		return nil, err
+	}
+	row.Valid = &valid
+	return row, nil
 }
 
 // exported

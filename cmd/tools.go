@@ -10,5 +10,6 @@ var Tools = &cli.Command{
 	Usage: "tools <subcommand>",
 	Subcommands: []*cli.Command{
 		tools.VerifyDB,
+		tools.BackfillAuthorization,
 	},
 }

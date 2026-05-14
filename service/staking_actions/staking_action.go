@@ -162,8 +162,8 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			case topicStaked, topicCandidateActivated:
 				if len(log.Data) >= 32 {
 					bucketIndex := new(big.Int).SetBytes(log.Data[:32])
-					if bucketIndex.IsInt64() {
-						bucketMap[actHash] = bucketIndex.Uint64()
+					if bucketID, ok := validBucketIndex(bucketIndex); ok {
+						bucketMap[actHash] = bucketID
 					}
 				}
 				continue
@@ -173,10 +173,11 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			// with blocks indexed before the Solidity-events path.
 			if len(log.Topics) > 1 {
 				bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
-				if !bucketIndex.IsInt64() {
+				bucketID, ok := validBucketIndex(bucketIndex)
+				if !ok {
 					continue
 				}
-				bucketMap[actHash] = bucketIndex.Uint64()
+				bucketMap[actHash] = bucketID
 			}
 		}
 		switch a := act.(type) {
@@ -473,6 +474,17 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		}
 	}
 	return nil
+}
+
+func validBucketIndex(bucketIndex *big.Int) (uint64, bool) {
+	if bucketIndex == nil || bucketIndex.Sign() < 0 || bucketIndex.BitLen() > 64 {
+		return 0, false
+	}
+	bucketID := bucketIndex.Uint64()
+	if bucketID == ^uint64(0) || bucketIndex.IsInt64() {
+		return bucketID, true
+	}
+	return 0, false
 }
 
 // candidateIdentityFromLogs extracts the candidate IoTeX address from staking protocol receipt logs.

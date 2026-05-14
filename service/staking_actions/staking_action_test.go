@@ -2,6 +2,8 @@ package staking_actions
 
 import (
 	"encoding/binary"
+	"math"
+	"math/big"
 	"testing"
 
 	"github.com/iotexproject/go-pkgs/hash"
@@ -222,4 +224,46 @@ func TestScheduledAtFromLogs_ZeroValue(t *testing.T) {
 	got, err := scheduledAtFromLogs(logs)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), got)
+}
+
+func TestValidBucketIndex(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  *big.Int
+		want   uint64
+		wantOK bool
+	}{
+		{
+			name:   "int64 bucket index",
+			input:  big.NewInt(123),
+			want:   123,
+			wantOK: true,
+		},
+		{
+			name:   "unSelfStake sentinel",
+			input:  new(big.Int).SetUint64(math.MaxUint64),
+			want:   math.MaxUint64,
+			wantOK: true,
+		},
+		{
+			name:   "uint64 above int64 is rejected",
+			input:  new(big.Int).SetUint64(math.MaxInt64 + 1),
+			wantOK: false,
+		},
+		{
+			name:   "more than uint64 bits is rejected",
+			input:  new(big.Int).Lsh(big.NewInt(1), 65),
+			wantOK: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := validBucketIndex(tt.input)
+			require.Equal(t, tt.wantOK, ok)
+			if tt.wantOK {
+				require.Equal(t, tt.want, got)
+			}
+		})
+	}
 }

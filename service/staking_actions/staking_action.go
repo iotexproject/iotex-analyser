@@ -34,6 +34,12 @@ var (
 	topicDeactivationRequested = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivationRequested(address)")))
 	topicDeactivationScheduled = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivationScheduled(address,uint64)")))
 	topicDeactivated           = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivated(address)")))
+	// topic hashes for Solidity-style staking events that carry the bucket
+	// index in log.data (first 32 bytes), not in topic[1] like the legacy
+	// receipt-log format. Emitted by candidateRegisterWithBLS and friends
+	// once the chain stops emitting the legacy non-postFairbankMigration log.
+	topicStaked             = hash.Hash256(gethcrypto.Keccak256Hash([]byte("Staked(address,address,uint64,uint256,uint32,bool)")))
+	topicCandidateActivated = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateActivated(address,uint64)")))
 )
 
 const (
@@ -145,13 +151,33 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		actHash := hex.EncodeToString(actionHash[:])
 		// cmpNum := big.NewInt(100000000)
 		for _, log := range receipt.Logs() {
-			if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
+			if log.Address != StakingProtocolAddress || len(log.Topics) == 0 {
+				continue
+			}
+			// Solidity-style events (post-Fairbank/Yap, emitted by
+			// candidateRegisterWithBLS etc.): bucket index lives in the
+			// first 32 bytes of log.data — topic[1] is the indexed
+			// candidate/voter address instead.
+			switch log.Topics[0] {
+			case topicStaked, topicCandidateActivated:
+				if len(log.Data) >= 32 {
+					bucketIndex := new(big.Int).SetBytes(log.Data[:32])
+					if bucketID, ok := validBucketIndex(bucketIndex); ok {
+						bucketMap[actHash] = bucketID
+					}
+				}
+				continue
+			}
+			// Legacy receipt-log format (newReceiptLog without events):
+			// topic[1] is the bucket index. Kept for backward compatibility
+			// with blocks indexed before the Solidity-events path.
+			if len(log.Topics) > 1 {
 				bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
-
-				// if bucketIndex.Cmp(cmpNum) > 0 {
-				// 	continue
-				// }
-				bucketMap[actHash] = bucketIndex.Uint64()
+				bucketID, ok := validBucketIndex(bucketIndex)
+				if !ok {
+					continue
+				}
+				bucketMap[actHash] = bucketID
 			}
 		}
 		switch a := act.(type) {
@@ -448,6 +474,17 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		}
 	}
 	return nil
+}
+
+func validBucketIndex(bucketIndex *big.Int) (uint64, bool) {
+	if bucketIndex == nil || bucketIndex.Sign() < 0 || bucketIndex.BitLen() > 64 {
+		return 0, false
+	}
+	bucketID := bucketIndex.Uint64()
+	if bucketID == ^uint64(0) || bucketIndex.IsInt64() {
+		return bucketID, true
+	}
+	return 0, false
 }
 
 // candidateIdentityFromLogs extracts the candidate IoTeX address from staking protocol receipt logs.

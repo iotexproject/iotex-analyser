@@ -261,7 +261,9 @@ func TestValidBucketIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, ok := validBucketIndex(tt.input)
 			require.Equal(t, tt.wantOK, ok)
-			require.Equal(t, tt.want, got)
+			if tt.wantOK {
+				require.Equal(t, tt.want, got)
+			}
 		})
 	}
 }

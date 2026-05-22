@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const VERSION = "2.3.7"
+const VERSION = "2.3.8"
 
 type delegatePlugin struct {
 	stop chan bool
@@ -27,6 +27,10 @@ func (b delegatePlugin) Name() string {
 
 func (b delegatePlugin) Type() plugin.Type {
 	return plugin.TypeWorker
+}
+
+func (b delegatePlugin) DependentPlugins() []string {
+	return []string{"candidate_self_stake"}
 }
 
 func (b delegatePlugin) Start(ctx context.Context) error {

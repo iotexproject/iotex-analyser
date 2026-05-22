@@ -87,7 +87,7 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	delegateMap, err := getDelegateMap(epochNumber, stakings, systemStakings, systemStakingsV2, candidates, delegateActives, bucketSumAmount)
+	delegateMap, err := getDelegateMap(epochNumber, pluginHeight, stakings, systemStakings, systemStakingsV2, candidates, delegateActives, bucketSumAmount)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -155,7 +155,7 @@ outerLoop:
 	return err
 }
 
-func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings, systemStakingsV2 []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
+func getDelegateMap(epochNumber, pluginHeight uint64, stakings []*Staking, systemStakings, systemStakingsV2 []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
 	for _, cand := range getNotStakeCandidateList(candidates, stakings) {
@@ -205,7 +205,7 @@ func getDelegateMap(epochNumber uint64, stakings []*Staking, systemStakings, sys
 				Active:          active,
 				StakeAmount:     big.NewInt(0),
 				VoteWeight:      big.NewInt(0),
-				SelfStake:       isSelfStake(staking.Candidate, epochNumber),
+				SelfStake:       isSelfStake(staking.Candidate, pluginHeight),
 				Productivity:    productionNum,
 			}
 		}
@@ -479,17 +479,30 @@ func checkSelfStakeStatus(epochNumber uint64) bool {
 	return count > 0
 }
 
-// check candidate register and amount >= 1200000000000000000000000
-// only need check hermes_voting_results , epoch_number=1 staking_address=?
-func isSelfStake(candidate string, epochNumber uint64) bool {
-	var count int64
-	if err := db.DB().Model(&models.HermesVotingResult{}).Where("epoch_number=? and staking_address=? and self_staking>=1200000000000000000000000", epochNumber, candidate).Count(&count).Error; err != nil {
+// isSelfStake reports whether the candidate holds a self-stake bucket as of the
+// given block height.
+//
+// Before the Xingu hardfork a self-stake bucket was immutable at >= 1.2M IOTX,
+// so "self_staking >= 1.2M" in hermes_voting_results was a valid proxy for
+// having one. Xingu introduced unproductive-delegate slashing, which draws down
+// the self-stake bucket and can push a still-valid bucket below 1.2M. We
+// therefore look the bucket up directly: candidate_self_stake records the
+// latest self-stake bucket per candidate, and bucket_id == MaxUint64 means the
+// candidate currently has none.
+func isSelfStake(candidate string, height uint64) bool {
+	var records []models.CandidateSelfStake
+	if err := db.DB().
+		Where("candidate_id = ? and block_height <= ?", candidate, height).
+		Order("block_height desc, tx_index desc").
+		Limit(1).
+		Find(&records).Error; err != nil {
+		log.L().Error("failed to query candidate self stake", zap.String("candidate", candidate), zap.Error(err))
 		return false
 	}
-	if count > 0 {
-		return true
+	if len(records) == 0 {
+		return false
 	}
-	return false
+	return records[0].BucketID != math.MaxUint64
 }
 
 func getDelegateActive(height uint64) map[string]int {

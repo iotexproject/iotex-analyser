@@ -85,7 +85,7 @@ func TestVotes(t *testing.T) {
 				Active:          active,
 				StakeAmount:     big.NewInt(0),
 				VoteWeight:      big.NewInt(0),
-				SelfStake:       isSelfStake(staking.Candidate, epochNumber),
+				SelfStake:       isSelfStake(staking.Candidate, pluginHeight),
 				Productivity:    productionNum,
 			}
 		}

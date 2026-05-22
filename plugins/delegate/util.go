@@ -43,16 +43,14 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// SelfStake is resolved from candidate_self_stake; skip when that plugin is
-	// not ready, and cap the snapshot height at its indexed height so we never
-	// query beyond the data it has populated.
+	// SelfStake is resolved from candidate_self_stake; only run once that plugin
+	// has indexed at least as far as staking_actions, so isSelfStake never
+	// queries beyond the data it has populated.
 	cssHeight, err := db.GetIndexHeight("candidate_self_stake")
-	if err != nil || cssHeight == 0 {
-		log.L().Warn("candidate_self_stake not ready, skipping delegate run", zap.Uint64("css_height", cssHeight), zap.Error(err))
+	if err != nil || cssHeight < pluginHeight {
+		log.L().Warn("candidate_self_stake behind staking_actions, skipping delegate run",
+			zap.Uint64("css_height", cssHeight), zap.Uint64("plugin_height", pluginHeight), zap.Error(err))
 		return nil
-	}
-	if cssHeight < pluginHeight {
-		pluginHeight = cssHeight
 	}
 	epochNumber := kernel.GetEpochNum(pluginHeight)
 	request := &iotexapi.GetEpochMetaRequest{EpochNumber: epochNumber}

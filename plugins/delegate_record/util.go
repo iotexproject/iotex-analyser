@@ -42,11 +42,18 @@ func delegate(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	epochNumber := kernel.GetEpochNum(pluginHeight)
-	if !checkSelfStakeStatus(epochNumber) {
-		log.L().Warn("currentlly no self stake status, please check hermes_voting_results table", zap.Uint64("epoch_number", epochNumber))
+	// SelfStake is resolved from candidate_self_stake; skip when that plugin is
+	// not ready, and cap the snapshot height at its indexed height so we never
+	// query beyond the data it has populated.
+	cssHeight, err := db.GetIndexHeight("candidate_self_stake")
+	if err != nil || cssHeight == 0 {
+		log.L().Warn("candidate_self_stake not ready, skipping delegate_record run", zap.Uint64("css_height", cssHeight), zap.Error(err))
 		return nil
 	}
+	if cssHeight < pluginHeight {
+		pluginHeight = cssHeight
+	}
+	epochNumber := kernel.GetEpochNum(pluginHeight)
 	blk, err := kernel.GetBlockByHeightFromChain(ctx, pluginHeight)
 	if err == nil {
 		blockTime = time.Unix(blk.Timestamp().Unix(), 0)
@@ -433,14 +440,6 @@ func getSystemStakingV2(height uint64) ([]*SystemStakingBucket, error) {
 	return results, nil
 }
 
-func checkSelfStakeStatus(epochNumber uint64) bool {
-	var count int64
-	if err := db.DB().Model(&models.HermesVotingResult{}).Where("epoch_number=?", epochNumber).Count(&count).Error; err != nil {
-		return false
-	}
-	return count > 0
-}
-
 // isSelfStake reports whether the candidate holds a self-stake bucket as of the
 // given block height.
 //
@@ -452,19 +451,15 @@ func checkSelfStakeStatus(epochNumber uint64) bool {
 // latest self-stake bucket per candidate, and bucket_id == MaxUint64 means the
 // candidate currently has none.
 func isSelfStake(candidate string, height uint64) bool {
-	var records []models.CandidateSelfStake
-	if err := db.DB().
-		Where("candidate_id = ? and block_height <= ?", candidate, height).
-		Order("block_height desc, tx_index desc").
-		Limit(1).
-		Find(&records).Error; err != nil {
+	record := &models.CandidateSelfStake{}
+	if err := record.FetchByCandidateIDWithHeight(candidate, height, db.DB()); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false
+		}
 		log.L().Error("failed to query candidate self stake", zap.String("candidate", candidate), zap.Error(err))
 		return false
 	}
-	if len(records) == 0 {
-		return false
-	}
-	return records[0].BucketID != math.MaxUint64
+	return record.BucketID != math.MaxUint64
 }
 
 func getDelegateActive(height uint64) map[string]int {

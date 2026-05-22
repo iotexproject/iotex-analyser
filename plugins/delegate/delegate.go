@@ -29,6 +29,10 @@ func (b delegatePlugin) Type() plugin.Type {
 	return plugin.TypeWorker
 }
 
+func (b delegatePlugin) DependentPlugins() []string {
+	return []string{"candidate_self_stake"}
+}
+
 func (b delegatePlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.Delegate{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())

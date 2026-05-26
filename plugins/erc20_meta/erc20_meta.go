@@ -122,7 +122,7 @@ func (b erc20MetaPlugin) PutBlocks(ctx context.Context, blks []*block.Block) err
 		return db.UpdateIndexHeight(b.Name(), blks[len(blks)-1].Height())
 	}
 
-	holderContracts, err := b.loadExistingContracts("erc20_holders_v2", contracts)
+	holderContracts, err := b.loadExistingContracts("erc20_holders", contracts)
 	if err != nil {
 		return errors.New("failed to query erc20 holders")
 	}

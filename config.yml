@@ -21,6 +21,7 @@ server:
     - staking_bucket.so
     - account_meta.so
     - block_meta.so
+    - gas_burned.so
 database:
   driver: postgres
   host: 127.0.0.1

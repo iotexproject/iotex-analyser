@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const VERSION = "2.1.2"
+const VERSION = "2.1.3"
 
 type slashPlugin struct {
 }
@@ -138,8 +138,12 @@ func handleBlock(ctx context.Context, blk *block.Block, tx *gorm.DB) error {
 		if err := cand.FetchByOperatorAddressWithHeight(addr, blkHeight, tx); err != nil {
 			return err
 		}
+		// A candidate may have been registered without ever issuing a
+		// CandidateSelfStake action (e.g. registered with zero self-stake).
+		// In that case BucketID stays at its zero value — it is informational
+		// in the slash record, not a foreign key.
 		css := &models.CandidateSelfStake{}
-		if err := css.FetchByCandidateIDWithHeight(cand.CandidateID, blkHeight, tx); err != nil {
+		if err := css.FetchByCandidateIDWithHeight(cand.CandidateID, blkHeight, tx); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 		m := models.Slash{

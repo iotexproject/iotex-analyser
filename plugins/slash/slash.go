@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const VERSION = "2.1.3"
+const VERSION = "2.1.4"
 
 type slashPlugin struct {
 }
@@ -134,8 +134,14 @@ func handleBlock(ctx context.Context, blk *block.Block, tx *gorm.DB) error {
 		if slash.UnproductiveSlash == nil || slash.UnproductiveSlash.Sign() == 0 {
 			continue
 		}
+		// The slash RewardLog's `Addr` follows the iotex-core rewarding
+		// protocol version active at this block. Older blocks used the
+		// candidate's operator address (SlashCandidateByOperator). Blocks
+		// after the slash-by-owner / slash-by-ID upgrade carry the
+		// candidate's owner address (which is also the candidate_id).
+		// Look up by either so both eras work.
 		cand := &models.Candidate{}
-		if err := cand.FetchByOperatorAddressWithHeight(addr, blkHeight, tx); err != nil {
+		if err := cand.FetchByOwnerOrOperatorWithHeight(addr, blkHeight, tx); err != nil {
 			return err
 		}
 		// A candidate may have been registered without ever issuing a

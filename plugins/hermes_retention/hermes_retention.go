@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
+	"gorm.io/gorm"
 )
 
 const VERSION = "1.0.0"
@@ -88,35 +89,67 @@ func (b *hermesRetentionPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
+// computeCutoff returns the smallest epoch_number that purge must retain
+// (i.e. rows with epoch_number < cutoff are eligible for deletion), and a
+// flag indicating whether enough data has accumulated to run a purge.
+// Pulled out for unit testing of the boundary math.
+func computeCutoff(tipEpoch, retentionEpochs uint64) (cutoff uint64, shouldPurge bool) {
+	if tipEpoch < retentionEpochs {
+		return 0, false
+	}
+	// keep [cutoff, tipEpoch] inclusive == retentionEpochs epochs
+	return tipEpoch - retentionEpochs + 1, true
+}
+
 func (b *hermesRetentionPlugin) purge() error {
+	// Guard against running before the hermes plugin has migrated its
+	// tables. `DependentPlugins` is not enforced for TypeWorker plugins
+	// in runner.Start, so we check the source-of-truth table ourselves.
+	// to_regclass returns NULL when the relation does not exist.
+	var metaExists bool
+	if err := db.DB().Raw(
+		"SELECT to_regclass('hermes_voting_meta') IS NOT NULL",
+	).Scan(&metaExists).Error; err != nil {
+		return errors.Wrap(err, "failed to probe hermes_voting_meta")
+	}
+	if !metaExists {
+		slog.L().Info("hermes_retention: hermes_voting_meta not yet present, skipping tick")
+		return nil
+	}
+
 	var tipEpoch uint64
 	if err := db.DB().Raw(
 		"SELECT COALESCE(MAX(epoch_number), 0) FROM hermes_voting_meta",
 	).Scan(&tipEpoch).Error; err != nil {
 		return errors.Wrap(err, "failed to read tip epoch")
 	}
-	if tipEpoch <= b.retentionEpochs {
+	cutoff, shouldPurge := computeCutoff(tipEpoch, b.retentionEpochs)
+	if !shouldPurge {
 		return nil
 	}
-	cutoff := tipEpoch - b.retentionEpochs
 
-	r1 := db.DB().Exec(
-		"DELETE FROM hermes_bucket_votings WHERE epoch_number < ?", cutoff)
-	if r1.Error != nil {
-		return errors.Wrap(r1.Error, "failed to delete from hermes_bucket_votings")
-	}
-	r2 := db.DB().Exec(
-		"DELETE FROM hermes_aggregate_votings WHERE epoch_number < ?", cutoff)
-	if r2.Error != nil {
-		return errors.Wrap(r2.Error, "failed to delete from hermes_aggregate_votings")
-	}
-	if r1.RowsAffected > 0 || r2.RowsAffected > 0 {
-		slog.L().Info("hermes_retention purged old epochs",
-			zap.Uint64("cutoff_epoch", cutoff),
-			zap.Int64("bucket_deleted", r1.RowsAffected),
-			zap.Int64("aggregate_deleted", r2.RowsAffected))
-	}
-	return nil
+	// Both DELETEs in one transaction so both tables advance to the same
+	// cutoff (or neither does), matching how the hermes plugin writes
+	// each epoch's bucket + aggregate rows in a single transaction.
+	return db.DB().Transaction(func(tx *gorm.DB) error {
+		r1 := tx.Exec(
+			"DELETE FROM hermes_bucket_votings WHERE epoch_number < ?", cutoff)
+		if r1.Error != nil {
+			return errors.Wrap(r1.Error, "failed to delete from hermes_bucket_votings")
+		}
+		r2 := tx.Exec(
+			"DELETE FROM hermes_aggregate_votings WHERE epoch_number < ?", cutoff)
+		if r2.Error != nil {
+			return errors.Wrap(r2.Error, "failed to delete from hermes_aggregate_votings")
+		}
+		if r1.RowsAffected > 0 || r2.RowsAffected > 0 {
+			slog.L().Info("hermes_retention purged old epochs",
+				zap.Uint64("cutoff_epoch", cutoff),
+				zap.Int64("bucket_deleted", r1.RowsAffected),
+				zap.Int64("aggregate_deleted", r2.RowsAffected))
+		}
+		return nil
+	})
 }
 
 func (b hermesRetentionPlugin) Stop(ctx context.Context) error {

@@ -12,7 +12,14 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.0.2"
+const VERSION = "3.0.0"
+
+// methodSelectorLen is the Solidity ABI method-selector length. We store
+// only the selector in action_execution.data; the full calldata, when
+// needed (analyser-api ActionByHash with input_data), is fetched from the
+// chain via gRPC. See iotex-analyser-api/common/chainrpc and the migration
+// note in plugins/action_execution/README.
+const methodSelectorLen = 4
 
 type actionExecutionPlugin struct {
 	tipHeight uint64
@@ -39,6 +46,9 @@ func getDataFromAction(act action.Action) (string, []byte, error) {
 	switch act := act.(type) {
 	case *action.Execution:
 		data := act.Data()
+		if len(data) > methodSelectorLen {
+			data = data[:methodSelectorLen]
+		}
 		if data == nil {
 			data = []byte("")
 		}

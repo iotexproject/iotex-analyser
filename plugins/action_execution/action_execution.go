@@ -17,8 +17,7 @@ const VERSION = "3.0.0"
 // methodSelectorLen is the Solidity ABI method-selector length. We store
 // only the selector in action_execution.data; the full calldata, when
 // needed (analyser-api ActionByHash with input_data), is fetched from the
-// chain via gRPC. See iotex-analyser-api/common/chainrpc and the migration
-// note in plugins/action_execution/README.
+// chain via gRPC. See iotex-analyser-api/common/chainrpc.
 const methodSelectorLen = 4
 
 type actionExecutionPlugin struct {
@@ -45,13 +44,16 @@ func (b *actionExecutionPlugin) Start(ctx context.Context) error {
 func getDataFromAction(act action.Action) (string, []byte, error) {
 	switch act := act.(type) {
 	case *action.Execution:
-		data := act.Data()
-		if len(data) > methodSelectorLen {
-			data = data[:methodSelectorLen]
+		// Copy into a fresh small buffer so we don't pin the original
+		// calldata (often >1 KB) until the per-block batch commits, and
+		// so the NOT NULL column always receives a non-nil slice.
+		src := act.Data()
+		n := len(src)
+		if n > methodSelectorLen {
+			n = methodSelectorLen
 		}
-		if data == nil {
-			data = []byte("")
-		}
+		data := make([]byte, n)
+		copy(data, src)
 		return act.Contract(), data, nil
 	default:
 		return "", nil, errors.New("action is not execution")

@@ -296,6 +296,12 @@ func (r *runner) Start(ctx context.Context) error {
 						}
 					} else {
 						blk, err = kernel.GetBlockByHeightFromChain(ctx, nextHeight)
+						if err == nil {
+							// BatchAdapter plugins read blks[len(blks)-1].Height() in PutBlocks
+							// and panic on an empty slice. In catch-up mode the non-batch path
+							// above never populates blks, so wrap the single fetched block here.
+							blks = []*block.Block{blk}
+						}
 					}
 					if err != nil {
 						r.logger.Error("failed to read block from dao",

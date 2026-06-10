@@ -26,14 +26,12 @@ const (
 )
 
 func GetStakingBucketByID(bucketID, blkHeight uint64) (*iotextypes.VoteBucket, error) {
-	epochNum := kernel.GetEpochNum(blkHeight)
-	epochHeight := kernel.GetEpochHeight(epochNum)
 	chainClient := kernel.ChainClient()
 
 	for i := uint32(0); ; i++ {
 		offset := i * readBucketsLimit
 		size := uint32(readBucketsLimit)
-		voteBucketList, err := getStakingBuckets(chainClient, offset, size, epochHeight)
+		voteBucketList, err := getStakingBuckets(chainClient, offset, size, blkHeight)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get bucket")
 		}

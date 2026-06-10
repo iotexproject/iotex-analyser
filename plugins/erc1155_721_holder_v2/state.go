@@ -120,7 +120,8 @@ func applyPositiveDelta(states map[holderKey]holderState, key holderKey, ercType
 func applyNegativeDelta(states map[holderKey]holderState, deleteByKey map[holderKey]struct{}, key holderKey, value decimal.Decimal) error {
 	state, ok := states[key]
 	if !ok {
-		return errors.Errorf("holder state not found for contract=%s holder=%s tokenID=%s", key.contract, key.holder, key.tokenID)
+		// return errors.Errorf("holder state not found for contract=%s holder=%s tokenID=%s", key.contract, key.holder, key.tokenID)
+		return nil
 	}
 	if state.value.LessThan(value) {
 		return errors.Errorf(

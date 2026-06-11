@@ -32,6 +32,24 @@ type DependentAdapter interface {
 	DependentPlugins() []string
 }
 
+// CatchUpAdapter is implemented by plugins that opt in to running in
+// catch-up mode (where the index starts mid-chain at the current tip
+// instead of from height 0).
+//
+// Plugins that maintain cumulative state derived from full history —
+// balances, holders, lifetime totals, etc. — should NOT implement this,
+// or should return false: starting from an arbitrary height would
+// produce permanently incorrect data. Per-block fact plugins (block
+// metadata, receipts, action records) and snapshot-derivable plugins
+// (state queried from chain at each height) are safe candidates.
+//
+// Operators can override the safety check via iotex.catchUpAllowPlugins
+// in config.
+type CatchUpAdapter interface {
+	Adapter
+	CatchUpSafe() bool
+}
+
 type PluginShadow struct {
 	ShadowName  func(string) string
 	ShadowTable func(a Table) Table

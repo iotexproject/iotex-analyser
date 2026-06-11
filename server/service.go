@@ -196,11 +196,46 @@ func (s *Service) Load(args *Args, reply *Reply) error {
 	if err != nil {
 		return errors.Wrap(err, errFailedLoadPlugin)
 	}
+	if skip, reason := shouldSkipInCatchUp(plugin); skip {
+		log.L().Warn("plugin skipped in catch-up mode",
+			zap.String("name", plugin.Name()),
+			zap.String("version", plugin.Version()),
+			zap.String("reason", reason),
+		)
+		reply.Message = "skipped in catch-up mode: " + reason
+		reply.Success = true
+		return nil
+	}
 	if err := s.registerPlugin(plugin); err != nil {
 		return errors.Wrap(err, "failed to register plugin")
 	}
 	log.L().Info("plugin loaded", zap.String("name", plugin.Name()), zap.String("version", plugin.Version()))
 	return nil
+}
+
+// shouldSkipInCatchUp returns (true, reason) if the plugin should be skipped
+// because catch-up mode is enabled and the plugin has not been opted in.
+//
+// Opt-in paths (in priority order):
+//   - listed in config Iotex.CatchUpAllowPlugins
+//   - implements plugin.CatchUpAdapter and CatchUpSafe() returns true
+//
+// Anything else is skipped: a plugin that depends on full history will
+// otherwise produce permanently incorrect data when started mid-chain.
+func shouldSkipInCatchUp(p iap.Adapter) (bool, string) {
+	if !config.Default.Iotex.CatchUpMode {
+		return false, ""
+	}
+	name := p.Name()
+	for _, n := range config.Default.Iotex.CatchUpAllowPlugins {
+		if n == name {
+			return false, ""
+		}
+	}
+	if a, ok := p.(iap.CatchUpAdapter); ok && a.CatchUpSafe() {
+		return false, ""
+	}
+	return true, "not declared catch-up safe (implement plugin.CatchUpAdapter, or list in iotex.catchUpAllowPlugins to override)"
 }
 
 func (s *Service) UnLoad(args *Args, reply *Reply) error {

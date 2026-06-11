@@ -40,6 +40,14 @@ var (
 	// once the chain stops emitting the legacy non-postFairbankMigration log.
 	topicStaked             = hash.Hash256(gethcrypto.Keccak256Hash([]byte("Staked(address,address,uint64,uint256,uint32,bool)")))
 	topicCandidateActivated = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateActivated(address,uint64)")))
+	// candidateRegisterWithBLS always emits CandidateRegistered. When called
+	// with amount==0 (v2.4.0 register-then-endorse flow) no Staked log
+	// follows and no bucket is created — see iotex-core
+	// action/protocol/staking/handlers.go where bucketIdx is set to
+	// candidateNoSelfStakeBucketIndex (= math.MaxUint64 = unSelfStake sentinel)
+	// and the Staked / CandidateActivated events are only appended when
+	// withSelfStake is true.
+	topicCandidateRegistered = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateRegistered(address,address,address,string,address,bytes)")))
 )
 
 const (
@@ -165,6 +173,17 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 					if bucketID, ok := validBucketIndex(bucketIndex); ok {
 						bucketMap[actHash] = bucketID
 					}
+				}
+				continue
+			case topicCandidateRegistered:
+				// candidateRegisterWithBLS with amount==0: register only,
+				// no bucket. Mark with the unSelfStake sentinel so the
+				// CandidateRegister handler below skips the row instead of
+				// returning "can not found bucketID". If withSelfStake is
+				// true, a Staked log later in the same receipt will overwrite
+				// this sentinel with the real bucket index.
+				if _, exists := bucketMap[actHash]; !exists {
+					bucketMap[actHash] = unSelfStake.Uint64()
 				}
 				continue
 			}

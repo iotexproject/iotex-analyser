@@ -547,6 +547,14 @@ func (b hermesPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: per-block Distribute rows come straight from current
+// receipts; per-epoch voting/aggregate/bucket tables are rebuilt from
+// chain RPC snapshots. The account_reward rebuild detects partial
+// epoch coverage (rebuildAccountRewardTable) and skips with a warn —
+// no incorrect rows are written for epochs that span the catch-up
+// start. Epochs prior to catch-up are absent rather than wrong.
+func (b hermesPlugin) CatchUpSafe() bool { return true }
+
 func (b hermesPlugin) Version() string {
 	return VERSION
 }

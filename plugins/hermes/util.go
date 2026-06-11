@@ -17,14 +17,17 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
+	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	etypes "github.com/iotexproject/iotex-election/types"
 	"github.com/iotexproject/iotex-election/util"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -118,6 +121,29 @@ func getVotingInfo(tx *gorm.DB, lastEpoch uint64) (map[string][]string, map[stri
 
 func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 	if lastEpoch == 0 {
+		return nil
+	}
+	// Skip epochs whose block_rewards coverage is partial. In catch-up mode
+	// block_reward starts populating mid-epoch, so the SUM(...) below would
+	// silently under-count for whichever epoch was in progress at start. The
+	// earliest block_height for the epoch tells us whether we captured the
+	// whole window: post-Fairbank every block carries a block-producer
+	// GrantReward, so min(block_height) <= epoch start iff coverage is full.
+	var earliest models.BlockReward
+	err := tx.Where("epoch_number = ?", lastEpoch).Order("block_height ASC").First(&earliest).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		log.L().Warn("hermes: skipping account_reward rebuild, no block_rewards rows for epoch",
+			zap.Uint64("epoch", lastEpoch))
+		return nil
+	}
+	if err != nil {
+		return errors.Wrap(err, "failed to probe block_rewards coverage")
+	}
+	if earliest.BlockHeight > kernel.GetEpochHeight(lastEpoch) {
+		log.L().Warn("hermes: skipping account_reward rebuild for partial epoch",
+			zap.Uint64("epoch", lastEpoch),
+			zap.Uint64("epochStart", kernel.GetEpochHeight(lastEpoch)),
+			zap.Uint64("earliestBlockReward", earliest.BlockHeight))
 		return nil
 	}
 	// Get voting result from last epoch

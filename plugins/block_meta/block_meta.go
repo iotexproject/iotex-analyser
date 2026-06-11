@@ -173,6 +173,12 @@ func (b *blockMetaPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: produces a per-block row independent of prior blocks. The
+// only state with cross-block scope is candidateCache, which is force-
+// refreshed on the very first PutBlock (ActiveBlockProducers == nil) and
+// at every epoch boundary thereafter via a chain RPC.
+func (b *blockMetaPlugin) CatchUpSafe() bool { return true }
+
 func (b *blockMetaPlugin) Version() string {
 	return VERSION
 }

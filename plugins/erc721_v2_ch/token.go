@@ -96,7 +96,7 @@ func (b tokenPlugin) BatchSize() int {
 	return b.batchSize
 }
 
-func (b tokenPlugin) Start(ctx context.Context) error {
+func (b *tokenPlugin) Start(ctx context.Context) error {
 	var err error
 	cfg := &Config{
 		DSN: "tcp://127.0.0.1:8321",
@@ -122,7 +122,7 @@ func (b tokenPlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+func (b *tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	for _, blk := range blks {
 		if err := b.putBlock(ctx, blk); err != nil {
 			return err
@@ -132,7 +132,7 @@ func (b tokenPlugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	return b.commit()
 }
 
-func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
+func (b *tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	if err := b.putBlock(ctx, blk); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (b tokenPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	return b.commit()
 }
 
-func (b tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
+func (b *tokenPlugin) putBlock(ctx context.Context, blk *block.Block) error {
 	for _, receipt := range blk.Receipts {
 		if receipt.Status != successStatus {
 			continue

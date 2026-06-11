@@ -104,6 +104,11 @@ func (b *candidateListPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: the table is rebuilt by querying the chain for the full
+// candidate list at each epoch boundary, so it's independent of history.
+// Epochs whose boundary is before the catch-up start will simply be missing.
+func (b *candidateListPlugin) CatchUpSafe() bool { return true }
+
 func (b *candidateListPlugin) Version() string {
 	return VERSION
 }

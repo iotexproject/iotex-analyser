@@ -187,6 +187,8 @@ func (b *actionTypePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *actionTypePlugin) CatchUpSafe() bool { return true }
+
 func (b *actionTypePlugin) Version() string {
 	return "0.0.1"
 }

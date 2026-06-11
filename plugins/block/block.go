@@ -105,6 +105,8 @@ func (b *blockPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *blockPlugin) CatchUpSafe() bool { return true }
+
 func (b *blockPlugin) Version() string {
 	return VERSION
 }

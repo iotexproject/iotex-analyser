@@ -152,6 +152,13 @@ func (r *runner) Start(ctx context.Context) error {
 	case plugin.TypeStandard:
 	default:
 	}
+	// Start the plugin first so its AutoMigrate runs while IndexHeight is
+	// still 0 — that's the trigger for create-tables. In catch-up mode the
+	// height bump below would otherwise race ahead of AutoMigrate and leave
+	// schemas uncreated.
+	if err := r.plugin.Start(ctx); err != nil {
+		return errors.Wrap(err, "failed to start runner")
+	}
 	if config.Default.Iotex.CatchUpMode {
 		if err := db.DB().Transaction(func(tx *gorm.DB) error {
 			var daoHeight uint64
@@ -175,9 +182,6 @@ func (r *runner) Start(ctx context.Context) error {
 		}); err != nil {
 			return err
 		}
-	}
-	if err := r.plugin.Start(ctx); err != nil {
-		return errors.Wrap(err, "failed to start runner")
 	}
 	if config.Default.Iotex.CrawlMode {
 		for _, nextHeight := range config.Default.Iotex.CrawlHeight {

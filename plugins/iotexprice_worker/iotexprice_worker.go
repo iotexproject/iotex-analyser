@@ -76,6 +76,9 @@ func (b priceWorkerPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: TypeWorker that fetches IOTX price from an external API.
+func (b priceWorkerPlugin) CatchUpSafe() bool { return true }
+
 func (b priceWorkerPlugin) Version() string {
 	return VERSION
 }

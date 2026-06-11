@@ -63,6 +63,11 @@ func (b metricsPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: TypeWorker that reads the latest rows from block_meta,
+// block_action_partition, and action_type (all catch-up safe) and
+// exposes them as Prometheus gauges.
+func (b metricsPlugin) CatchUpSafe() bool { return true }
+
 func (b metricsPlugin) Version() string {
 	return VERSION
 }

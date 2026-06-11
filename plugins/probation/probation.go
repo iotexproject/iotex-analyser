@@ -98,6 +98,11 @@ func (b *probationPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: probation list is pulled from chain RPC at each epoch
+// boundary, no history dependency. Epochs prior to the catch-up start
+// will be missing rows.
+func (b *probationPlugin) CatchUpSafe() bool { return true }
+
 func (b *probationPlugin) Version() string {
 	return VERSION
 }

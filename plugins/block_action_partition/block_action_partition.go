@@ -288,6 +288,8 @@ func (b blockActionPartitionPlugin) commitActs(acts []models.BlockActionPartitio
 
 func (b blockActionPartitionPlugin) Stop(ctx context.Context) error { return nil }
 
+func (b blockActionPartitionPlugin) CatchUpSafe() bool { return true }
+
 func (b blockActionPartitionPlugin) Version() string { return VERSION }
 
 // exported

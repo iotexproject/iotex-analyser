@@ -103,6 +103,8 @@ func (b *illegalActionPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *illegalActionPlugin) CatchUpSafe() bool { return true }
+
 func (b *illegalActionPlugin) Version() string {
 	return VERSION
 }

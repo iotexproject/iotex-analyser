@@ -88,6 +88,8 @@ func (b *blockFooterPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *blockFooterPlugin) CatchUpSafe() bool { return true }
+
 func (b *blockFooterPlugin) Version() string {
 	return VERSION
 }

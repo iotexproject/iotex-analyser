@@ -72,6 +72,11 @@ type (
 		DisableRebuildDB   bool     `yaml:"disableRebuildDB"`
 		CatchUpMode        bool     `yaml:"catchUpMode"`
 		CatchUpStartHeight uint64   `yaml:"catchUpStartHeight"`
+		// CatchUpAllowPlugins is an operator override: plugins listed here
+		// are loaded in catch-up mode even if they have not declared
+		// themselves catch-up safe via plugin.CatchUpAdapter. Plugins not
+		// listed AND not declared safe are skipped with a warning.
+		CatchUpAllowPlugins []string `yaml:"catchUpAllowPlugins"`
 		ChainEndPoint      string   `yaml:"chainEndPoint" env:"IOTEX_CHAIN_END_POINT"`
 		ChainInsecure      bool     `yaml:"chainInsecure"`
 		// EthArchiveEndPoint is an eth-json-rpc endpoint backed by an archive node.

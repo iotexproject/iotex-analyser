@@ -198,6 +198,8 @@ func (b *accountAbstractionPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *accountAbstractionPlugin) CatchUpSafe() bool { return true }
+
 func (b *accountAbstractionPlugin) Version() string {
 	return Version
 }

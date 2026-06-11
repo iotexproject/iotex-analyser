@@ -211,6 +211,8 @@ func (b blockActionPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b blockActionPlugin) CatchUpSafe() bool { return true }
+
 func (b blockActionPlugin) Version() string {
 	return VERSION
 }

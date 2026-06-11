@@ -166,6 +166,10 @@ func (b monitorPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: TypeWorker that polls in-memory RunnerStats and posts
+// alerts; no chain history dependency.
+func (b monitorPlugin) CatchUpSafe() bool { return true }
+
 func (b monitorPlugin) Version() string {
 	return VERSION
 }

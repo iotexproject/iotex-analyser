@@ -38,6 +38,7 @@ database:
   name: testnet
 iotex:
   chainEndPoint: api.testnet.iotex.one:80
+  chainInsecure: true
   batchSize: 8
 blockDB:
   dbPath: /testnet/data/chain.db

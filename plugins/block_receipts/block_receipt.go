@@ -162,6 +162,8 @@ func (b *blockReceiptPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *blockReceiptPlugin) CatchUpSafe() bool { return true }
+
 func (b *blockReceiptPlugin) Version() string {
 	return VERSION
 }

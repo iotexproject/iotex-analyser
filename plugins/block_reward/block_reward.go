@@ -111,6 +111,8 @@ func (b *blockRewardPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *blockRewardPlugin) CatchUpSafe() bool { return true }
+
 func (b *blockRewardPlugin) Version() string {
 	return VERSION
 }

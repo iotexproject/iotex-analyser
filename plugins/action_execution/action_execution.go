@@ -125,6 +125,8 @@ func (b *actionExecutionPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (b *actionExecutionPlugin) CatchUpSafe() bool { return true }
+
 func (b *actionExecutionPlugin) Version() string {
 	return VERSION
 }

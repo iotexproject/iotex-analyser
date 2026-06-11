@@ -191,6 +191,10 @@ func (b gasTrackerPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: TypeWorker that samples the most recent 4 blocks from the
+// dao on a timer to publish a gas oracle. No history needed.
+func (b gasTrackerPlugin) CatchUpSafe() bool { return true }
+
 func (b gasTrackerPlugin) Version() string {
 	return VERSION
 }

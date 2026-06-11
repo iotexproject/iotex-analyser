@@ -157,6 +157,12 @@ func (b hermesRetentionPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: TypeWorker that periodically deletes stale rows from
+// hermes_bucket_votings and hermes_aggregate_votings. Already guards
+// against the hermes table not existing yet, so it's a no-op when hermes
+// isn't loaded.
+func (b hermesRetentionPlugin) CatchUpSafe() bool { return true }
+
 // exported
 var Plugin = hermesRetentionPlugin{
 	stop: make(chan bool, 1),

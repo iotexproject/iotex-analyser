@@ -48,6 +48,11 @@ func (b verifyingPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
+// CatchUpSafe: verifies the current block's actions/receipts against the
+// block, block_action, and block_receipts tables — all of which are
+// catch-up safe themselves, so each block we see is fully verifiable.
+func (b verifyingPlugin) CatchUpSafe() bool { return true }
+
 func (b verifyingPlugin) Version() string {
 	return VERSION
 }

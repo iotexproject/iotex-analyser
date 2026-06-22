@@ -7,6 +7,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-analyser/plugins/block_receipts_transaction/model"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -43,12 +44,12 @@ func (b blockReceiptTransactionPlugin) DependentPlugins() []string {
 }
 
 func (b blockReceiptTransactionPlugin) Start(ctx context.Context) error {
-	if err := db.AutoMigrate(b.Name(), &BlockReceiptTransaction{}); err != nil {
+	if err := db.AutoMigrate(b.Name(), &model.BlockReceiptTransaction{}); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
 	var count int64
-	if err := db.DB().Model(&BlockReceiptTransaction{}).Where("block_height=0").Count(&count).Error; err != nil {
+	if err := db.DB().Model(&model.BlockReceiptTransaction{}).Where("block_height=0").Count(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {
@@ -66,7 +67,7 @@ func (b blockReceiptTransactionPlugin) Start(ctx context.Context) error {
 				"sender":       "",
 				"recipient":    addr,
 			}
-			if err := tx.Model(&BlockReceiptTransaction{}).Create(insertData).Error; err != nil {
+			if err := tx.Model(&model.BlockReceiptTransaction{}).Create(insertData).Error; err != nil {
 				return err
 			}
 		}
@@ -77,7 +78,7 @@ func (b blockReceiptTransactionPlugin) Start(ctx context.Context) error {
 
 func (b blockReceiptTransactionPlugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	receipts := blk.Receipts
-	var brts []BlockReceiptTransaction
+	var brts []model.BlockReceiptTransaction
 	for _, receipt := range receipts {
 		receipt := receipt
 		actionHash := hex.EncodeToString(receipt.ActionHash[:])
@@ -89,10 +90,10 @@ func (b blockReceiptTransactionPlugin) PutBlock(ctx context.Context, blk *block.
 		brts = append(brts, brt...)
 	}
 	err := db.DB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("block_height = ?", blk.Height()).Delete(&BlockReceiptTransaction{}).Error; err != nil {
+		if err := tx.Where("block_height = ?", blk.Height()).Delete(&model.BlockReceiptTransaction{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&BlockReceiptTransaction{}).CreateInBatches(brts, 200).Error; err != nil {
+		if err := tx.Model(&model.BlockReceiptTransaction{}).CreateInBatches(brts, 200).Error; err != nil {
 			return err
 		}
 		return db.UpdateIndexHeightByTx(tx, b.Name(), blk.Height())

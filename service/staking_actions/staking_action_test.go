@@ -154,6 +154,69 @@ func TestCandidateIdentityFromLogs_SkipsNonMatchingFirst(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// deactivationRequestedFromLogs
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDeactivationRequestedFromLogs_Present(t *testing.T) {
+	topic1 := buildTopic(testCandidateBytes)
+	expectedAddr := mustIotexAddr(testCandidateBytes)
+
+	// A CandidateEndorsement(Revoke) receipt that enqueued the candidate carries
+	// the CandidateDeactivationRequested event, same as an explicit request.
+	logs := []*action.Log{
+		makeLog(StakingProtocolAddress, []hash.Hash256{topicDeactivationRequested, topic1}, nil),
+	}
+
+	got, ok, err := deactivationRequestedFromLogs(logs)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, expectedAddr, got)
+}
+
+func TestDeactivationRequestedFromLogs_Absent(t *testing.T) {
+	topic1 := buildTopic(testCandidateBytes)
+
+	// A plain endorsement receipt (no deactivation) — must be a no-op, not an error.
+	logs := []*action.Log{
+		makeLog(StakingProtocolAddress, []hash.Hash256{topicStaked, topic1}, nil),
+	}
+
+	got, ok, err := deactivationRequestedFromLogs(logs)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Empty(t, got)
+}
+
+func TestDeactivationRequestedFromLogs_EmptyLogs(t *testing.T) {
+	got, ok, err := deactivationRequestedFromLogs(nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Empty(t, got)
+}
+
+func TestDeactivationRequestedFromLogs_WrongContractAddress(t *testing.T) {
+	topic1 := buildTopic(testCandidateBytes)
+
+	logs := []*action.Log{
+		makeLog("io1qnpz47hx5q6r3w876axtrn6yz95d70wrongaddr", []hash.Hash256{topicDeactivationRequested, topic1}, nil),
+	}
+
+	_, ok, err := deactivationRequestedFromLogs(logs)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestDeactivationRequestedFromLogs_TooFewTopics(t *testing.T) {
+	logs := []*action.Log{
+		makeLog(StakingProtocolAddress, []hash.Hash256{topicDeactivationRequested}, nil), // missing identity topic
+	}
+
+	_, ok, err := deactivationRequestedFromLogs(logs)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // scheduledAtFromLogs
 // ──────────────────────────────────────────────────────────────────────────────
 

@@ -439,6 +439,40 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 					return err
 				}
 			}
+		case *action.CandidateEndorsement:
+			// A CandidateEndorsement(Revoke) on the self-stake bucket enqueues the
+			// candidate for deactivation as a side effect: iotex-core
+			// (handler_candidate_endorsement.go -> csm.requestDeactivation) emits the
+			// same CandidateDeactivationRequested log as an explicit
+			// CandidateDeactivate(Request), but no CandidateDeactivate action. Index the
+			// request off the log event so the 'requested' row is recorded for this path
+			// too; the epoch-boundary ScheduleCandidateDeactivation then pairs with it
+			// normally. Most endorsements don't emit the event (ok=false) — skip those.
+			identity, ok, err := deactivationRequestedFromLogs(receipt.Logs())
+			if err != nil {
+				return errors.Wrapf(err, "failed to parse CandidateDeactivationRequested log, actHash: %s", actHash)
+			}
+			if !ok {
+				continue
+			}
+			cand := &models.Candidate{}
+			if err := cand.FetchByCandidateIDWithHeight(identity, blk.Height(), tx); err != nil {
+				return errors.Wrapf(err, "failed to fetch candidate by identity %s", identity)
+			}
+			stakingAction = models.StakingActions{
+				BlockHeight:  blk.Height(),
+				Sender:       sender.String(),
+				OwnerAddress: cand.OwnerAddress,
+				ActHash:      actHash,
+				Candidate:    identity,
+				ActType:      "CandidateDeactivateRequest",
+			}
+			if err := tx.Create(b.ShadowTable(&stakingAction)).Error; err != nil {
+				return err
+			}
+			if err := b.updateExitQueue(tx, "CandidateDeactivateRequest", blk.Height(), actHash, cand, 0); err != nil {
+				return errors.Wrapf(err, "failed to update exit queue for endorsement-triggered request, actHash: %s", actHash)
+			}
 		case *action.CandidateDeactivate:
 			candidateIdentity, err := candidateIdentityFromLogs(receipt.Logs(), topicDeactivationRequested, topicDeactivated)
 			if err != nil {
@@ -524,6 +558,29 @@ func candidateIdentityFromLogs(logs []*action.Log, topics ...hash.Hash256) (stri
 		}
 	}
 	return "", errors.New("candidate identity not found in receipt logs")
+}
+
+// deactivationRequestedFromLogs returns the candidate identity carried by a
+// CandidateDeactivationRequested event, if one is present in the receipt.
+// ok=false with a nil error means the event is absent — the common case for a
+// CandidateEndorsement, since only a Revoke on the self-stake bucket that puts
+// the candidate into the exit queue emits it. Callers must treat absence as a
+// no-op, not an error.
+func deactivationRequestedFromLogs(logs []*action.Log) (identity string, ok bool, err error) {
+	for _, log := range logs {
+		if log.Address != StakingProtocolAddress || len(log.Topics) < 2 {
+			continue
+		}
+		if log.Topics[0] != topicDeactivationRequested {
+			continue
+		}
+		addr, err := iotexAddrFromTopic(log.Topics[1])
+		if err != nil {
+			return "", false, err
+		}
+		return addr.String(), true, nil
+	}
+	return "", false, nil
 }
 
 // errLogDataTooShort signals that the schedule event was found but its data

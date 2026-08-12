@@ -352,13 +352,22 @@ require (
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 
-// iotex-core is pinned to the rc_2.5.0 branch. Its pseudo-version derives from
-// base tag v2.4.0-rc0 (the highest release tag that is an ancestor of that
-// branch), so it sorts BELOW the released v2.4.x line. Without this replace,
-// `go get -u` would silently resolve to v2.4.4 -- and still compile -- shipping
-// an indexer that hard-fails on the first IIP-59 reward log after the fork.
-// Remove this once iotex-core cuts a real v2.5.0 tag and bump the require.
-replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260810063455-75569725c7f8
+// TEMPORARY: points at the envestcc fork's feat/distributedlog-unpack branch,
+// which is iotex-core rc_2.5.0 plus the exported distributedlog.Unpack this
+// package needs to decode DelegateDistributed logs. Tracked upstream as
+// iotexproject/iotex-core#4968.
+//
+// Switch back to the rc_2.5.0 pseudo-version once #4968 merges:
+//
+//	replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 <rc_2.5.0 pseudo-version>
+//
+// A replace is required either way, not just for the fork: rc_2.5.0's own
+// pseudo-version derives from base tag v2.4.0-rc0 -- the highest release tag
+// that is an ancestor of that branch -- so it sorts BELOW the released v2.4.x
+// line. Without a pin, `go get -u` silently resolves to v2.4.4, still compiles,
+// and ships an indexer that hard-fails on the first IIP-59 reward log after the
+// fork. Both pins go away when iotex-core cuts a real v2.5.0 tag.
+replace github.com/iotexproject/iotex-core/v2 => github.com/envestcc/iotex-core/v2 v2.0.0-20260812070321-7e3da7bb395a
 
 replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v1.7.4-0.20260114032628-a8ad6229e289
 

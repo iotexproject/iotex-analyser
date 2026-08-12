@@ -13,7 +13,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/iotexproject/go-pkgs v0.1.16-0.20250813090621-fc1c4ebefcb4
 	github.com/iotexproject/iotex-address v0.2.9-0.20251203033311-6e8aa4fd43ef
-	github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260810063455-75569725c7f8
+	github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260812083323-60e3fa418568
 	github.com/iotexproject/iotex-election v0.3.8-0.20251015031218-8df952babca1
 	github.com/iotexproject/iotex-proto v0.6.11-0.20260810021246-384fea5c12d9
 	github.com/lib/pq v1.10.9
@@ -352,22 +352,17 @@ require (
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 
-// TEMPORARY: points at the envestcc fork's feat/distributedlog-unpack branch,
-// which is iotex-core rc_2.5.0 plus the exported distributedlog.Unpack this
-// package needs to decode DelegateDistributed logs. Tracked upstream as
-// iotexproject/iotex-core#4968.
+// iotex-core is pinned to the rc_2.5.0 branch, now including the exported
+// distributedlog decoding API (iotexproject/iotex-core#4968) this package uses
+// to decode DelegateDistributed logs.
 //
-// Switch back to the rc_2.5.0 pseudo-version once #4968 merges:
-//
-//	replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 <rc_2.5.0 pseudo-version>
-//
-// A replace is required either way, not just for the fork: rc_2.5.0's own
-// pseudo-version derives from base tag v2.4.0-rc0 -- the highest release tag
-// that is an ancestor of that branch -- so it sorts BELOW the released v2.4.x
-// line. Without a pin, `go get -u` silently resolves to v2.4.4, still compiles,
-// and ships an indexer that hard-fails on the first IIP-59 reward log after the
-// fork. Both pins go away when iotex-core cuts a real v2.5.0 tag.
-replace github.com/iotexproject/iotex-core/v2 => github.com/envestcc/iotex-core/v2 v2.0.0-20260812070321-7e3da7bb395a
+// The pin is required, not stylistic: rc_2.5.0's pseudo-version derives from
+// base tag v2.4.0-rc0 -- the highest release tag that is an ancestor of that
+// branch -- so it sorts BELOW the released v2.4.x line. Without it, `go get -u`
+// silently resolves to v2.4.4, still compiles, and ships an indexer that
+// hard-fails on the first IIP-59 reward log after the fork.
+// Remove this once iotex-core cuts a real v2.5.0 tag and bump the require.
+replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260812083323-60e3fa418568
 
 replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v1.7.4-0.20260114032628-a8ad6229e289
 

@@ -130,8 +130,8 @@ func chunkArgs(epoch uint64, delegate address.Address, snapshot hash.Hash256,
 		Epoch:             epoch,
 		Delegate:          delegate,
 		RewardAddr:        identityset.Address(2),
-		TotalCommission:   commission,
-		TotalVoterPool:    pool,
+		EraCommission:     commission,
+		ChunkVoterReward:  pool,
 		SnapshotHash:      snapshot,
 		Voters:            voters,
 		Recipients:        voters,
@@ -148,9 +148,9 @@ func chunkArgs(epoch uint64, delegate address.Address, snapshot hash.Hash256,
 // DelegateDistributed log. The two amount fields carried by those logs
 // aggregate in OPPOSITE directions, and nothing in their names says so:
 //
-//   - total_voter_pool is per-chunk (rewarding/voter_reward.go passes
+//   - chunk_voter_reward is per-chunk (rewarding/voter_reward.go passes
 //     rows.paid, accumulated within one block) and must be SUMMED.
-//   - total_commission is an era constant read from the drain cursor and is
+//   - era_commission is an era constant read from the drain cursor and is
 //     repeated verbatim in every chunk; SUMMING it multiplies the delegate's
 //     commission by the number of blocks the drain took.
 //
@@ -180,18 +180,18 @@ func TestChunkedSettlementAggregationSemantics(t *testing.T) {
 		Order("block_height").Find(&rows).Error)
 	r.Len(rows, 2, "one row per chunk, not one per settlement")
 
-	// total_commission: identical in both chunks. Summing gives 1000, which is
+	// era_commission: identical in both chunks. Summing gives 1000, which is
 	// twice the real commission -- that is the bug this pins.
-	r.Equal("500", rows[0].TotalCommission.String())
-	r.Equal("500", rows[1].TotalCommission.String())
+	r.Equal("500", rows[0].EraCommission.String())
+	r.Equal("500", rows[1].EraCommission.String())
 
-	// total_voter_pool: per-chunk, sums to the era total 150.
-	r.Equal("60", rows[0].TotalVoterPool.String())
-	r.Equal("90", rows[1].TotalVoterPool.String())
+	// chunk_voter_reward: per-chunk, sums to the era total 150.
+	r.Equal("60", rows[0].ChunkVoterReward.String())
+	r.Equal("90", rows[1].ChunkVoterReward.String())
 
 	var summed struct{ Total string }
 	r.NoError(testGormDB.Raw(
-		`SELECT COALESCE(SUM(total_voter_pool),0)::text AS total FROM iip59_delegate_distributions WHERE snapshot_hash = ?`,
+		`SELECT COALESCE(SUM(chunk_voter_reward),0)::text AS total FROM iip59_delegate_distributions WHERE snapshot_hash = ?`,
 		hex.EncodeToString(snapshot[:]),
 	).Scan(&summed).Error)
 	r.Equal("150", summed.Total)

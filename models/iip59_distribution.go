@@ -12,21 +12,22 @@ import (
 // (snapshot_hash, delegate, epoch) to reassemble it -- that is the join key the
 // protocol guarantees.
 //
-// THE TWO AMOUNT COLUMNS AGGREGATE DIFFERENTLY. This is the single easiest way
-// to get IIP-59 accounting wrong:
+// The two amount columns aggregate differently, which is the easiest way to get
+// IIP-59 accounting wrong:
 //
-//   - total_voter_pool is per-chunk. It is the sum of the payouts in THIS log
-//     only (rewarding/voter_reward.go: `TotalVoterPool: safeBig(rows.paid)`,
-//     where rows.paid accumulates within one block). SUM it across a
-//     settlement's rows to get the era total.
+//   - chunk_voter_reward is per-chunk: the payouts in THIS log only. SUM it
+//     across a settlement's rows to get the era total.
 //
-//   - total_commission is an era constant, repeated verbatim in every chunk of
-//     the same settlement (it comes from the drain cursor's EpochCommission,
-//     written once per era). Do NOT sum it -- take any single row's value. A
-//     settlement drained over 20 blocks would otherwise report 20x the
-//     commission.
+//   - era_commission is an era constant, repeated verbatim in every chunk of
+//     the same settlement (it comes from the drain cursor, written once per
+//     era). Do NOT sum it -- take any single row's value. A settlement drained
+//     over 20 blocks would otherwise report 20x the commission.
 //
-// The field names do not hint at this, so the distinction lives here.
+// The names carry this now -- iotexproject/iotex-core#4968 renamed the event's
+// fields from totalCommission/totalVoterPool to eraCommission/chunkVoterReward
+// for exactly this reason, and these columns follow. Restated here anyway
+// because "total" is what the deployed docs and any pre-#4968 consumer still
+// say, and a reader who never sees the event definition reads only the schema.
 type IIP59DelegateDistribution struct {
 	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_iip59_dist_block_delegate_epoch" sql:"type:bigint"`
 	ActionHash  string `gorm:"size:64;not null;index:,length:9"`
@@ -38,10 +39,10 @@ type IIP59DelegateDistribution struct {
 	RewardAddress string `gorm:"size:42;not null;index:,length:9"`
 	// SnapshotHash joins the chunks of one settlement. Hex, no 0x prefix.
 	SnapshotHash string `gorm:"size:64;not null;index"`
-	// TotalCommission: era constant, repeated per chunk. Never SUM.
-	TotalCommission decimal.Decimal `gorm:"type:decimal(60,0);not null;default:0"`
-	// TotalVoterPool: this chunk's payouts only. SUM across the settlement.
-	TotalVoterPool decimal.Decimal `gorm:"type:decimal(60,0);not null;default:0"`
+	// EraCommission: era constant, repeated per chunk. Never SUM.
+	EraCommission decimal.Decimal `gorm:"type:decimal(60,0);not null;default:0"`
+	// ChunkVoterReward: this chunk's payouts only. SUM across the settlement.
+	ChunkVoterReward decimal.Decimal `gorm:"type:decimal(60,0);not null;default:0"`
 	// NumVoters is len(voters) in this log, i.e. the number of
 	// IIP59VoterReward rows that share this row's key.
 	NumVoters uint32 `gorm:"not null;default:0"`

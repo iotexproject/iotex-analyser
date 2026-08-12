@@ -192,10 +192,10 @@ func handleBlock(blk *block.Block, tx *gorm.DB) error {
 				SnapshotHash:  hex.EncodeToString(ev.SnapshotHash[:]),
 				// Era constant, repeated every chunk. Consumers must not SUM
 				// this column across a settlement; see the model doc.
-				TotalCommission: decimal.NewFromBigInt(ev.TotalCommission, 0),
+				EraCommission: decimal.NewFromBigInt(ev.EraCommission, 0),
 				// This chunk only; SUM across a settlement.
-				TotalVoterPool: decimal.NewFromBigInt(ev.TotalVoterPool, 0),
-				NumVoters:      uint32(len(ev.Voters)),
+				ChunkVoterReward: decimal.NewFromBigInt(ev.ChunkVoterReward, 0),
+				NumVoters:        uint32(len(ev.Voters)),
 			})
 
 			for i := range ev.Voters {

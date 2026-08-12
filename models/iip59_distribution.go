@@ -29,12 +29,12 @@ import (
 // because "total" is what the deployed docs and any pre-#4968 consumer still
 // say, and a reader who never sees the event definition reads only the schema.
 type IIP59DelegateDistribution struct {
-	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_iip59_dist_block_delegate_epoch" sql:"type:bigint"`
+	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_delegate_dist_block_delegate_epoch" sql:"type:bigint"`
 	ActionHash  string `gorm:"size:64;not null;index:,length:9"`
-	EpochNumber uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_iip59_dist_block_delegate_epoch" sql:"type:bigint"`
+	EpochNumber uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_delegate_dist_block_delegate_epoch" sql:"type:bigint"`
 	// Delegate is the candidate identifier from Topics[2], not necessarily the
 	// owner or operator address.
-	Delegate string `gorm:"size:42;not null;index;uniqueIndex:idx_iip59_dist_block_delegate_epoch"`
+	Delegate string `gorm:"size:42;not null;index;uniqueIndex:idx_delegate_dist_block_delegate_epoch"`
 	// RewardAddress is where the delegate's commission was credited.
 	RewardAddress string `gorm:"size:42;not null;index:,length:9"`
 	// SnapshotHash joins the chunks of one settlement. Hex, no 0x prefix.
@@ -49,7 +49,7 @@ type IIP59DelegateDistribution struct {
 }
 
 func (IIP59DelegateDistribution) TableName() string {
-	return "iip59_delegate_distributions"
+	return "delegate_distributions"
 }
 
 // IIP59VoterReward is one voter's payout within one DelegateDistributed log --
@@ -70,15 +70,15 @@ func (IIP59DelegateDistribution) TableName() string {
 //     indistinguishable between "compounded into bucket 0" and "not
 //     compounded". Read CompoundBucketID only when Compounded is true.
 type IIP59VoterReward struct {
-	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_iip59_voter_block_delegate_voter" sql:"type:bigint"`
+	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_voter_reward_block_delegate_voter" sql:"type:bigint"`
 	ActionHash  string `gorm:"size:64;not null;index:,length:9"`
 	EpochNumber uint64 `gorm:"not null;unsigned;index" sql:"type:bigint"`
-	Delegate    string `gorm:"size:42;not null;index;uniqueIndex:idx_iip59_voter_block_delegate_voter"`
+	Delegate    string `gorm:"size:42;not null;index;uniqueIndex:idx_voter_reward_block_delegate_voter"`
 	// SnapshotHash joins back to IIP59DelegateDistribution and groups a
 	// settlement's rows across blocks.
 	SnapshotHash string `gorm:"size:64;not null;index"`
 	// Voter earned the share.
-	Voter string `gorm:"size:42;not null;index;uniqueIndex:idx_iip59_voter_block_delegate_voter"`
+	Voter string `gorm:"size:42;not null;index;uniqueIndex:idx_voter_reward_block_delegate_voter"`
 	// Recipient actually received it; equals Voter unless a destination was set.
 	Recipient string          `gorm:"size:42;not null;index"`
 	Amount    decimal.Decimal `gorm:"type:decimal(60,0);not null;default:0"`
@@ -88,7 +88,7 @@ type IIP59VoterReward struct {
 }
 
 func (IIP59VoterReward) TableName() string {
-	return "iip59_voter_rewards"
+	return "voter_rewards"
 }
 
 // IIP59DelegateOptIn is an append-only log of SetVoterRewardOptIn actions --
@@ -105,8 +105,8 @@ func (IIP59VoterReward) TableName() string {
 // them -- opt_in would have to squat on the auto_stake column and a recipient
 // address on the candidate column.
 type IIP59DelegateOptIn struct {
-	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_iip59_optin_block_action" sql:"type:bigint"`
-	ActionHash  string `gorm:"size:64;not null;index:,length:9;uniqueIndex:idx_iip59_optin_block_action"`
+	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_delegate_optin_block_action" sql:"type:bigint"`
+	ActionHash  string `gorm:"size:64;not null;index:,length:9;uniqueIndex:idx_delegate_optin_block_action"`
 	// Sender is the account that submitted the action.
 	Sender string `gorm:"size:42;not null;index:,length:9"`
 	// Candidate is the candidate identifier the setting applies to, decoded
@@ -116,7 +116,7 @@ type IIP59DelegateOptIn struct {
 }
 
 func (IIP59DelegateOptIn) TableName() string {
-	return "iip59_delegate_opt_ins"
+	return "delegate_opt_ins"
 }
 
 // IIP59VoterDestination is an append-only log of SetVoterRewardDestination
@@ -129,8 +129,8 @@ func (IIP59DelegateOptIn) TableName() string {
 // reconciliation that assumes rewards land in the voter's own account needs
 // this table to explain the difference.
 type IIP59VoterDestination struct {
-	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_iip59_dest_block_action" sql:"type:bigint"`
-	ActionHash  string `gorm:"size:64;not null;index:,length:9;uniqueIndex:idx_iip59_dest_block_action"`
+	BlockHeight uint64 `gorm:"not null;unsigned;index;uniqueIndex:idx_voter_dest_block_action" sql:"type:bigint"`
+	ActionHash  string `gorm:"size:64;not null;index:,length:9;uniqueIndex:idx_voter_dest_block_action"`
 	// Voter is the sender: the account whose reward destination is being set.
 	Voter string `gorm:"size:42;not null;index"`
 	// Recipient is the new destination.
@@ -138,5 +138,5 @@ type IIP59VoterDestination struct {
 }
 
 func (IIP59VoterDestination) TableName() string {
-	return "iip59_voter_destinations"
+	return "voter_destinations"
 }

@@ -71,10 +71,10 @@ func resetTestDB(t *testing.T) {
 		t.Skip("embedded postgres not available")
 	}
 	for _, table := range []string{
-		"iip59_delegate_distributions",
-		"iip59_voter_rewards",
-		"iip59_delegate_opt_ins",
-		"iip59_voter_destinations",
+		"delegate_distributions",
+		"voter_rewards",
+		"delegate_opt_ins",
+		"voter_destinations",
 	} {
 		require.NoError(t, testGormDB.Exec("TRUNCATE TABLE "+table).Error)
 	}
@@ -191,7 +191,7 @@ func TestChunkedSettlementAggregationSemantics(t *testing.T) {
 
 	var summed struct{ Total string }
 	r.NoError(testGormDB.Raw(
-		`SELECT COALESCE(SUM(chunk_voter_reward),0)::text AS total FROM iip59_delegate_distributions WHERE snapshot_hash = ?`,
+		`SELECT COALESCE(SUM(chunk_voter_reward),0)::text AS total FROM delegate_distributions WHERE snapshot_hash = ?`,
 		hex.EncodeToString(snapshot[:]),
 	).Scan(&summed).Error)
 	r.Equal("150", summed.Total)
@@ -200,7 +200,7 @@ func TestChunkedSettlementAggregationSemantics(t *testing.T) {
 	// fan-out are two views of one settlement and must not disagree.
 	var payouts struct{ Total string }
 	r.NoError(testGormDB.Raw(
-		`SELECT COALESCE(SUM(amount),0)::text AS total FROM iip59_voter_rewards WHERE snapshot_hash = ?`,
+		`SELECT COALESCE(SUM(amount),0)::text AS total FROM voter_rewards WHERE snapshot_hash = ?`,
 		hex.EncodeToString(snapshot[:]),
 	).Scan(&payouts).Error)
 	r.Equal("150", payouts.Total)

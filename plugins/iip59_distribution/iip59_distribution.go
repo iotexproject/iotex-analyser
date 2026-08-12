@@ -5,7 +5,7 @@
 // Shape of the data it produces, because it is not one row per settlement:
 // the drain is chunked across blocks, so one delegate's era settlement emits
 // one log per block it was paid in. Each log fans out into one
-// iip59_voter_rewards row per voter, plus one iip59_delegate_distributions
+// voter_rewards row per voter, plus one delegate_distributions
 // summary row. Group on (snapshot_hash, delegate, epoch) to reassemble a
 // settlement.
 package main

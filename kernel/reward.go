@@ -8,7 +8,9 @@ import (
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	slog "github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 type RewardInfo struct {
@@ -28,6 +30,45 @@ func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, err
 		}
 		for _, log := range logs.Logs {
 			rewardLog := log
+			// Classify before touching rewardInfoMap. IIP-59 added two
+			// diagnostic log types that reuse the addr/amount wire slots for
+			// cursor bookkeeping instead of a payout, and their addr is NOT an
+			// address: EPOCH_DRAIN_OVERRUN carries "<era>:<delegates_remaining>"
+			// and CURSOR_PROGRESS carries
+			// "<era>:<delegate_idx>:<voter_idx>:<remaining>" with a literal "0"
+			// amount. Skipping them only at the accumulation switch below would
+			// be too late -- the map entry is created by the lookup, and every
+			// caller iterates the map unconditionally, so a key like "12:5"
+			// lands in reward_history.reward_address and block_rewards as a
+			// junk row on every block of a multi-block drain.
+			switch rewardLog.Type {
+			case rewardingpb.RewardLog_BLOCK_REWARD,
+				rewardingpb.RewardLog_EPOCH_REWARD,
+				rewardingpb.RewardLog_FOUNDATION_BONUS,
+				rewardingpb.RewardLog_PRIORITY_BONUS,
+				rewardingpb.RewardLog_UNPRODUCTIVE_SLASH:
+				// Carries a real payout to a real address; accumulate below.
+			case rewardingpb.RewardLog_EPOCH_DRAIN_OVERRUN,
+				rewardingpb.RewardLog_CURSOR_PROGRESS:
+				// Debug rather than Warn: CURSOR_PROGRESS is emitted on every
+				// block of a drain, so Warn would flood the log for hours.
+				slog.L().Debug("skipping IIP-59 diagnostic reward log",
+					zap.String("type", rewardLog.Type.String()),
+					zap.String("addr", rewardLog.Addr),
+				)
+				continue
+			default:
+				// Deliberately not an error. The failure mode this guards
+				// against is exactly what these two enum values would have
+				// caused: core adds a reward log type, and the indexer halts on
+				// the first block after the fork that emits it. Warn loudly,
+				// keep indexing, and let the operator decide.
+				slog.L().Warn("unknown reward log type, skipping",
+					zap.Int32("type", int32(rewardLog.Type)),
+					zap.String("addr", rewardLog.Addr),
+				)
+				continue
+			}
 			rewards, ok := rewardInfoMap[rewardLog.Addr]
 			if !ok {
 				rewardInfoMap[rewardLog.Addr] = &RewardInfo{
@@ -55,7 +96,11 @@ func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, err
 			case rewardingpb.RewardLog_UNPRODUCTIVE_SLASH:
 				rewards.UnproductiveSlash.Add(rewards.UnproductiveSlash, amount)
 			default:
-				return nil, errors.New("Unknown type of reward")
+				// Unreachable: the classification switch above already skipped
+				// every type not listed here. Kept so a new payout type added
+				// to that switch but forgotten here fails visibly in tests
+				// rather than being silently dropped.
+				return nil, errors.Errorf("reward log type %s passed classification but has no accumulator", rewardLog.Type)
 			}
 		}
 	}

@@ -16,11 +16,32 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.1.2"
+// VERSION 2.2.0 — Zanzibar: resolve delegate names by owner address as well as
+// reward address, and stamp which of the two a payout landed on.
+const VERSION = "2.2.0"
+
+const (
+	payoutKindReward = "reward"
+	payoutKindOwner  = "owner"
+)
 
 var (
 	RewardAddrToName map[string][]string
+	// PayoutAddrKind maps a payout address to the candidate role it plays.
+	PayoutAddrKind map[string]string
 )
+
+func addName(addr, name string) {
+	if addr == "" {
+		return
+	}
+	for _, existing := range RewardAddrToName[addr] {
+		if existing == name {
+			return
+		}
+	}
+	RewardAddrToName[addr] = append(RewardAddrToName[addr], name)
+}
 
 type rewardHistoryPlugin struct {
 	tipHeight uint64
@@ -55,11 +76,25 @@ func (b *rewardHistoryPlugin) putBlock(ctx context.Context, blk *block.Block) er
 			return errors.Wrap(err, "get candidate error")
 		}
 		RewardAddrToName = make(map[string][]string)
+		PayoutAddrKind = make(map[string]string)
 		for _, c := range candidateList.Candidates {
-			if _, ok := RewardAddrToName[c.RewardAddress]; !ok {
-				RewardAddrToName[c.RewardAddress] = make([]string, 0)
+			// Index the owner address as well as the reward address. Since
+			// Zanzibar, a delegate that opted in to IIP-59 is paid its
+			// commission at its *owner* address, so a reward-address-only map
+			// stops resolving exactly the delegates the fork affects — and a
+			// blank candidate_name silently drops them out of every by-name
+			// reward aggregation downstream.
+			addName(c.RewardAddress, c.Name)
+			addName(c.OwnerAddress, c.Name)
+			// Record which index a payout address came from, so a consumer can
+			// tell a full legacy payout from an IIP-59 commission-only payout
+			// without a state read. When the two addresses coincide the reward
+			// role wins and the distinction has to come from
+			// delegate_reward_config instead.
+			if c.OwnerAddress != "" && c.OwnerAddress != c.RewardAddress {
+				PayoutAddrKind[c.OwnerAddress] = payoutKindOwner
 			}
-			RewardAddrToName[c.RewardAddress] = append(RewardAddrToName[c.RewardAddress], c.Name)
+			PayoutAddrKind[c.RewardAddress] = payoutKindReward
 		}
 	}
 
@@ -90,6 +125,7 @@ func (b *rewardHistoryPlugin) putBlock(ctx context.Context, blk *block.Block) er
 				BlockHeight:     blkHeight,
 				EpochNumber:     epochNumber,
 				RewardAddress:   rewardAddress,
+				PayoutAddrKind:  PayoutAddrKind[rewardAddress],
 				ActionHash:      hex.EncodeToString(receipt.ActionHash[:]),
 				CandidateName:   candidateName,
 				BlockReward:     decimal.NewFromBigInt(reward.BlockReward, 0),

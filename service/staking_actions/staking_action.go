@@ -524,6 +524,29 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			if err := b.updateExitQueue(tx, "ScheduleCandidateDeactivation", blk.Height(), actHash, cand, scheduledAt); err != nil {
 				return errors.Wrapf(err, "failed to update exit queue for ScheduleCandidateDeactivation, actHash: %s", actHash)
 			}
+		case *action.SetVoterRewardOptIn:
+			// Zanzibar / IIP-59. The action carries no parameters — the
+			// candidate is the sender's — and the transition is one-way, so
+			// the row exists to give the explorer something to render and to
+			// date the opt-in. The candidate identity comes from the
+			// VoterRewardOptInSet event the handler emits, because a delegate
+			// whose ownership was transferred is no longer addressable by its
+			// sender address.
+			candidateIdentity := optInCandidateFromLogs(receipt.Logs())
+			if candidateIdentity == "" {
+				candidateIdentity = sender.String()
+			}
+			stakingAction = models.StakingActions{
+				BlockHeight:  blk.Height(),
+				Sender:       sender.String(),
+				OwnerAddress: sender.String(),
+				ActHash:      actHash,
+				Candidate:    candidateIdentity,
+				ActType:      "SetVoterRewardOptIn",
+			}
+			if err := tx.Create(b.ShadowTable(&stakingAction)).Error; err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -743,4 +766,32 @@ func (b StakingActionPlugin) updateExitQueue(tx *gorm.DB, actType string, height
 			}).Error
 	}
 	return nil
+}
+
+// topicVoterRewardOptInSet is derived from iotex-core's own event packer
+// rather than from a copied signature string, and deliberately not from the
+// voter_reward service package: two plugin .so files that share a Go package
+// must be rebuilt in lockstep or the loader rejects the second one, and
+// partial plugin upgrades are a normal operation.
+var topicVoterRewardOptInSet = action.VoterRewardOptInSetEvent(make([]byte, 20))[0]
+
+// optInCandidateFromLogs pulls the candidate identifier out of the
+// VoterRewardOptInSet event the staking handler emits alongside a
+// SetVoterRewardOptIn action. Returns "" when the event is absent.
+//
+// The identifier is written with hash.BytesToHash256, so it is right-aligned
+// in the topic even though the ABI declares it as bytes32.
+func optInCandidateFromLogs(logs []*action.Log) string {
+	for _, l := range logs {
+		if l == nil || l.Address != StakingProtocolAddress ||
+			len(l.Topics) < 2 || l.Topics[0] != topicVoterRewardOptInSet {
+			continue
+		}
+		addr, err := address.FromBytes(l.Topics[1][12:])
+		if err != nil {
+			continue
+		}
+		return addr.String()
+	}
+	return ""
 }

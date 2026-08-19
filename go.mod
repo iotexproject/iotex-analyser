@@ -13,9 +13,9 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/iotexproject/go-pkgs v0.1.16-0.20250813090621-fc1c4ebefcb4
 	github.com/iotexproject/iotex-address v0.2.9-0.20251203033311-6e8aa4fd43ef
-	github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260810063455-75569725c7f8
+	github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260817050319-f5d772df07ce
 	github.com/iotexproject/iotex-election v0.3.8-0.20251015031218-8df952babca1
-	github.com/iotexproject/iotex-proto v0.6.11-0.20260810021246-384fea5c12d9
+	github.com/iotexproject/iotex-proto v0.6.12
 	github.com/lib/pq v1.10.9
 	github.com/millken/gocache v1.0.5
 	github.com/mitchellh/go-homedir v1.1.0
@@ -358,7 +358,7 @@ require (
 // `go get -u` would silently resolve to v2.4.4 -- and still compile -- shipping
 // an indexer that hard-fails on the first IIP-59 reward log after the fork.
 // Remove this once iotex-core cuts a real v2.5.0 tag and bump the require.
-replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260810063455-75569725c7f8
+replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260817050319-f5d772df07ce
 
 replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v1.7.4-0.20260114032628-a8ad6229e289
 

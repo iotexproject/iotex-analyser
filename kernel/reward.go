@@ -24,6 +24,16 @@ type RewardInfo struct {
 func RewardInfoFromReceipt(receipt *action.Receipt) (map[string]*RewardInfo, error) {
 	rewardInfoMap := make(map[string]*RewardInfo)
 	for _, l := range receipt.Logs() {
+		if len(l.Topics) != 0 {
+			// Not a RewardLog. Before Zanzibar a GrantReward receipt carried
+			// nothing else, so unmarshalling every log unconditionally was
+			// safe. IIP-59 now emits DelegateVoterRewardsDistributed -- an
+			// ordinary ABI-encoded event with three topics -- from the same
+			// receipt, and feeding that to the protobuf decoder fails the
+			// whole block. The rewarding protocol writes every RewardLog with
+			// Topics: nil, so the topic count is the discriminator.
+			continue
+		}
 		logs, err := rewarding.UnmarshalRewardLog(l.Data)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to unmarshal receipt data into reward log")

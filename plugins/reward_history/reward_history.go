@@ -11,8 +11,10 @@ import (
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
+	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -43,6 +45,28 @@ func addName(addr, name string) {
 	RewardAddrToName[addr] = append(RewardAddrToName[addr], name)
 }
 
+// setPayoutKind records the candidate role an address plays, refusing to
+// downgrade "reward" to "owner".
+//
+// Indexing owner addresses means one address can now be claimed by two
+// candidates — A's owner address may be B's reward address. The consumer reads
+// only the first name and a single kind, so the tie has to break the same way
+// in both maps, and "reward" is the one that was always correct pre-Zanzibar.
+func setPayoutKind(addr, kind string) {
+	if addr == "" {
+		return
+	}
+	if prev, ok := PayoutAddrKind[addr]; ok && prev != kind {
+		log.L().Warn("reward_history: address claimed by two candidate roles",
+			zap.String("address", addr),
+			zap.String("keeping", payoutKindReward),
+			zap.String("discarding", payoutKindOwner))
+		PayoutAddrKind[addr] = payoutKindReward
+		return
+	}
+	PayoutAddrKind[addr] = kind
+}
+
 type rewardHistoryPlugin struct {
 	tipHeight uint64
 	histories []models.RewardHistory
@@ -58,6 +82,14 @@ func (b *rewardHistoryPlugin) Type() plugin.Type {
 
 func (b *rewardHistoryPlugin) Start(ctx context.Context) error {
 	if err := db.AutoMigrate(b.Name(), &models.RewardHistory{}); err != nil {
+		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
+	}
+	// 2.2.0 added payout_addr_kind. AutoMigrate above only rebuilds the table
+	// at index height 0, so on any already-running deployment the column would
+	// be missing and every INSERT would fail — leaving the plugin retrying the
+	// same batch forever. Existing rows keep the empty default, which the
+	// column is documented to mean "indexed before this existed".
+	if err := db.EnsureColumns(&models.RewardHistory{}, "PayoutAddrKind"); err != nil {
 		return errors.Wrapf(err, "failed to start plugin %s", b.Name())
 	}
 
@@ -77,24 +109,33 @@ func (b *rewardHistoryPlugin) putBlock(ctx context.Context, blk *block.Block) er
 		}
 		RewardAddrToName = make(map[string][]string)
 		PayoutAddrKind = make(map[string]string)
+		// Index the owner address as well as the reward address. Since
+		// Zanzibar, a delegate that opted in to IIP-59 is paid its commission
+		// at its *owner* address, so a reward-address-only map stops resolving
+		// exactly the delegates the fork affects — and a blank candidate_name
+		// silently drops them out of every by-name reward aggregation
+		// downstream.
+		//
+		// Two passes, reward addresses first, because the consumer reads
+		// RewardAddrToName[addr][0]: if candidate A's owner address is
+		// candidate B's reward address, B's ordinary payout must still resolve
+		// to B. One pass would hand that address to whichever candidate the
+		// chain happened to list first.
 		for _, c := range candidateList.Candidates {
-			// Index the owner address as well as the reward address. Since
-			// Zanzibar, a delegate that opted in to IIP-59 is paid its
-			// commission at its *owner* address, so a reward-address-only map
-			// stops resolving exactly the delegates the fork affects — and a
-			// blank candidate_name silently drops them out of every by-name
-			// reward aggregation downstream.
 			addName(c.RewardAddress, c.Name)
-			addName(c.OwnerAddress, c.Name)
 			// Record which index a payout address came from, so a consumer can
 			// tell a full legacy payout from an IIP-59 commission-only payout
 			// without a state read. When the two addresses coincide the reward
 			// role wins and the distinction has to come from
 			// delegate_reward_config instead.
-			if c.OwnerAddress != "" && c.OwnerAddress != c.RewardAddress {
-				PayoutAddrKind[c.OwnerAddress] = payoutKindOwner
+			setPayoutKind(c.RewardAddress, payoutKindReward)
+		}
+		for _, c := range candidateList.Candidates {
+			if c.OwnerAddress == "" || c.OwnerAddress == c.RewardAddress {
+				continue
 			}
-			PayoutAddrKind[c.RewardAddress] = payoutKindReward
+			addName(c.OwnerAddress, c.Name)
+			setPayoutKind(c.OwnerAddress, payoutKindOwner)
 		}
 	}
 

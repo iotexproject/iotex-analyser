@@ -23,11 +23,17 @@ type VoterRewardDistribution struct {
 	// rewarding.packDelegateChunkLog). Era, not EpochNumber, is what a user
 	// means by "which payout was this".
 	Era        uint64 `gorm:"unsigned;index" sql:"type:bigint"`
-	ActionHash string `gorm:"size:64;not null;index:,length:9"`
+	ActionHash string `gorm:"size:64;not null;index:,length:9;uniqueIndex:idx_vrd_row,priority:1"`
 	// LogIndex plus RowIndex identify the row inside the block: one chunk can
 	// emit several logs (one per delegate) and each log carries many voters.
-	LogIndex uint32 `gorm:"not null;default:0"`
-	RowIndex uint32 `gorm:"not null;default:0"`
+	//
+	// The three columns carry a unique index so a replayed block cannot double
+	// the ledger. Note this protects the per-payout rows only — voter_reward_era
+	// accumulates its running totals, so re-running an already-indexed range
+	// still inflates them. AutoMigrate drops and rebuilds these tables at index
+	// height 0, which is the supported way to re-index.
+	LogIndex uint32 `gorm:"not null;default:0;uniqueIndex:idx_vrd_row,priority:2"`
+	RowIndex uint32 `gorm:"not null;default:0;uniqueIndex:idx_vrd_row,priority:3"`
 
 	DelegateID   string `gorm:"size:42;not null;default:'';index:,length:9"`
 	DelegateName string `gorm:"size:42;not null;default:'';index"`

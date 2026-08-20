@@ -35,3 +35,15 @@ per-delegate allocations (`voter_reward_era.total_frozen`). The protocol's
 payout clamp guarantees the inequality; a violation means the decode is wrong,
 not that the chain overpaid. Any shortfall is integer-division dust or a
 self-stake predicate skew, and rolls into a later era.
+
+## Re-indexing
+
+Reset the plugin's index height to 0 and restart. `AutoMigrate` drops and
+rebuilds the four tables at height 0, which is what makes this safe.
+
+Do **not** re-run an already-indexed range by rewinding the index height to
+some middle value. `voter_reward_distribution` carries a unique index on
+`(action_hash, log_index, row_index)` so the payout rows would be deduplicated,
+but `voter_reward_era` accumulates `voter_count` and `total_distributed` as
+chunks land — a partial re-run inflates them, and the inflation is not
+detectable from the table afterwards.

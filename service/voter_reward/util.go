@@ -41,9 +41,6 @@ func bytesToDec(b []byte) decimal.Decimal {
 // hexOrEmpty renders raw cursor bytes the same way the protocol's own
 // CURSOR_PROGRESS log does (%x), so a value read from state and a value parsed
 // from a log are directly comparable.
-func hexOrEmpty(b []byte) (string, error) {
-	if len(b) == 0 {
-		return "", nil
-	}
-	return hex.EncodeToString(b), nil
+func hexOrEmpty(b []byte) string {
+	return hex.EncodeToString(b)
 }

@@ -532,9 +532,16 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			// VoterRewardOptInSet event the handler emits, because a delegate
 			// whose ownership was transferred is no longer addressable by its
 			// sender address.
-			candidateIdentity := optInCandidateFromLogs(receipt.Logs())
-			if candidateIdentity == "" {
-				candidateIdentity = sender.String()
+			//
+			// Falling back to the sender when the event is missing would write
+			// exactly the wrong identity this reads the event to avoid, and
+			// nothing downstream could tell it apart from a correct one. Fail
+			// the block instead, matching candidateIdentityFromLogs and
+			// scheduledAtFromLogsOrChain: an operator can fix and reindex, but
+			// cannot find silently mislabelled rows after the fact.
+			candidateIdentity, err := optInCandidateFromLogs(receipt.Logs())
+			if err != nil {
+				return errors.Wrapf(err, "failed to get candidate identity for SetVoterRewardOptIn, actHash: %s", actHash)
 			}
 			stakingAction = models.StakingActions{
 				BlockHeight:  blk.Height(),
@@ -777,21 +784,22 @@ var topicVoterRewardOptInSet = action.VoterRewardOptInSetEvent(make([]byte, 20))
 
 // optInCandidateFromLogs pulls the candidate identifier out of the
 // VoterRewardOptInSet event the staking handler emits alongside a
-// SetVoterRewardOptIn action. Returns "" when the event is absent.
+// SetVoterRewardOptIn action. Errors when the event is absent.
 //
 // The identifier is written with hash.BytesToHash256, so it is right-aligned
-// in the topic even though the ABI declares it as bytes32.
-func optInCandidateFromLogs(logs []*action.Log) string {
+// in the topic even though the ABI declares it as bytes32 — iotexAddrFromTopic
+// handles that.
+func optInCandidateFromLogs(logs []*action.Log) (string, error) {
 	for _, l := range logs {
 		if l == nil || l.Address != StakingProtocolAddress ||
 			len(l.Topics) < 2 || l.Topics[0] != topicVoterRewardOptInSet {
 			continue
 		}
-		addr, err := address.FromBytes(l.Topics[1][12:])
+		addr, err := iotexAddrFromTopic(l.Topics[1])
 		if err != nil {
-			continue
+			return "", err
 		}
-		return addr.String()
+		return addr.String(), nil
 	}
-	return ""
+	return "", errors.New("VoterRewardOptInSet event not found in receipt logs")
 }

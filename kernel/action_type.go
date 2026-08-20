@@ -31,7 +31,11 @@ func ActionTypeString(act action.Action) string {
 			return "grantVoterRewardChunk"
 		}
 	}
-	return firstLowerCase(strings.TrimLeft(fmt.Sprintf("%T", act), "*action."))
+	// TrimPrefix, not TrimLeft: TrimLeft takes a *cutset*, so it would also eat
+	// any leading run of {*, a, c, t, i, o, n, .} from a name outside the
+	// action package. Harmless while every type name starts upper-case, but not
+	// something to leave in a shared helper.
+	return firstLowerCase(strings.TrimPrefix(fmt.Sprintf("%T", act), "*action."))
 }
 
 func firstLowerCase(s string) string {

@@ -51,6 +51,8 @@ type Plugin struct {
 	// eraSeen caches eras already summarised, so the *immutable* half of a
 	// settlement is read from the chain once per era rather than once per
 	// chunk block.
+	//
+	// Only eras whose rows are already committed live here; see pendingEraSeen.
 	eraSeen map[uint64]bool
 
 	// eraDone remembers settlements already observed complete, so the
@@ -65,6 +67,19 @@ type Plugin struct {
 	pendingDestinations []models.VoterRewardDestination
 	pendingEras         map[uint64]*models.VoterRewardEra
 	pendingConfigs      []models.DelegateRewardConfig
+
+	// pendingEraSeen and pendingEraDone hold memo entries earned by the batch
+	// currently buffered but not yet committed.
+	//
+	// They exist because the runner replays a batch verbatim when PutBlocks
+	// returns an error (server/runner.go does not advance nextHeight). A memo
+	// promoted into eraSeen before the transaction lands would make the replay
+	// skip ensureEraPlan for an era whose plan was never written — leaving the
+	// era row at freeze_height=0/total_frozen=0 forever and its
+	// delegate_reward_config rows permanently absent. commit() promotes these
+	// only after the transaction succeeds, and drops them if it fails.
+	pendingEraSeen map[uint64]bool
+	pendingEraDone map[uint64]bool
 }
 
 // New returns a plugin instance ready to be registered.
@@ -75,14 +90,24 @@ type Plugin struct {
 // symbol a `**Plugin` and fail the Adapter type assertion.
 func New(shadow plugin.PluginShadow) Plugin {
 	return Plugin{
-		Shadow:      shadow,
-		candidates:  NewCandidateIndex(),
-		optInSeen:   map[string]uint64{},
-		eraSeen:     map[uint64]bool{},
-		eraDone:     map[uint64]bool{},
-		chunkEras:   map[uint64]struct{}{},
-		pendingEras: map[uint64]*models.VoterRewardEra{},
+		Shadow:         shadow,
+		candidates:     NewCandidateIndex(),
+		optInSeen:      map[string]uint64{},
+		eraSeen:        map[uint64]bool{},
+		eraDone:        map[uint64]bool{},
+		chunkEras:      map[uint64]struct{}{},
+		pendingEras:    map[uint64]*models.VoterRewardEra{},
+		pendingEraSeen: map[uint64]bool{},
+		pendingEraDone: map[uint64]bool{},
 	}
+}
+
+// table resolves the table name a model writes to, honouring the shadow
+// mapping. Every read and write in this plugin goes through it: Start creates
+// the shadowed tables, so a write that addressed the model's own TableName
+// would target the base table instead.
+func (p *Plugin) table(m plugin.Table) string {
+	return p.Shadow.ShadowTable(m).TableName()
 }
 
 func (p *Plugin) Name() string               { return p.Shadow.ShadowName("voter_reward") }
@@ -123,6 +148,7 @@ func (p *Plugin) Start(ctx context.Context) error {
 func (p *Plugin) rehydrateOptIns() error {
 	var rows []models.DelegateRewardConfig
 	if err := db.DB().
+		Table(p.table(models.DelegateRewardConfig{})).
 		Where("opt_in_source = ?", optInSourceAction).
 		Select("delegate_id", "opt_in_height").
 		Find(&rows).Error; err != nil {
@@ -191,7 +217,7 @@ func (p *Plugin) refreshChunkedEras(ctx context.Context, height uint64) error {
 	// protocol will not dispatch another chunk for it either.
 	pending := false
 	for era := range p.chunkEras {
-		if !p.eraDone[era] {
+		if !p.isEraDone(era) {
 			pending = true
 			break
 		}
@@ -214,14 +240,10 @@ func (p *Plugin) refreshChunkedEras(ctx context.Context, height uint64) error {
 	}
 	row := p.era(era)
 	row.ScanPhase = state.GetScanPhase()
-	resume, err := hexOrEmpty(state.GetResumeVoter())
-	if err != nil {
-		return err
-	}
-	row.ResumeVoter = resume
+	row.ResumeVoter = hexOrEmpty(state.GetResumeVoter())
 	if state.GetCompleted() || state.GetScanPhase() == ScanPhaseDone {
-		if !p.eraDone[era] {
-			p.eraDone[era] = true
+		if !p.isEraDone(era) {
+			p.pendingEraDone[era] = true
 			log.L().Info("voter_reward: settlement complete",
 				zap.Uint64("era", era), zap.Uint64("height", height))
 		}
@@ -348,7 +370,7 @@ func (p *Plugin) era(era uint64) *models.VoterRewardEra {
 // with no action and no log at all. Reading the state instead of the events
 // also makes the table self-healing across a re-index or a missed block.
 func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) error {
-	if p.eraSeen[era] {
+	if p.isEraSeen(era) {
 		return nil
 	}
 	client := kernel.ChainClient()
@@ -390,9 +412,16 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 	if err := p.snapshotDelegateConfigs(ctx, client, era, height, frozen); err != nil {
 		return err
 	}
-	p.eraSeen[era] = true
+	p.pendingEraSeen[era] = true
 	return nil
 }
+
+// isEraSeen and isEraDone answer "have we already done this work", counting
+// both what is committed and what the current uncommitted batch has produced.
+// The split matters only when a commit fails: commit() then drops the pending
+// half, so the replayed batch redoes the work instead of skipping it.
+func (p *Plugin) isEraSeen(era uint64) bool { return p.eraSeen[era] || p.pendingEraSeen[era] }
+func (p *Plugin) isEraDone(era uint64) bool { return p.eraDone[era] || p.pendingEraDone[era] }
 
 func (p *Plugin) snapshotDelegateConfigs(
 	ctx context.Context, client iotexapi.APIServiceClient, era, height uint64,
@@ -400,12 +429,19 @@ func (p *Plugin) snapshotDelegateConfigs(
 ) error {
 	for _, info := range p.candidates.All() {
 		routing, err := ReadPayoutAddress(ctx, client, info.Identifier, height)
-		if err != nil {
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrNoPayoutRouting):
 			// A candidate that vanished between the index refresh and this
 			// read is not a reason to fail the block.
-			log.L().Debug("voter_reward: payout address unreadable",
+			log.L().Debug("voter_reward: delegate has no payout routing",
 				zap.String("delegate", info.Identifier), zap.Error(err))
 			continue
+		default:
+			// A failed read is not "this delegate has no routing". Skipping on
+			// it would leave the delegate with no config row for this era, and
+			// the era memo means nothing would ever go back for it.
+			return errors.Wrapf(err, "read payout routing for %s at era %d", info.Identifier, era)
 		}
 		cfg := models.DelegateRewardConfig{
 			DelegateID:    info.Identifier,
@@ -494,14 +530,24 @@ func (p *Plugin) commit() error {
 	p.pendingEras = map[uint64]*models.VoterRewardEra{}
 	tipHeight := p.tipHeight
 
-	return db.DB().Transaction(func(tx *gorm.DB) error {
+	err := db.DB().Transaction(func(tx *gorm.DB) error {
 		if len(rows) > 0 {
-			if err := tx.CreateInBatches(rows, 200).Error; err != nil {
+			// DoNothing on the (action_hash, log_index, row_index) unique index:
+			// a row is fully identified by where it sat in the receipt, so a
+			// replay can only ever produce the identical row.
+			if err := tx.Table(p.table(models.VoterRewardDistribution{})).
+				Clauses(clause.OnConflict{
+					Columns: []clause.Column{
+						{Name: "action_hash"}, {Name: "log_index"}, {Name: "row_index"},
+					},
+					DoNothing: true,
+				}).CreateInBatches(rows, 200).Error; err != nil {
 				return err
 			}
 		}
 		if len(dests) > 0 {
-			if err := tx.CreateInBatches(dests, 200).Error; err != nil {
+			if err := tx.Table(p.table(models.VoterRewardDestination{})).
+				CreateInBatches(dests, 200).Error; err != nil {
 				return err
 			}
 		}
@@ -510,7 +556,7 @@ func (p *Plugin) commit() error {
 			// the running totals accumulate across batches rather than
 			// overwriting. Columns that describe the immutable plan are only
 			// written when this batch actually read them.
-			if err := upsertEra(tx, era); err != nil {
+			if err := upsertEra(tx, p.table(models.VoterRewardEra{}), era); err != nil {
 				return err
 			}
 		}
@@ -527,18 +573,50 @@ func (p *Plugin) commit() error {
 				"commission_configured", "total_weight", "voter_amount_frozen",
 				"payout_address",
 			}
-			if err := tx.Clauses(clause.OnConflict{
+			configTable := p.table(models.DelegateRewardConfig{})
+			if err := tx.Table(configTable).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "delegate_id"}, {Name: "era"}},
 				DoUpdates: clause.Assignments(assignmentsFor(assignable)),
 			}).CreateInBatches(configs, 200).Error; err != nil {
 				return err
 			}
-			if err := upgradeOptInAttribution(tx, configs); err != nil {
+			if err := upgradeOptInAttribution(tx, configTable, configs); err != nil {
 				return err
 			}
 		}
 		return db.UpdateIndexHeightByTx(tx, p.Name(), tipHeight)
 	})
+	if err != nil {
+		p.dropPendingMemos()
+		return err
+	}
+	p.promotePendingMemos()
+	return nil
+}
+
+// promotePendingMemos makes the current batch's memoisation durable, once its
+// rows are actually in the database.
+func (p *Plugin) promotePendingMemos() {
+	for era := range p.pendingEraSeen {
+		p.eraSeen[era] = true
+	}
+	for era := range p.pendingEraDone {
+		p.eraDone[era] = true
+	}
+	clear(p.pendingEraSeen)
+	clear(p.pendingEraDone)
+}
+
+// dropPendingMemos discards the memoisation earned by a batch that failed to
+// commit.
+//
+// The runner replays that exact batch. A memo kept here would describe work
+// that is not in the database, and the replay would skip it — leaving the era
+// row at freeze_height=0 and its delegate_reward_config rows absent, with
+// nothing to ever go back for them.
+func (p *Plugin) dropPendingMemos() {
+	clear(p.pendingEraSeen)
+	clear(p.pendingEraDone)
 }
 
 // assignmentsFor builds the ON CONFLICT assignment map for the given columns,
@@ -554,12 +632,12 @@ func assignmentsFor(columns []string) map[string]interface{} {
 // upgradeOptInAttribution writes the opt-in source only where it strengthens
 // what is already stored: an empty attribution can become anything, and a
 // migration can be upgraded to an action, but never the reverse.
-func upgradeOptInAttribution(tx *gorm.DB, configs []models.DelegateRewardConfig) error {
+func upgradeOptInAttribution(tx *gorm.DB, table string, configs []models.DelegateRewardConfig) error {
 	for _, cfg := range configs {
 		if cfg.OptInSource == "" {
 			continue
 		}
-		q := tx.Model(&models.DelegateRewardConfig{}).
+		q := tx.Table(table).
 			Where("delegate_id = ? AND era = ?", cfg.DelegateID, cfg.Era)
 		if cfg.OptInSource == optInSourceMigration {
 			// Do not clobber a recorded action with a migration.
@@ -577,12 +655,12 @@ func upgradeOptInAttribution(tx *gorm.DB, configs []models.DelegateRewardConfig)
 	return nil
 }
 
-func upsertEra(tx *gorm.DB, era models.VoterRewardEra) error {
+func upsertEra(tx *gorm.DB, table string, era models.VoterRewardEra) error {
 	var existing models.VoterRewardEra
-	err := tx.Where("era = ?", era.Era).Take(&existing).Error
+	err := tx.Table(table).Where("era = ?", era.Era).Take(&existing).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		return tx.Create(&era).Error
+		return tx.Table(table).Create(&era).Error
 	case err != nil:
 		return err
 	}
@@ -607,5 +685,5 @@ func upsertEra(tx *gorm.DB, era models.VoterRewardEra) error {
 	if !era.OverrunResidue.IsZero() {
 		existing.OverrunResidue = era.OverrunResidue
 	}
-	return tx.Save(&existing).Error
+	return tx.Table(table).Save(&existing).Error
 }

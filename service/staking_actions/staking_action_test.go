@@ -330,3 +330,35 @@ func TestValidBucketIndex(t *testing.T) {
 		})
 	}
 }
+
+// TestOptInCandidateFromLogs covers the SetVoterRewardOptIn identity lookup.
+//
+// The identity has to come from the VoterRewardOptInSet event rather than the
+// sender: a candidate whose ownership was transferred is no longer addressable
+// by its owner address. So a missing event must be an error, not a fallback —
+// a wrong identity written here is indistinguishable from a right one later.
+func TestOptInCandidateFromLogs(t *testing.T) {
+	candidate := mustIotexAddr(testCandidateBytes)
+	topics := action.VoterRewardOptInSetEvent(testCandidateBytes[:])
+
+	got, err := optInCandidateFromLogs([]*action.Log{
+		{Address: StakingProtocolAddress, Topics: topics},
+	})
+	require.NoError(t, err)
+	require.Equal(t, candidate, got)
+
+	// Same event from a different emitter is not the staking protocol's.
+	_, err = optInCandidateFromLogs([]*action.Log{
+		{Address: mustIotexAddr([20]byte{0x01}), Topics: topics},
+	})
+	require.Error(t, err)
+
+	// No event at all: fail rather than silently attributing to the sender.
+	_, err = optInCandidateFromLogs(nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "VoterRewardOptInSet")
+
+	// A nil log in the slice must not panic.
+	_, err = optInCandidateFromLogs([]*action.Log{nil})
+	require.Error(t, err)
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
@@ -14,6 +15,11 @@ import (
 const (
 	stakingProtocolID   = "staking"
 	readCandidatesLimit = 20000
+
+	// readCandidatesTimeout is more generous than readStateTimeout: a page can
+	// carry up to readCandidatesLimit records. It still has to be bounded —
+	// this read blocks block processing.
+	readCandidatesTimeout = 30 * time.Second
 )
 
 // CandidateIndex maps a candidate identifier to the fields the IIP-59 tables
@@ -146,6 +152,8 @@ func stakingCandidatePage(
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(ctx, readCandidatesTimeout)
+	defer cancel()
 	res, err := client.ReadState(ctx, &iotexapi.ReadStateRequest{
 		ProtocolID: []byte(stakingProtocolID),
 		MethodName: methodName,

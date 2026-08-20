@@ -106,6 +106,36 @@ func EnsureTables(dst ...interface{}) error {
 	return nil
 }
 
+// EnsureColumns adds any of the named fields that the model declares but the
+// live table lacks, without touching existing data.
+//
+// This is the column-level counterpart to EnsureTables, and it exists for the
+// same reason: AutoMigrate only drops and recreates at index height 0, and
+// VERSION is informational — nothing in the runner reacts to a bump. So a
+// column added to a model in a release simply never appears on a database that
+// is already past height 0, and the plugin's next INSERT fails with
+// `column "..." does not exist`, which the runner retries forever. The index
+// then sits at a fixed height with no indication of why.
+//
+// fields are Go struct field names (GORM resolves them to column names).
+// Adding a column is safe to repeat and safe to run before the plugin writes:
+// the column is created with the model's declared default.
+func EnsureColumns(model interface{}, fields ...string) error {
+	if !db.Migrator().HasTable(model) {
+		// Nothing to patch; AutoMigrate or EnsureTables will create it whole.
+		return nil
+	}
+	for _, f := range fields {
+		if db.Migrator().HasColumn(model, f) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(model, f); err != nil {
+			return fmt.Errorf("ensure column %T.%s: %w", model, f, err)
+		}
+	}
+	return nil
+}
+
 func LoadDBFromEnv() (*gorm.DB, error) {
 	_, err := config.New(os.Getenv("ConfigPath"))
 	if err != nil {

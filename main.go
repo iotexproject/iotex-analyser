@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/urfave/cli/v2"
@@ -19,6 +20,20 @@ var (
 )
 
 func main() {
+	// Pin the process to UTC before anything can read a clock.
+	//
+	// Block timestamps are written to `timestamp without time zone` columns via
+	// time.Unix(), which returns a time in the *local* zone; the driver then
+	// stores that zone's wall-clock reading. On a UTC host that is correct by
+	// accident. On a UTC+8 host every block, action and transfer lands eight
+	// hours in the future, and the explorer renders freshly mined blocks as
+	// "in 7 hours".
+	//
+	// Fixing the ~68 individual call sites would leave the next one to be
+	// written wrong, so the timezone is removed as a variable instead. An
+	// indexer has no business rendering local time anyway.
+	time.Local = time.UTC
+
 	app := cli.NewApp()
 	app.Name = "iotex-analyser"
 	app.Usage = "async analyser for iotex"

@@ -524,6 +524,36 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			if err := b.updateExitQueue(tx, "ScheduleCandidateDeactivation", blk.Height(), actHash, cand, scheduledAt); err != nil {
 				return errors.Wrapf(err, "failed to update exit queue for ScheduleCandidateDeactivation, actHash: %s", actHash)
 			}
+		case *action.SetVoterRewardOptIn:
+			// Zanzibar / IIP-59. The action carries no parameters — the
+			// candidate is the sender's — and the transition is one-way, so
+			// the row exists to give the explorer something to render and to
+			// date the opt-in. The candidate identity comes from the
+			// VoterRewardOptInSet event the handler emits, because a delegate
+			// whose ownership was transferred is no longer addressable by its
+			// sender address.
+			//
+			// Falling back to the sender when the event is missing would write
+			// exactly the wrong identity this reads the event to avoid, and
+			// nothing downstream could tell it apart from a correct one. Fail
+			// the block instead, matching candidateIdentityFromLogs and
+			// scheduledAtFromLogsOrChain: an operator can fix and reindex, but
+			// cannot find silently mislabelled rows after the fact.
+			candidateIdentity, err := optInCandidateFromLogs(receipt.Logs())
+			if err != nil {
+				return errors.Wrapf(err, "failed to get candidate identity for SetVoterRewardOptIn, actHash: %s", actHash)
+			}
+			stakingAction = models.StakingActions{
+				BlockHeight:  blk.Height(),
+				Sender:       sender.String(),
+				OwnerAddress: sender.String(),
+				ActHash:      actHash,
+				Candidate:    candidateIdentity,
+				ActType:      "SetVoterRewardOptIn",
+			}
+			if err := tx.Create(b.ShadowTable(&stakingAction)).Error; err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -743,4 +773,33 @@ func (b StakingActionPlugin) updateExitQueue(tx *gorm.DB, actType string, height
 			}).Error
 	}
 	return nil
+}
+
+// topicVoterRewardOptInSet is derived from iotex-core's own event packer
+// rather than from a copied signature string, and deliberately not from the
+// voter_reward service package: two plugin .so files that share a Go package
+// must be rebuilt in lockstep or the loader rejects the second one, and
+// partial plugin upgrades are a normal operation.
+var topicVoterRewardOptInSet = action.VoterRewardOptInSetEvent(make([]byte, 20))[0]
+
+// optInCandidateFromLogs pulls the candidate identifier out of the
+// VoterRewardOptInSet event the staking handler emits alongside a
+// SetVoterRewardOptIn action. Errors when the event is absent.
+//
+// The identifier is written with hash.BytesToHash256, so it is right-aligned
+// in the topic even though the ABI declares it as bytes32 — iotexAddrFromTopic
+// handles that.
+func optInCandidateFromLogs(logs []*action.Log) (string, error) {
+	for _, l := range logs {
+		if l == nil || l.Address != StakingProtocolAddress ||
+			len(l.Topics) < 2 || l.Topics[0] != topicVoterRewardOptInSet {
+			continue
+		}
+		addr, err := iotexAddrFromTopic(l.Topics[1])
+		if err != nil {
+			return "", err
+		}
+		return addr.String(), nil
+	}
+	return "", errors.New("VoterRewardOptInSet event not found in receipt logs")
 }

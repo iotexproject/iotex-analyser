@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 
+	"github.com/iotexproject/iotex-analyser/config"
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/action/protocol"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
@@ -196,7 +198,10 @@ func (p *Plugin) putBlock(ctx context.Context, blk *block.Block) error {
 			}
 		}
 	}
-	return p.refreshChunkedEras(ctx, height)
+	if err := p.refreshChunkedEras(ctx, height); err != nil {
+		return err
+	}
+	return p.indexFrozenEra(ctx, height, epoch)
 }
 
 // refreshChunkedEras re-reads the settlement cursor after a block that ran a
@@ -409,7 +414,7 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 	}
 	row.TotalFrozen = total
 
-	if err := p.snapshotDelegateConfigs(ctx, client, era, height, frozen); err != nil {
+	if _, err := p.snapshotDelegateConfigs(ctx, client, era, height, frozen); err != nil {
 		return err
 	}
 	p.pendingEraSeen[era] = true
@@ -423,10 +428,15 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 func (p *Plugin) isEraSeen(era uint64) bool { return p.eraSeen[era] || p.pendingEraSeen[era] }
 func (p *Plugin) isEraDone(era uint64) bool { return p.eraDone[era] || p.pendingEraDone[era] }
 
+// snapshotDelegateConfigs writes one delegate_reward_config row per candidate
+// and returns the freeze height read off the snapshots, or 0 when no candidate
+// had one. The caller uses it to stamp the era row on the path where no
+// distribution cursor exists to read it from.
 func (p *Plugin) snapshotDelegateConfigs(
 	ctx context.Context, client iotexapi.APIServiceClient, era, height uint64,
 	frozen map[string]decimal.Decimal,
-) error {
+) (uint64, error) {
+	var freezeHeight uint64
 	for _, info := range p.candidates.All() {
 		routing, err := ReadPayoutAddress(ctx, client, info.Identifier, height)
 		switch {
@@ -441,7 +451,7 @@ func (p *Plugin) snapshotDelegateConfigs(
 			// A failed read is not "this delegate has no routing". Skipping on
 			// it would leave the delegate with no config row for this era, and
 			// the era memo means nothing would ever go back for it.
-			return errors.Wrapf(err, "read payout routing for %s at era %d", info.Identifier, era)
+			return 0, errors.Wrapf(err, "read payout routing for %s at era %d", info.Identifier, era)
 		}
 		cfg := models.DelegateRewardConfig{
 			DelegateID:    info.Identifier,
@@ -474,6 +484,7 @@ func (p *Plugin) snapshotDelegateConfigs(
 		snap, err := ReadDelegateSnapshot(ctx, client, info.Identifier, height)
 		switch {
 		case err == nil:
+			freezeHeight = snap.FreezeHeight
 			cfg.FreezeHeight = snap.FreezeHeight
 			cfg.BlockCommissionBps = snap.BlockCommissionBps
 			cfg.EpochCommissionBps = snap.EpochCommissionBps
@@ -492,10 +503,69 @@ func (p *Plugin) snapshotDelegateConfigs(
 		case errors.Is(err, ErrNoSnapshot):
 			// Not opted in at the freeze; the zero values are correct.
 		default:
-			return err
+			return 0, err
 		}
 		p.pendingConfigs = append(p.pendingConfigs, cfg)
 	}
+	return freezeHeight, nil
+}
+
+// indexFrozenEra records an era's frozen configuration from chain state at the
+// era-boundary epoch's last block, for the eras the cursor path can never see.
+//
+// The protocol writes a distribution cursor only when at least one delegate has
+// a non-zero voter allocation. An era in which every opted-in delegate sits at
+// 100% commission produces no cursor at all — and that is exactly where a
+// Hermes-migrated delegate lands until it publishes its portions in
+// DelegateProfile, because the fork-block migration opts delegates in without
+// checking whether they have any. ensureEraPlan gates on
+// `state.GetTargetEra() == era`, so for such an era it can never fire: the
+// freeze happened, every snapshot is readable on chain, and yet
+// voter_reward_era and delegate_reward_config stay empty forever.
+//
+// Observed on TestNet at the first Zanzibar era (freeze 46,892,881, settlement
+// 46,895,040): four delegates opted in, three of them frozen at 100%
+// commission and the fourth outside the reward set, so the total voter
+// allocation was zero, no cursor was written, and all four tables held zero
+// rows while the chain reported optedIn=true for all four.
+//
+// The era number is the boundary epoch itself — the protocol stamps the cursor
+// with `TargetEra: epochNum` — so it can be derived here without a cursor to
+// read it from.
+func (p *Plugin) indexFrozenEra(ctx context.Context, height, epoch uint64) error {
+	if !protocol.IsEraBoundary(epoch, config.Default.Genesis.EpochsPerRewardEra) {
+		return nil
+	}
+	// One pass per era, on the block that closes it: by then the freeze has
+	// long happened and every snapshot for the era is readable.
+	if height != kernel.GetEpochLastBlockHeight(epoch) || p.isEraSeen(epoch) {
+		return nil
+	}
+	client := kernel.ChainClient()
+	if client == nil {
+		return errors.New("voter_reward: no chain client configured")
+	}
+	freezeHeight, err := p.snapshotDelegateConfigs(ctx, client, epoch, height, nil)
+	if err != nil {
+		return err
+	}
+	if freezeHeight == 0 {
+		// No candidate carried a snapshot, so nothing was frozen for this era
+		// and there is no era to record. Leave the memo unset: a later block
+		// is not going to change this, but neither is an empty row useful.
+		return nil
+	}
+	row := p.era(epoch)
+	row.FreezeHeight = freezeHeight
+	row.DelegateCount = uint32(len(p.pendingConfigs))
+	if row.TotalFrozen.IsZero() {
+		row.TotalFrozen = decimal.Zero
+	}
+	p.pendingEraSeen[epoch] = true
+	log.L().Info("voter_reward: indexed era from state (no distribution cursor)",
+		zap.Uint64("era", epoch),
+		zap.Uint64("freezeHeight", freezeHeight),
+		zap.Uint64("height", height))
 	return nil
 }
 

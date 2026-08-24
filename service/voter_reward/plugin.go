@@ -82,6 +82,13 @@ type Plugin struct {
 	// only after the transaction succeeds, and drops them if it fails.
 	pendingEraSeen map[uint64]bool
 	pendingEraDone map[uint64]bool
+
+	// eraStatePass / pendingEraStatePass memoise the state-driven boundary pass
+	// separately from eraSeen, which belongs to the cursor path. Sharing one
+	// memo let whichever ran first suppress the other; they read different
+	// halves of the era and both have to run.
+	eraStatePass        map[uint64]bool
+	pendingEraStatePass map[uint64]bool
 }
 
 // New returns a plugin instance ready to be registered.
@@ -101,6 +108,9 @@ func New(shadow plugin.PluginShadow) Plugin {
 		pendingEras:    map[uint64]*models.VoterRewardEra{},
 		pendingEraSeen: map[uint64]bool{},
 		pendingEraDone: map[uint64]bool{},
+
+		eraStatePass:        map[uint64]bool{},
+		pendingEraStatePass: map[uint64]bool{},
 	}
 }
 
@@ -397,7 +407,6 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 	row := p.era(era)
 	row.FreezeHeight = state.GetFreezeHeight()
 	row.ScanPhase = state.GetScanPhase()
-	row.DelegateCount = uint32(len(state.GetDelegateAllocations()))
 	if row.FirstChunkAt == 0 {
 		row.FirstChunkAt = height
 	}
@@ -414,9 +423,11 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 	}
 	row.TotalFrozen = total
 
-	if _, err := p.snapshotDelegateConfigs(ctx, client, era, height, frozen); err != nil {
+	_, optedIn, err := p.snapshotDelegateConfigs(ctx, client, era, height, frozen)
+	if err != nil {
 		return err
 	}
+	row.DelegateCount = uint32(optedIn)
 	p.pendingEraSeen[era] = true
 	return nil
 }
@@ -427,16 +438,28 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 // half, so the replayed batch redoes the work instead of skipping it.
 func (p *Plugin) isEraSeen(era uint64) bool { return p.eraSeen[era] || p.pendingEraSeen[era] }
 func (p *Plugin) isEraDone(era uint64) bool { return p.eraDone[era] || p.pendingEraDone[era] }
+func (p *Plugin) isEraStatePassed(era uint64) bool {
+	return p.eraStatePass[era] || p.pendingEraStatePass[era]
+}
 
 // snapshotDelegateConfigs writes one delegate_reward_config row per candidate
-// and returns the freeze height read off the snapshots, or 0 when no candidate
-// had one. The caller uses it to stamp the era row on the path where no
-// distribution cursor exists to read it from.
+// and returns the freeze height read off the snapshots (0 when no candidate had
+// one) together with how many of those candidates were opted in.
+//
+// The opted-in count is what stamps voter_reward_era.delegate_count. It is the
+// size of the era's settlement set, which is deliberately not the number of
+// delegates that ended up paying voters: a delegate frozen at 100% commission
+// produces no distribution row at all, so counting payouts would erase it. The
+// payout count stays derivable from voter_reward_distribution.delegate_id; this
+// one is not derivable from anywhere else.
 func (p *Plugin) snapshotDelegateConfigs(
 	ctx context.Context, client iotexapi.APIServiceClient, era, height uint64,
 	frozen map[string]decimal.Decimal,
-) (uint64, error) {
-	var freezeHeight uint64
+) (uint64, int, error) {
+	var (
+		freezeHeight uint64
+		optedIn      int
+	)
 	for _, info := range p.candidates.All() {
 		routing, err := ReadPayoutAddress(ctx, client, info.Identifier, height)
 		switch {
@@ -451,7 +474,7 @@ func (p *Plugin) snapshotDelegateConfigs(
 			// A failed read is not "this delegate has no routing". Skipping on
 			// it would leave the delegate with no config row for this era, and
 			// the era memo means nothing would ever go back for it.
-			return 0, errors.Wrapf(err, "read payout routing for %s at era %d", info.Identifier, era)
+			return 0, 0, errors.Wrapf(err, "read payout routing for %s at era %d", info.Identifier, era)
 		}
 		cfg := models.DelegateRewardConfig{
 			DelegateID:    info.Identifier,
@@ -468,6 +491,7 @@ func (p *Plugin) snapshotDelegateConfigs(
 			cfg.VoterAmountFrozen = decimal.Zero
 		}
 		if routing.OnchainRewardEnabled {
+			optedIn++
 			if h, ok := p.optInSeen[info.Identifier]; ok {
 				cfg.OptInSource, cfg.OptInHeight = optInSourceAction, h
 			} else {
@@ -503,11 +527,11 @@ func (p *Plugin) snapshotDelegateConfigs(
 		case errors.Is(err, ErrNoSnapshot):
 			// Not opted in at the freeze; the zero values are correct.
 		default:
-			return 0, err
+			return 0, 0, err
 		}
 		p.pendingConfigs = append(p.pendingConfigs, cfg)
 	}
-	return freezeHeight, nil
+	return freezeHeight, optedIn, nil
 }
 
 // indexFrozenEra records an era's frozen configuration from chain state at the
@@ -538,14 +562,24 @@ func (p *Plugin) indexFrozenEra(ctx context.Context, height, epoch uint64) error
 	}
 	// One pass per era, on the block that closes it: by then the freeze has
 	// long happened and every snapshot for the era is readable.
-	if height != kernel.GetEpochLastBlockHeight(epoch) || p.isEraSeen(epoch) {
+	//
+	// isEraStatePassed, not isEraSeen, is what makes this idempotent. This pass
+	// runs on the boundary block and the first chunk lands on the very next one,
+	// so claiming the eraSeen memo here would make ensureEraPlan skip every era
+	// that does have a cursor — and ensureEraPlan owns the half of the row this
+	// pass cannot know: first_chunk_at, total_frozen, and the per-delegate
+	// voter_amount_frozen. isEraSeen is still consulted, but only to stand down
+	// when the cursor path already recorded the plan: it reads strictly more
+	// than this one does, so there would be nothing to add.
+	if height != kernel.GetEpochLastBlockHeight(epoch) ||
+		p.isEraStatePassed(epoch) || p.isEraSeen(epoch) {
 		return nil
 	}
 	client := kernel.ChainClient()
 	if client == nil {
 		return errors.New("voter_reward: no chain client configured")
 	}
-	freezeHeight, err := p.snapshotDelegateConfigs(ctx, client, epoch, height, nil)
+	freezeHeight, optedIn, err := p.snapshotDelegateConfigs(ctx, client, epoch, height, nil)
 	if err != nil {
 		return err
 	}
@@ -557,11 +591,15 @@ func (p *Plugin) indexFrozenEra(ctx context.Context, height, epoch uint64) error
 	}
 	row := p.era(epoch)
 	row.FreezeHeight = freezeHeight
-	row.DelegateCount = uint32(len(p.pendingConfigs))
+	// The opted-in count, not len(p.pendingConfigs): that slice is the whole
+	// uncommitted batch, so it counts every config row buffered since the last
+	// flush — other eras included — and grows with the batch size rather than
+	// describing this era.
+	row.DelegateCount = uint32(optedIn)
 	if row.TotalFrozen.IsZero() {
 		row.TotalFrozen = decimal.Zero
 	}
-	p.pendingEraSeen[epoch] = true
+	p.pendingEraStatePass[epoch] = true
 	log.L().Info("voter_reward: indexed era from state (no distribution cursor)",
 		zap.Uint64("era", epoch),
 		zap.Uint64("freezeHeight", freezeHeight),
@@ -673,8 +711,12 @@ func (p *Plugin) promotePendingMemos() {
 	for era := range p.pendingEraDone {
 		p.eraDone[era] = true
 	}
+	for era := range p.pendingEraStatePass {
+		p.eraStatePass[era] = true
+	}
 	clear(p.pendingEraSeen)
 	clear(p.pendingEraDone)
+	clear(p.pendingEraStatePass)
 }
 
 // dropPendingMemos discards the memoisation earned by a batch that failed to
@@ -687,6 +729,7 @@ func (p *Plugin) promotePendingMemos() {
 func (p *Plugin) dropPendingMemos() {
 	clear(p.pendingEraSeen)
 	clear(p.pendingEraDone)
+	clear(p.pendingEraStatePass)
 }
 
 // assignmentsFor builds the ON CONFLICT assignment map for the given columns,

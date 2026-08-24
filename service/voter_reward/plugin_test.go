@@ -68,6 +68,51 @@ func TestDropPendingMemosKeepsAlreadyCommittedEras(t *testing.T) {
 	require.False(t, p.isEraSeen(7))
 }
 
+// TestStatePassMemoDoesNotSuppressTheCursorPath guards the regression that left
+// three settled eras on TestNet with first_chunk_at=0, total_frozen=0, a
+// delegate_count that meant something else, and every delegate_reward_config
+// row at voter_amount_frozen=0 despite 185k IOTX having been paid out.
+//
+// indexFrozenEra runs on the era-boundary block and the first chunk lands on
+// the very next one. While both shared the eraSeen memo, the boundary pass
+// always won the race and ensureEraPlan skipped every era that had a cursor —
+// so the half of the row only the cursor can supply was never written.
+func TestStatePassMemoDoesNotSuppressTheCursorPath(t *testing.T) {
+	p := New(plugin.PluginSelf)
+
+	// The boundary pass ran and claimed its own memo.
+	p.pendingEraStatePass[7] = true
+
+	require.True(t, p.isEraStatePassed(7), "the boundary pass must not repeat itself")
+	require.False(t, p.isEraSeen(7),
+		"the boundary pass must leave ensureEraPlan free to run when a chunk arrives")
+
+	// And the reverse: once the cursor path has recorded the plan, the boundary
+	// pass has nothing to add and stands down.
+	q := New(plugin.PluginSelf)
+	q.pendingEraSeen[7] = true
+	require.False(t, q.isEraStatePassed(7))
+	require.True(t, q.isEraSeen(7))
+}
+
+// The new memo follows the same commit discipline as the other two: a batch
+// that fails to land must not leave the era looking already swept.
+func TestStatePassMemoIsOnlyDurableAfterCommit(t *testing.T) {
+	p := New(plugin.PluginSelf)
+
+	p.pendingEraStatePass[7] = true
+	require.True(t, p.isEraStatePassed(7))
+	require.False(t, p.eraStatePass[7])
+
+	p.dropPendingMemos()
+	require.False(t, p.isEraStatePassed(7), "a failed commit must not leave the era looking swept")
+
+	p.pendingEraStatePass[8] = true
+	p.promotePendingMemos()
+	require.True(t, p.eraStatePass[8])
+	require.Empty(t, p.pendingEraStatePass)
+}
+
 func TestHexOrEmpty(t *testing.T) {
 	// Matches the protocol's own %x rendering of the cursor, so a value read
 	// from state compares equal to one parsed out of a CURSOR_PROGRESS log.

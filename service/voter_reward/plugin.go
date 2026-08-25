@@ -629,7 +629,7 @@ func (p *Plugin) refreshCandidatesIfNeeded(ctx context.Context, height, epoch ui
 }
 
 func (p *Plugin) commit() error {
-	rows, dests, configs := p.pendingRows, p.pendingDestinations, p.pendingConfigs
+	rows, dests, configs := p.pendingRows, p.pendingDestinations, dedupeConfigs(p.pendingConfigs)
 	eras := make([]models.VoterRewardEra, 0, len(p.pendingEras))
 	for _, era := range p.pendingEras {
 		eras = append(eras, *era)
@@ -799,4 +799,38 @@ func upsertEra(tx *gorm.DB, table string, era models.VoterRewardEra) error {
 		existing.OverrunResidue = era.OverrunResidue
 	}
 	return tx.Table(table).Save(&existing).Error
+}
+
+// dedupeConfigs collapses repeated (delegate_id, era) rows, keeping the last.
+//
+// Both passes that write an era's configs can land in the same batch: the
+// boundary pass runs on the block that closes the era and the first chunk on the
+// very next one, so a 200-block batch routinely spans both. Postgres rejects an
+// INSERT .. ON CONFLICT DO UPDATE whose payload names the same conflict target
+// twice -- "ON CONFLICT DO UPDATE command cannot affect row a second time" --
+// and the runner then replays that batch forever.
+//
+// Last wins because the passes append in block order and the later one is the
+// cursor path, which is the only one that knows each delegate's frozen voter
+// amount.
+func dedupeConfigs(configs []models.DelegateRewardConfig) []models.DelegateRewardConfig {
+	if len(configs) < 2 {
+		return configs
+	}
+	type key struct {
+		delegate string
+		era      uint64
+	}
+	at := make(map[key]int, len(configs))
+	out := make([]models.DelegateRewardConfig, 0, len(configs))
+	for _, c := range configs {
+		k := key{c.DelegateID, c.Era}
+		if i, seen := at[k]; seen {
+			out[i] = c
+			continue
+		}
+		at[k] = len(out)
+		out = append(out, c)
+	}
+	return out
 }

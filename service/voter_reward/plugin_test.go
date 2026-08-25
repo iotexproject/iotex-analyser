@@ -3,7 +3,9 @@ package voter_reward
 import (
 	"testing"
 
+	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,4 +121,42 @@ func TestHexOrEmpty(t *testing.T) {
 	require.Equal(t, "", hexOrEmpty(nil))
 	require.Equal(t, "", hexOrEmpty([]byte{}))
 	require.Equal(t, "dead", hexOrEmpty([]byte{0xde, 0xad}))
+}
+
+// TestDedupeConfigsKeepsTheLastPerDelegateEra is the regression guard for a
+// replay that could never finish.
+//
+// Both passes that write an era's configs can land in the same batch: the
+// boundary pass runs on the block closing the era, the first chunk on the very
+// next one, and a 200-block batch routinely spans both. Postgres rejects an
+// INSERT .. ON CONFLICT DO UPDATE naming the same conflict target twice, the
+// runner replays that batch, and the plugin wedges -- observed on a test network
+// stuck at height 46,929,480 retrying forever.
+func TestDedupeConfigsKeepsTheLastPerDelegateEra(t *testing.T) {
+	r := require.New(t)
+
+	// The boundary pass has no frozen amount; the cursor path that follows it
+	// does, and that is the row that has to survive.
+	fromBoundary := models.DelegateRewardConfig{DelegateID: "io1a", Era: 54912, BlockHeight: 46929600}
+	fromCursor := models.DelegateRewardConfig{DelegateID: "io1a", Era: 54912, BlockHeight: 46929601,
+		VoterAmountFrozen: decimal.NewFromInt(300)}
+	otherDelegate := models.DelegateRewardConfig{DelegateID: "io1b", Era: 54912, BlockHeight: 46929600}
+	otherEra := models.DelegateRewardConfig{DelegateID: "io1a", Era: 54936, BlockHeight: 46964160}
+
+	out := dedupeConfigs([]models.DelegateRewardConfig{fromBoundary, otherDelegate, fromCursor, otherEra})
+
+	r.Len(out, 3, "one row per (delegate, era)")
+	r.Equal(uint64(46929601), out[0].BlockHeight, "the later write wins")
+	r.True(out[0].VoterAmountFrozen.Equal(decimal.NewFromInt(300)),
+		"the cursor path's frozen amount is the whole reason it wins")
+	// Order is preserved, so the collapsed row stays where it first appeared.
+	r.Equal("io1b", out[1].DelegateID)
+	r.Equal(uint64(54936), out[2].Era)
+}
+
+func TestDedupeConfigsPassesThroughShortInput(t *testing.T) {
+	r := require.New(t)
+	r.Empty(dedupeConfigs(nil))
+	one := []models.DelegateRewardConfig{{DelegateID: "io1a", Era: 1}}
+	r.Len(dedupeConfigs(one), 1)
 }

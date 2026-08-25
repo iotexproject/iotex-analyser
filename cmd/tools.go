@@ -11,5 +11,6 @@ var Tools = &cli.Command{
 	Subcommands: []*cli.Command{
 		tools.VerifyDB,
 		tools.BackfillAuthorization,
+		tools.BackfillHermesRewards,
 	},
 }

@@ -8,7 +8,6 @@ import (
 	"math"
 	"math/big"
 	"slices"
-	"sort"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -17,21 +16,17 @@ import (
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
-	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
+	"github.com/iotexproject/iotex-analyser/service/hermes_reward"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
-	"github.com/iotexproject/iotex-core/v2/pkg/log"
 	etypes "github.com/iotexproject/iotex-election/types"
 	"github.com/iotexproject/iotex-election/util"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
-	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"gorm.io/gorm"
 )
 
 const (
@@ -56,274 +51,14 @@ var GenesisVoteWeightCalConsts = genesis.VoteWeightCalConsts{
 	AutoStake:  1,
 	SelfStake:  1.06,
 }
-var (
-	ErrEmptyRecords        = errors.New("empty records")
-	ErrConvertBigIntString = errors.New("failed to convert string to big int")
-)
 
-type AggregateReward struct {
-	EpochNumber     uint64
-	RewardAddress   string
-	BlockReward     string
-	EpochReward     string
-	FoundationBonus string
-	PriorityBonus   string
-}
-
-type (
-	CandidateVote struct {
-		CandidateName      string
-		TotalWeightedVotes *big.Int
-	}
-	Productivity struct {
-		Production         uint64
-		ExpectedProduction uint64
-	}
-	ProductivityHistory struct {
-		EpochNumber        uint64
-		ProducerName       string
-		Production         uint64
-		ExpectedProduction uint64
-	}
-)
+// ErrConvertBigIntString aliases the sentinel in service/hermes_reward so a
+// caller matching on errors from either package sees the same value.
+var ErrConvertBigIntString = hermes_reward.ErrConvertBigIntString
 
 func getDelegateNameFromTopic(logTopic hash.Hash256) string {
 	n := bytes.IndexByte(logTopic[:], 0)
 	return string(logTopic[:n])
-}
-
-func getVotingInfo(tx *gorm.DB, lastEpoch uint64) (map[string][]string, map[string]*big.Int, error) {
-	var rows []models.HermesVotingResult
-	if err := tx.Model(models.HermesVotingResult{}).Where("epoch_number=?", lastEpoch).Find(&rows).Error; err != nil {
-		return nil, nil, err
-	}
-
-	if len(rows) == 0 {
-		return nil, nil, ErrEmptyRecords
-	}
-	rewardAddrToNameMapping := make(map[string][]string)
-	weightedVotesMapping := make(map[string]*big.Int)
-	for _, row := range rows {
-		if _, ok := rewardAddrToNameMapping[row.RewardAddress]; !ok {
-			rewardAddrToNameMapping[row.RewardAddress] = make([]string, 0)
-		}
-		rewardAddrToNameMapping[row.RewardAddress] = append(rewardAddrToNameMapping[row.RewardAddress], row.DelegateName)
-
-		totalWeightedVotes := row.TotalWeightedVotes.BigInt()
-		// totalWeightedVotes, err := big.NewInt(0).SetString(row.TotalWeightedVotes, 10)
-		// if err != nil {
-		// 	return nil, nil, errors.Wrap(err, "failed to covert string to big int")
-		// }
-		weightedVotesMapping[row.DelegateName] = totalWeightedVotes
-	}
-	return rewardAddrToNameMapping, weightedVotesMapping, nil
-}
-
-func rebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
-	if lastEpoch == 0 {
-		return nil
-	}
-	// Skip epochs whose block_rewards coverage is partial. In catch-up mode
-	// block_reward starts populating mid-epoch, so the SUM(...) below would
-	// silently under-count for whichever epoch was in progress at start. The
-	// earliest block_height for the epoch tells us whether we captured the
-	// whole window: post-Fairbank every block carries a block-producer
-	// GrantReward, so min(block_height) <= epoch start iff coverage is full.
-	var earliest models.BlockReward
-	err := tx.Where("epoch_number = ?", lastEpoch).Order("block_height ASC").First(&earliest).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		log.L().Warn("hermes: skipping account_reward rebuild, no block_rewards rows for epoch",
-			zap.Uint64("epoch", lastEpoch))
-		return nil
-	}
-	if err != nil {
-		return errors.Wrap(err, "failed to probe block_rewards coverage")
-	}
-	if earliest.BlockHeight > kernel.GetEpochHeight(lastEpoch) {
-		log.L().Warn("hermes: skipping account_reward rebuild for partial epoch",
-			zap.Uint64("epoch", lastEpoch),
-			zap.Uint64("epochStart", kernel.GetEpochHeight(lastEpoch)),
-			zap.Uint64("earliestBlockReward", earliest.BlockHeight))
-		return nil
-	}
-	// Get voting result from last epoch
-	rewardAddrToNameMapping, weightedVotesMapping, err := getVotingInfo(tx, lastEpoch)
-	if err != nil {
-		if errors.Is(err, ErrEmptyRecords) {
-			return nil
-		}
-		return errors.Wrap(err, "failed to get voting info")
-	}
-	// Get aggregate reward	records from last epoch
-	var rows []AggregateReward
-	if err := tx.Raw("SELECT epoch_number, reward_address, SUM(block_reward) block_reward, SUM(epoch_reward)epoch_reward, SUM(foundation_bonus)foundation_bonus, SUM(priority_bonus)priority_bonus "+
-		"FROM block_rewards WHERE epoch_number = ? GROUP BY epoch_number, reward_address", lastEpoch).Find(&rows).Error; err != nil {
-		return err
-	}
-	if len(rows) > 0 {
-		err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error
-		if err != nil {
-			return err
-		}
-	}
-	for _, row := range rows {
-		epochNumber := row.EpochNumber
-		rewardAddress := row.RewardAddress
-		candidateNames := rewardAddrToNameMapping[rewardAddress]
-		// Multiple delegates share reward address
-		totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
-		if !ok {
-			return ErrConvertBigIntString
-		}
-		totalEpochReward, ok := big.NewInt(0).SetString(row.EpochReward, 10)
-		if !ok {
-			return ErrConvertBigIntString
-		}
-		totalFoundationBonus, ok := big.NewInt(0).SetString(row.FoundationBonus, 10)
-		if !ok {
-			return ErrConvertBigIntString
-		}
-		if row.PriorityBonus != "" {
-			totalPriorityBonus, ok := big.NewInt(0).SetString(row.PriorityBonus, 10)
-			if !ok {
-				return ErrConvertBigIntString
-			}
-			totalBlockReward.Add(totalBlockReward, totalPriorityBonus)
-		}
-		if len(candidateNames) == 1 {
-			candidateName := candidateNames[0]
-			modelHAR := models.HermesAccountReward{
-				EpochNumber:     lastEpoch,
-				CandidateName:   candidateName,
-				BlockReward:     decimal.NewFromBigInt(totalBlockReward, 0),
-				EpochReward:     decimal.NewFromBigInt(totalEpochReward, 0),
-				FoundationBonus: decimal.NewFromBigInt(totalFoundationBonus, 0),
-			}
-			if err := tx.Create(&modelHAR).Error; err != nil {
-				return err
-			}
-			continue
-		}
-		candidateRewardsMap, err := breakdownRewards(tx, epochNumber, candidateNames, weightedVotesMapping,
-			totalBlockReward, totalEpochReward, totalFoundationBonus)
-		if err != nil {
-			return errors.Wrap(err, "failed to get candidate rewards map")
-		}
-		for candidateName, rewards := range candidateRewardsMap {
-			modelHAR := models.HermesAccountReward{
-				EpochNumber:     lastEpoch,
-				CandidateName:   candidateName,
-				BlockReward:     decimal.NewFromBigInt(rewards[0], 0),
-				EpochReward:     decimal.NewFromBigInt(rewards[1], 0),
-				FoundationBonus: decimal.NewFromBigInt(rewards[2], 0),
-			}
-			if err := tx.Create(&modelHAR).Error; err != nil {
-				return err
-			}
-		}
-	}
-	return err
-}
-
-func breakdownRewards(
-	tx *gorm.DB,
-	epochNumber uint64,
-	candidateNames []string,
-	weightedVotesMap map[string]*big.Int,
-	totalBlockReward *big.Int,
-	totalEpochReward *big.Int,
-	totalFoundationBonus *big.Int,
-) (map[string][]*big.Int, error) {
-	candidateVoteList := make([]*CandidateVote, 0, len(weightedVotesMap))
-	for name, votes := range weightedVotesMap {
-		candidateVoteList = append(candidateVoteList, &CandidateVote{
-			CandidateName:      name,
-			TotalWeightedVotes: votes,
-		})
-	}
-	// Sort list by votes in decreasing order
-	sort.Slice(candidateVoteList, func(i, j int) bool {
-		return candidateVoteList[i].TotalWeightedVotes.Cmp(candidateVoteList[j].TotalWeightedVotes) == 1
-	})
-	candidateRank := make(map[string]uint64)
-	for i, candidateVote := range candidateVoteList {
-		candidateRank[candidateVote.CandidateName] = uint64(i + 1)
-	}
-	productivityMap, err := getProductivity(tx, epochNumber)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get productivity map")
-	}
-	productionSum := big.NewInt(0)
-	qualifiedTotalVotes := big.NewInt(0)
-	foundationBonusCount := big.NewInt(0)
-	earnBlockReward := make(map[string]bool)
-	earnEpochReward := make(map[string]bool)
-	earnFoundationBonus := make(map[string]bool)
-	for _, candidateName := range candidateNames {
-		productive := true
-		if productivity, ok := productivityMap[candidateName]; ok {
-			productionSum.Add(productionSum, big.NewInt(int64(productivity.Production)))
-			earnBlockReward[candidateName] = true
-			if productivity.Production*100/productivity.ExpectedProduction < 85 {
-				productive = false
-			}
-		}
-		NumDelegatesForEpochReward := uint64(100)
-		NumDelegatesForFoundationBonus := uint64(36)
-		// qualify for epoch reward
-		if candidateRank[candidateName] <= NumDelegatesForEpochReward && productive {
-			qualifiedTotalVotes.Add(qualifiedTotalVotes, weightedVotesMap[candidateName])
-			earnEpochReward[candidateName] = true
-		}
-		// qualify for foundation bonus
-		if candidateRank[candidateName] <= NumDelegatesForFoundationBonus {
-			foundationBonusCount.Add(foundationBonusCount, big.NewInt(1))
-			earnFoundationBonus[candidateName] = true
-		}
-	}
-	candidateRewardsMap := make(map[string][]*big.Int)
-	for _, candidateName := range candidateNames {
-		blockReward := big.NewInt(0)
-		epochReward := big.NewInt(0)
-		foundationBonus := big.NewInt(0)
-		if productionSum.Sign() > 0 && earnBlockReward[candidateName] {
-			production := big.NewInt(0).SetUint64(productivityMap[candidateName].Production)
-			blockReward = big.NewInt(0).Div(big.NewInt(0).Mul(totalBlockReward, production), productionSum)
-		}
-		if qualifiedTotalVotes.Sign() > 0 && earnEpochReward[candidateName] {
-			epochReward = big.NewInt(0).Div(big.NewInt(0).Mul(totalEpochReward, weightedVotesMap[candidateName]), qualifiedTotalVotes)
-		}
-		if totalFoundationBonus.Sign() > 0 && earnFoundationBonus[candidateName] {
-			foundationBonus = big.NewInt(0).Div(totalFoundationBonus, foundationBonusCount)
-		}
-
-		if blockReward.Sign() == 0 && epochReward.Sign() == 0 && foundationBonus.Sign() == 0 {
-			continue
-		}
-		candidateRewardsMap[candidateName] = []*big.Int{blockReward, epochReward, foundationBonus}
-	}
-	return candidateRewardsMap, nil
-}
-
-func getProductivity(tx *gorm.DB, epochNumber uint64) (map[string]*Productivity, error) {
-
-	var rows []ProductivityHistory
-	if err := tx.Raw("SELECT t1.epoch_num, t1.expected_producer_name AS producer_name,COALESCE(production,0) as production, COALESCE(expected_production,0) as expected_production FROM (SELECT epoch_num, expected_producer_name, COUNT(expected_producer_address) AS expected_production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, expected_producer_name) AS t1 LEFT JOIN (SELECT epoch_num, producer_name, COUNT(producer_address) AS production FROM block_meta WHERE epoch_num = ? GROUP BY epoch_num, producer_name) AS t2 ON t1.epoch_num = t2.epoch_num AND t1.expected_producer_name=t2.producer_name", epochNumber, epochNumber).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	if len(rows) == 0 {
-		return nil, errors.Wrapf(errors.New("empty records"), "epoch = %d", epochNumber)
-	}
-
-	productivityMap := make(map[string]*Productivity)
-	for _, row := range rows {
-		productivityMap[row.ProducerName] = &Productivity{
-			Production:         row.Production,
-			ExpectedProduction: row.ExpectedProduction,
-		}
-	}
-	return productivityMap, nil
 }
 
 func GetAllStakingBuckets(chainClient iotexapi.APIServiceClient, epochHeight uint64) (voteBucketListAll *iotextypes.VoteBucketList, err error) {

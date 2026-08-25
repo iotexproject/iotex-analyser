@@ -14,6 +14,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-analyser/service/hermes_reward"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
@@ -155,7 +156,7 @@ func (b hermesPlugin) prepareEpochContext(blkHeight uint64) (*hermesEpochContext
 	}
 
 	if err := db.DB().Transaction(func(tx *gorm.DB) error {
-		return rebuildAccountRewardTable(tx, epochNum-1)
+		return hermes_reward.RebuildAccountRewardTable(tx, epochNum-1)
 	}); err != nil {
 		return nil, errors.Wrap(err, "failed to rebuild account reward table")
 	}
@@ -550,9 +551,11 @@ func (b hermesPlugin) Stop(ctx context.Context) error {
 // CatchUpSafe: per-block Distribute rows come straight from current
 // receipts; per-epoch voting/aggregate/bucket tables are rebuilt from
 // chain RPC snapshots. The account_reward rebuild detects partial
-// epoch coverage (rebuildAccountRewardTable) and skips with a warn —
-// no incorrect rows are written for epochs that span the catch-up
-// start. Epochs prior to catch-up are absent rather than wrong.
+// epoch coverage (hermes_reward.CheckEpochCoverage, against block_meta)
+// and skips with a warn — no incorrect rows are written for epochs that
+// span the catch-up start. Epochs prior to catch-up are absent rather
+// than wrong, and can be filled in later with
+// `tools backfill-hermes-rewards`.
 func (b hermesPlugin) CatchUpSafe() bool { return true }
 
 func (b hermesPlugin) Version() string {

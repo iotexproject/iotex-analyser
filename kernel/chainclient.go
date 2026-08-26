@@ -22,7 +22,7 @@ var chainClientOnce sync.Once
 func ChainClient() iotexapi.APIServiceClient {
 	chainClientOnce.Do(func() {
 		var opt grpc.DialOption
-		if !config.Default.Iotex.ChainInsecure {
+		if config.Default.Iotex.ChainInsecure {
 			opt = grpc.WithTransportCredentials(insecure.NewCredentials())
 		} else {
 			opt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))

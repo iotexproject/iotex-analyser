@@ -488,6 +488,20 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 			if err != nil {
 				return errors.Wrap(err, "failed to get staking bucket")
 			}
+			if bucket == nil {
+				// GetStakingBucketByID returns (nil, nil) when the bucket is absent from the
+				// on-chain bucket list, which is read at the epoch height. A bucket created
+				// mid-epoch and endorsed later in the same epoch is therefore not visible here,
+				// even though getBucketInfoAddressByBucketID above resolved it from our own DB.
+				// Without the on-chain bucket we cannot derive the staked amount / vote weight,
+				// so skip recording this endorsement instead of dereferencing a nil pointer
+				// (which previously panicked at decimal.NewFromString(bucket.StakedAmount)).
+				log.L().Warn("staking bucket not found on-chain for CandidateEndorsement; skipping",
+					zap.Uint64("bucketID", bucketID),
+					zap.Uint64("height", blk.Height()),
+					zap.String("actionHash", actHash))
+				continue
+			}
 			stakeAmount, err := decimal.NewFromString(bucket.StakedAmount)
 			if err != nil {
 				return errors.Wrap(err, "failed to parse staked amount")

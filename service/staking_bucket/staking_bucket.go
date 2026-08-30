@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-analyser/db"
@@ -18,6 +19,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -162,15 +164,9 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		act := selp.Action()
 		actionHash, _ := selp.Hash()
 		actHash := hex.EncodeToString(actionHash[:])
-		// cmpNum := big.NewInt(100000000)
-		for _, log := range receipt.Logs() {
-			if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
-				bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
-
-				// if bucketIndex.Cmp(cmpNum) > 0 {
-				// 	continue
-				// }
-				bucketMap[actHash] = bucketIndex.Uint64()
+		for _, l := range receipt.Logs() {
+			if idx, ok := stakedBucketIndex(l); ok {
+				bucketMap[actHash] = idx
 			}
 		}
 		switch a := act.(type) {
@@ -551,4 +547,46 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		}
 	}
 	return nil
+}
+
+// stakedBucketIndex returns the index of the bucket a Staked event created.
+//
+// It is the only event on the staking protocol that carries one, and it carries
+// it in the data section: the topics are the signature, the voter and the
+// candidate, in that order. Every other staking event's Topics[1] is an address
+// too -- CandidateRegistered and CandidateUpdated start with the candidate,
+// Staked with the voter -- so reading Topics[1] as a bucket index does not
+// merely miss the value, it silently substitutes an address for it.
+//
+// Truncated to 64 bits an address is a plausible-looking bucket id, which is why
+// this went unnoticed: rows landed in staking_buckets carrying the low 8 bytes
+// of a candidate identifier. It surfaced only when one of them exceeded int64
+// and Postgres refused the insert, wedging the plugin in a retry loop.
+func stakedBucketIndex(l *action.Log) (uint64, bool) {
+	if l == nil || l.Address != StakingProtocolAddress || len(l.Topics) == 0 {
+		return 0, false
+	}
+	ev, ok := stakedEvent()
+	if !ok || l.Topics[0] != hash.Hash256(ev.ID) {
+		return 0, false
+	}
+	args, err := ev.Inputs.NonIndexed().Unpack(l.Data)
+	if err != nil || len(args) == 0 {
+		log.L().Warn("staking_bucket: cannot decode Staked event", zap.Error(err))
+		return 0, false
+	}
+	idx, ok := args[0].(uint64)
+	return idx, ok
+}
+
+// stakedEvent resolves the Staked event from iotex-core's own ABI rather than a
+// copy, so a change to the event shape shows up as a decode failure here instead
+// of silently drifting.
+func stakedEvent() (abi.Event, bool) {
+	parsed := action.NativeStakingContractABI()
+	if parsed == nil {
+		return abi.Event{}, false
+	}
+	ev, ok := parsed.Events["Staked"]
+	return ev, ok
 }

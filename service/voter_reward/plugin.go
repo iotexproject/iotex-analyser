@@ -65,6 +65,23 @@ type Plugin struct {
 	// processed, so their post-chunk cursor can be re-read once.
 	chunkEras map[uint64]struct{}
 
+	// frozenSnaps holds the per-delegate policy read off DelegateRewardFrozen
+	// logs, keyed era → delegate identifier, until the era's config rows are
+	// written some 2,000 blocks later.
+	//
+	// The protocol emits every one of an era's freeze logs inside the single
+	// block at its freeze height, so an entry for an era means the whole
+	// settlement set for that era is here — which is what lets a delegate's
+	// *absence* from the inner map be read as "not opted in at the freeze"
+	// rather than "not seen yet".
+	//
+	// Deliberately memory-only and never rehydrated. A restart between the
+	// freeze block and the era boundary drops the era's entry, and
+	// snapshotDelegateConfigs falls back to reading state — slower, but the
+	// same values. Persisting it would buy nothing except a second copy of
+	// data that is already about to be written to delegate_reward_config.
+	frozenSnaps map[uint64]map[string]*DelegateSnapshot
+
 	pendingRows         []models.VoterRewardDistribution
 	pendingDestinations []models.VoterRewardDestination
 	pendingEras         map[uint64]*models.VoterRewardEra
@@ -105,6 +122,7 @@ func New(shadow plugin.PluginShadow) Plugin {
 		eraSeen:        map[uint64]bool{},
 		eraDone:        map[uint64]bool{},
 		chunkEras:      map[uint64]struct{}{},
+		frozenSnaps:    map[uint64]map[string]*DelegateSnapshot{},
 		pendingEras:    map[uint64]*models.VoterRewardEra{},
 		pendingEraSeen: map[uint64]bool{},
 		pendingEraDone: map[uint64]bool{},
@@ -320,6 +338,12 @@ func (p *Plugin) consumeLog(
 			zap.String("delegate", candID), zap.Uint64("height", height))
 	}
 
+	if frozen, err := DecodeFreeze(l); err != nil {
+		return err
+	} else if frozen != nil {
+		p.recordFrozenSnapshot(frozen, height)
+	}
+
 	if change, err := DecodeDestination(l); err != nil {
 		return err
 	} else if change != nil {
@@ -359,6 +383,31 @@ func (p *Plugin) consumeLog(
 			zap.Uint64("height", height))
 	}
 	return nil
+}
+
+// recordFrozenSnapshot files one DelegateRewardFrozen log for later use by the
+// era's config pass.
+//
+// Nothing is written here. The era's rows need a payout address and, for the
+// cursor path, a per-delegate frozen amount — neither of which this log
+// carries — so writing a partial row now and completing it later would mean
+// two writers for one row, which is what the #165/#167 regressions were.
+func (p *Plugin) recordFrozenSnapshot(f *FrozenSnapshot, height uint64) {
+	byDelegate, ok := p.frozenSnaps[f.Era]
+	if !ok {
+		byDelegate = map[string]*DelegateSnapshot{}
+		p.frozenSnaps[f.Era] = byDelegate
+	}
+	byDelegate[f.Delegate] = f.Snapshot
+	if !f.Snapshot.CommissionConfigured {
+		// The warning snapshotDelegateConfigs would otherwise raise, ~2,000
+		// blocks earlier — at the freeze itself. It is not repeated at the
+		// boundary; whichever source supplied the snapshot warns once.
+		log.L().Warn("voter_reward: delegate frozen without commission portions; voters receive nothing",
+			zap.String("delegate", f.Delegate),
+			zap.Uint64("era", f.Era),
+			zap.Uint64("height", height))
+	}
 }
 
 func (p *Plugin) era(era uint64) *models.VoterRewardEra {
@@ -460,6 +509,12 @@ func (p *Plugin) snapshotDelegateConfigs(
 		freezeHeight uint64
 		optedIn      int
 	)
+	// Nil unless this process saw the era's freeze block; see frozenSnapshot.
+	logged := p.frozenSnaps[era]
+	if logged != nil {
+		log.L().Info("voter_reward: using freeze logs instead of state reads",
+			zap.Uint64("era", era), zap.Int("delegates", len(logged)))
+	}
 	for _, info := range p.candidates.All() {
 		routing, err := ReadPayoutAddress(ctx, client, info.Identifier, height)
 		switch {
@@ -505,7 +560,7 @@ func (p *Plugin) snapshotDelegateConfigs(
 				cfg.OptInSource, cfg.OptInHeight = optInSourceMigration, 0
 			}
 		}
-		snap, err := ReadDelegateSnapshot(ctx, client, info.Identifier, height)
+		snap, err := p.frozenSnapshot(ctx, client, logged, info.Identifier, era, height)
 		switch {
 		case err == nil:
 			freezeHeight = snap.FreezeHeight
@@ -514,11 +569,14 @@ func (p *Plugin) snapshotDelegateConfigs(
 			cfg.EpochCommissionBps = snap.EpochCommissionBps
 			cfg.CommissionConfigured = snap.CommissionConfigured
 			cfg.TotalWeight = dec(snap.TotalWeight)
-			if !snap.CommissionConfigured {
+			if !snap.CommissionConfigured && logged == nil {
 				// Opted in but never configured its portions in the
 				// DelegateProfile contract, so the protocol froze it at 100%
 				// commission and its voters get nothing this era. Silent zero
 				// rows downstream are the confusing symptom; say it here.
+				//
+				// Only on the state path: when the freeze logs were read,
+				// recordFrozenSnapshot already said this at the freeze block.
 				log.L().Warn("voter_reward: delegate opted in without commission portions; voters receive nothing",
 					zap.String("delegate", info.Identifier),
 					zap.String("name", info.Name),
@@ -532,6 +590,32 @@ func (p *Plugin) snapshotDelegateConfigs(
 		p.pendingConfigs = append(p.pendingConfigs, cfg)
 	}
 	return freezeHeight, optedIn, nil
+}
+
+// frozenSnapshot returns one delegate's frozen policy, preferring the era's
+// DelegateRewardFrozen logs over a state read.
+//
+// logged is the era's log-derived set, or nil when this process did not observe
+// the era's freeze block — because the chain has not activated EmitEraFreezeLog,
+// or because the plugin restarted in between. A non-nil set is complete (every
+// freeze log of an era shares one block), so a delegate missing from it was not
+// in the settlement set, which is the same answer ErrNoSnapshot carries.
+//
+// Preferring the logs is what removes one archive ReadState per candidate per
+// era, and it is the more robust of the two: the log is in the block being
+// replayed, whereas the state read asks an archive node about a height ~2,000
+// blocks back and fails whenever that node cannot serve it.
+func (p *Plugin) frozenSnapshot(
+	ctx context.Context, client iotexapi.APIServiceClient,
+	logged map[string]*DelegateSnapshot, delegateID string, era, height uint64,
+) (*DelegateSnapshot, error) {
+	if logged != nil {
+		if snap, ok := logged[delegateID]; ok {
+			return snap, nil
+		}
+		return nil, errors.Wrapf(ErrNoSnapshot, "%s: no freeze log in era %d", delegateID, era)
+	}
+	return ReadDelegateSnapshot(ctx, client, delegateID, height)
 }
 
 // indexFrozenEra records an era's frozen configuration from chain state at the
@@ -713,6 +797,15 @@ func (p *Plugin) promotePendingMemos() {
 	}
 	for era := range p.pendingEraStatePass {
 		p.eraStatePass[era] = true
+	}
+	// Freeze logs are only needed until the era's config rows are committed,
+	// which is exactly what a promoted memo means. Dropped here rather than in
+	// snapshotDelegateConfigs so a batch that fails to commit and gets replayed
+	// still finds them, instead of silently falling back to state reads.
+	for era := range p.frozenSnaps {
+		if p.eraSeen[era] || p.eraStatePass[era] {
+			delete(p.frozenSnaps, era)
+		}
 	}
 	clear(p.pendingEraSeen)
 	clear(p.pendingEraDone)

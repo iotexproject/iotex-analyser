@@ -1,6 +1,7 @@
 package voter_reward
 
 import (
+	"context"
 	"testing"
 
 	"github.com/iotexproject/iotex-analyser/models"
@@ -159,4 +160,72 @@ func TestDedupeConfigsPassesThroughShortInput(t *testing.T) {
 	r.Empty(dedupeConfigs(nil))
 	one := []models.DelegateRewardConfig{{DelegateID: "io1a", Era: 1}}
 	r.Len(dedupeConfigs(one), 1)
+}
+
+// The freeze logs of an era all land in one block, so seeing any of them means
+// seeing all of them. That is what lets a delegate's absence from the map be
+// read as "not in the settlement set" -- the same answer ReadDelegateSnapshot
+// gives as ErrNoSnapshot -- rather than "not observed yet".
+func TestFrozenSnapshotPrefersLogsAndTreatsThemAsComplete(t *testing.T) {
+	r := require.New(t)
+	p := New(plugin.PluginSelf)
+	logged := map[string]*DelegateSnapshot{
+		"io1opted": {FreezeHeight: 47169361, BlockCommissionBps: 3000},
+	}
+	p.frozenSnaps[55080] = logged
+
+	// A nil client proves no state read happened: the fallback would panic on it.
+	snap, err := p.frozenSnapshot(context.Background(), nil, logged, "io1opted", 55080, 47171520)
+	r.NoError(err)
+	r.Equal(uint64(47169361), snap.FreezeHeight)
+
+	_, err = p.frozenSnapshot(context.Background(), nil, logged, "io1notopted", 55080, 47171520)
+	r.ErrorIs(err, ErrNoSnapshot,
+		"a candidate with no freeze log was not in the settlement set")
+}
+
+// With no logs for the era -- ZanzibarBeta not active, or a restart between the
+// freeze block and the era boundary -- the state read has to still happen.
+// Passing a nil client makes the attempt observable without a chain.
+func TestFrozenSnapshotFallsBackToStateWhenNoLogsSeen(t *testing.T) {
+	p := New(plugin.PluginSelf)
+	require.Panics(t, func() {
+		//nolint:errcheck // the panic is the assertion
+		p.frozenSnapshot(context.Background(), nil, nil, "io1anyone", 55080, 47171520)
+	}, "an era with no freeze logs must fall through to ReadDelegateSnapshot")
+}
+
+func TestRecordFrozenSnapshotGroupsByEra(t *testing.T) {
+	r := require.New(t)
+	p := New(plugin.PluginSelf)
+	p.recordFrozenSnapshot(&FrozenSnapshot{
+		Era: 55080, Delegate: "io1a", Snapshot: &DelegateSnapshot{FreezeHeight: 100, CommissionConfigured: true}}, 100)
+	p.recordFrozenSnapshot(&FrozenSnapshot{
+		Era: 55080, Delegate: "io1b", Snapshot: &DelegateSnapshot{FreezeHeight: 100, CommissionConfigured: true}}, 100)
+	p.recordFrozenSnapshot(&FrozenSnapshot{
+		Era: 55104, Delegate: "io1a", Snapshot: &DelegateSnapshot{FreezeHeight: 200, CommissionConfigured: true}}, 200)
+	r.Len(p.frozenSnaps[55080], 2)
+	r.Len(p.frozenSnaps[55104], 1)
+	r.Equal(uint64(200), p.frozenSnaps[55104]["io1a"].FreezeHeight)
+}
+
+// Pruning is tied to a *promoted* memo, not to the config pass running. A batch
+// that fails to commit is replayed verbatim, and the replay has to find the
+// logs still there -- otherwise it silently degrades to state reads for an era
+// whose freeze block it will never see again.
+func TestFrozenSnapshotsSurviveAFailedCommitAndAreDroppedAfterAGoodOne(t *testing.T) {
+	r := require.New(t)
+	p := New(plugin.PluginSelf)
+	p.frozenSnaps[55080] = map[string]*DelegateSnapshot{"io1a": {}}
+	p.frozenSnaps[55104] = map[string]*DelegateSnapshot{"io1a": {}}
+
+	p.pendingEraStatePass[55080] = true
+	p.dropPendingMemos()
+	p.promotePendingMemos()
+	r.Contains(p.frozenSnaps, uint64(55080), "a rolled-back batch must not lose the era's logs")
+
+	p.pendingEraStatePass[55080] = true
+	p.promotePendingMemos()
+	r.NotContains(p.frozenSnaps, uint64(55080), "committed rows make the logs dead weight")
+	r.Contains(p.frozenSnaps, uint64(55104), "an era still in flight keeps its logs")
 }

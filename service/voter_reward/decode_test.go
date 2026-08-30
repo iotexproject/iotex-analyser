@@ -9,6 +9,7 @@ import (
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/distributedlog"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/staking/freezelog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -194,4 +195,109 @@ func TestDecodeDestination(t *testing.T) {
 	require.Equal(t, voter.String(), change.Voter)
 	require.Equal(t, oldR.String(), change.OldRecipient)
 	require.Equal(t, newR.String(), change.NewRecipient)
+}
+
+// freezeLog packs a DelegateRewardFrozen log the way poll_snapshot.go does.
+func freezeLog(t *testing.T, args freezelog.EventArgs) *action.Log {
+	t.Helper()
+	topics, data, err := freezelog.Pack(args)
+	require.NoError(t, err)
+	return &action.Log{Address: stakingAddr, Topics: topics, Data: data}
+}
+
+func TestDecodeFreeze(t *testing.T) {
+	r := require.New(t)
+	delegate := addr(t, 0x42)
+	// Every field a distinct value: the payload is four uint64s in a row, so
+	// equal values would let a reordering pass unnoticed.
+	got, err := DecodeFreeze(freezeLog(t, freezelog.EventArgs{
+		Era:                  55080,
+		Delegate:             delegate,
+		FreezeHeight:         47169361,
+		BlockCommissionBps:   3000,
+		EpochCommissionBps:   3500,
+		CommissionConfigured: true,
+		TotalWeight:          big.NewInt(1234567890),
+		SelfStakeBucketIdx:   91,
+	}))
+	r.NoError(err)
+	r.NotNil(got)
+	r.Equal(uint64(55080), got.Era)
+	r.Equal(delegate.String(), got.Delegate)
+	r.Equal(uint64(47169361), got.Snapshot.FreezeHeight)
+	r.Equal(uint64(3000), got.Snapshot.BlockCommissionBps)
+	r.Equal(uint64(3500), got.Snapshot.EpochCommissionBps)
+	r.True(got.Snapshot.CommissionConfigured)
+	r.Equal(0, got.Snapshot.TotalWeight.Cmp(big.NewInt(1234567890)))
+	r.Equal(uint64(91), got.Snapshot.SelfStakeBucketIdx)
+}
+
+// A delegate that published no portions is frozen at 10000/10000, which by
+// value is indistinguishable from one that deliberately takes everything.
+// CommissionConfigured is the only thing that separates them, so it has to
+// survive decoding as false rather than defaulting to true.
+func TestDecodeFreezeCarriesUnconfiguredCommission(t *testing.T) {
+	r := require.New(t)
+	got, err := DecodeFreeze(freezeLog(t, freezelog.EventArgs{
+		Era: 55080, Delegate: addr(t, 0x42), FreezeHeight: 47169361,
+		BlockCommissionBps: 10000, EpochCommissionBps: 10000,
+		CommissionConfigured: false, TotalWeight: big.NewInt(7),
+	}))
+	r.NoError(err)
+	r.NotNil(got)
+	r.False(got.Snapshot.CommissionConfigured)
+	r.Equal(uint64(10000), got.Snapshot.BlockCommissionBps)
+}
+
+// A nil TotalWeight must not decode to a nil *big.Int: dec() would panic on it,
+// and the protocol packs zero weight that way for a candidate with no votes.
+func TestDecodeFreezeZeroWeightIsNotNil(t *testing.T) {
+	r := require.New(t)
+	got, err := DecodeFreeze(freezeLog(t, freezelog.EventArgs{
+		Era: 1, Delegate: addr(t, 0x42), TotalWeight: nil,
+	}))
+	r.NoError(err)
+	r.NotNil(got.Snapshot.TotalWeight)
+	r.Equal(0, got.Snapshot.TotalWeight.Sign())
+}
+
+func TestDecodeFreezeIgnoresForeignLogs(t *testing.T) {
+	r := require.New(t)
+	good := freezeLog(t, freezelog.EventArgs{
+		Era: 1, Delegate: addr(t, 0x42), TotalWeight: big.NewInt(1),
+	})
+
+	got, err := DecodeFreeze(nil)
+	r.NoError(err)
+	r.Nil(got)
+
+	// Right topic, wrong emitter. Any contract may emit this selector.
+	got, err = DecodeFreeze(&action.Log{
+		Address: rewardingAddr, Topics: good.Topics, Data: good.Data})
+	r.NoError(err)
+	r.Nil(got, "only the staking protocol's own logs count")
+
+	// The other staking events this plugin already reads must not match.
+	optIn := action.VoterRewardOptInSetEvent(addr(t, 0x42).Bytes())
+	got, err = DecodeFreeze(&action.Log{Address: stakingAddr, Topics: optIn})
+	r.NoError(err)
+	r.Nil(got)
+
+	got, err = DecodeFreeze(&action.Log{
+		Address: stakingAddr, Topics: good.Topics[:2], Data: good.Data})
+	r.NoError(err)
+	r.Nil(got, "era and delegate both live in topics; two is not enough")
+}
+
+// A truncated payload must be an error, not a zero-valued snapshot: the config
+// row is written once per era and never revisited, so a silent zero would
+// freeze a delegate at 0% commission forever.
+func TestDecodeFreezeRejectsMalformedData(t *testing.T) {
+	r := require.New(t)
+	good := freezeLog(t, freezelog.EventArgs{
+		Era: 1, Delegate: addr(t, 0x42), TotalWeight: big.NewInt(1),
+	})
+	_, err := DecodeFreeze(&action.Log{
+		Address: stakingAddr, Topics: good.Topics, Data: []byte{0x01}})
+	r.Error(err)
 }

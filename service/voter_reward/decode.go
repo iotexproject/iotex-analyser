@@ -8,19 +8,22 @@
 // silently decodes the wrong tuple the moment the protocol renames a field,
 // because ABI decoding of a same-arity prefix does not fail.
 //
-// One event — VoterRewardDestinationSet — has a Pack helper but no exported
-// unpacker, so its two-address payload is read positionally. selfCheck() below
-// round-trips the protocol's own Pack through that reader at init, so a
-// protocol-side layout change fails loudly at startup instead of quietly
-// producing wrong recipients.
+// Two events — VoterRewardDestinationSet and DelegateRewardFrozen — have a Pack
+// helper but no exported unpacker. The first is read positionally; the second
+// is decoded against freezelog.ABIJSON, which iotex-core exports for exactly
+// this purpose. selfCheck() below round-trips the protocol's own Pack through
+// both readers at init, so a protocol-side layout change fails loudly at
+// startup instead of quietly producing wrong values.
 package voter_reward
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/big"
 	"strconv"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
 	"github.com/iotexproject/iotex-core/v2/action"
@@ -28,6 +31,7 @@ import (
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/distributedlog"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/rewarding/rewardingpb"
 	"github.com/iotexproject/iotex-core/v2/action/protocol/staking"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/staking/freezelog"
 	"github.com/pkg/errors"
 )
 
@@ -53,6 +57,12 @@ var (
 	distributedTopic0 hash.Hash256
 	optInTopic0       hash.Hash256
 	destinationTopic0 hash.Hash256
+
+	// freezeEvent is the protocol's own ABI declaration of
+	// DelegateRewardFrozen, parsed from the constant iotex-core exports for
+	// off-chain consumers rather than from a signature string copied here.
+	freezeEvent  abi.Event
+	freezeTopic0 hash.Hash256
 )
 
 func init() {
@@ -73,6 +83,16 @@ func init() {
 		panic("voter_reward: derive VoterRewardDestinationSet topic: " + err.Error())
 	}
 	destinationTopic0 = topics[0]
+	freezeABI, err := abi.JSON(strings.NewReader(freezelog.ABIJSON))
+	if err != nil {
+		panic("voter_reward: parse freezelog ABI: " + err.Error())
+	}
+	var ok bool
+	freezeEvent, ok = freezeABI.Events[freezelog.EventName]
+	if !ok {
+		panic("voter_reward: event " + freezelog.EventName + " absent from freezelog ABI")
+	}
+	freezeTopic0 = hash.Hash256(freezeEvent.ID)
 	if err := selfCheck(); err != nil {
 		panic("voter_reward: " + err.Error())
 	}
@@ -105,6 +125,44 @@ func selfCheck() error {
 		got.OldRecipient != oldR.String() || got.NewRecipient != newR.String() {
 		return errors.Errorf(
 			"VoterRewardDestinationSet layout changed in iotex-core; decoded %+v", got)
+	}
+	return freezeSelfCheck(voter)
+}
+
+// freezeSelfCheck round-trips freezelog.Pack through DecodeFreeze.
+//
+// The values are deliberately all distinct: DelegateRewardFrozen's payload is
+// four uint64s in a row, so a reordering upstream would decode cleanly and
+// silently swap, say, the freeze height with a commission rate. Distinct
+// values turn that into a startup failure.
+func freezeSelfCheck(delegate address.Address) error {
+	want := freezelog.EventArgs{
+		Era:                  7,
+		Delegate:             delegate,
+		FreezeHeight:         11,
+		BlockCommissionBps:   13,
+		EpochCommissionBps:   17,
+		CommissionConfigured: true,
+		TotalWeight:          big.NewInt(19),
+		SelfStakeBucketIdx:   23,
+	}
+	topics, data, err := freezelog.Pack(want)
+	if err != nil {
+		return errors.Wrap(err, "pack DelegateRewardFrozen")
+	}
+	got, err := DecodeFreeze(&action.Log{Address: stakingAddr, Topics: topics, Data: data})
+	if err != nil {
+		return errors.Wrap(err, "DelegateRewardFrozen self-check")
+	}
+	if got == nil || got.Era != want.Era || got.Delegate != delegate.String() ||
+		got.Snapshot.FreezeHeight != want.FreezeHeight ||
+		got.Snapshot.BlockCommissionBps != want.BlockCommissionBps ||
+		got.Snapshot.EpochCommissionBps != want.EpochCommissionBps ||
+		!got.Snapshot.CommissionConfigured ||
+		got.Snapshot.TotalWeight.Cmp(want.TotalWeight) != 0 ||
+		got.Snapshot.SelfStakeBucketIdx != want.SelfStakeBucketIdx {
+		return errors.Errorf(
+			"DelegateRewardFrozen layout changed in iotex-core; decoded %+v", got)
 	}
 	return nil
 }
@@ -176,6 +234,71 @@ func DecodeOptIn(l *action.Log) (string, error) {
 		return "", errors.Wrap(err, "decode VoterRewardOptInSet candidate identifier")
 	}
 	return addr.String(), nil
+}
+
+// FrozenSnapshot is one DelegateRewardFrozen log: the reward policy the
+// protocol locked in for one delegate for one era.
+//
+// It carries exactly what ReadDelegateSnapshot returns from chain state, which
+// is the point — the event is the in-block source for the same values, so the
+// state read stays available as a fallback for chains where the log is not
+// emitted.
+type FrozenSnapshot struct {
+	Era      uint64
+	Delegate string
+	Snapshot *DelegateSnapshot
+}
+
+// DecodeFreeze returns the frozen policy carried by a DelegateRewardFrozen log,
+// or nil for any other log.
+//
+// The protocol emits one of these per opted-in delegate, all within the single
+// block at the era's freeze height, and only once EmitEraFreezeLog is active.
+// Before that fork gate — and on any era whose freeze block this process did
+// not observe — there are no logs to read and the caller falls back to state.
+func DecodeFreeze(l *action.Log) (*FrozenSnapshot, error) {
+	if l == nil || len(l.Topics) < 3 || l.Topics[0] != freezeTopic0 || l.Address != stakingAddr {
+		return nil, nil
+	}
+	// Topics[1] is a uint64 left-padded to 32 bytes, so the value is in the
+	// last 8; Topics[2] is an address right-aligned by hash.BytesToHash256.
+	era := binary.BigEndian.Uint64(l.Topics[1][24:])
+	delegate, err := address.FromBytes(l.Topics[2][addrOffset:])
+	if err != nil {
+		return nil, errors.Wrap(err, "decode DelegateRewardFrozen delegate")
+	}
+	args, err := freezeEvent.Inputs.NonIndexed().Unpack(l.Data)
+	if err != nil {
+		return nil, errors.Wrap(err, "decode DelegateRewardFrozen data")
+	}
+	if len(args) != 6 {
+		return nil, errors.Errorf("DelegateRewardFrozen: want 6 data fields, got %d", len(args))
+	}
+	snap := &DelegateSnapshot{}
+	// Checked one by one rather than with a bare type assertion: the six fields
+	// are uint64/uint64/uint64/bool/uint256/uint64, and a same-arity reordering
+	// upstream would otherwise panic in production instead of erroring here.
+	// freezeSelfCheck catches such a change at startup; this is the backstop.
+	var ok bool
+	if snap.FreezeHeight, ok = args[0].(uint64); !ok {
+		return nil, errors.Errorf("DelegateRewardFrozen: freezeHeight is %T", args[0])
+	}
+	if snap.BlockCommissionBps, ok = args[1].(uint64); !ok {
+		return nil, errors.Errorf("DelegateRewardFrozen: blockCommissionBps is %T", args[1])
+	}
+	if snap.EpochCommissionBps, ok = args[2].(uint64); !ok {
+		return nil, errors.Errorf("DelegateRewardFrozen: epochCommissionBps is %T", args[2])
+	}
+	if snap.CommissionConfigured, ok = args[3].(bool); !ok {
+		return nil, errors.Errorf("DelegateRewardFrozen: commissionConfigured is %T", args[3])
+	}
+	if snap.TotalWeight, ok = args[4].(*big.Int); !ok {
+		return nil, errors.Errorf("DelegateRewardFrozen: totalWeight is %T", args[4])
+	}
+	if snap.SelfStakeBucketIdx, ok = args[5].(uint64); !ok {
+		return nil, errors.Errorf("DelegateRewardFrozen: selfStakeBucketIdx is %T", args[5])
+	}
+	return &FrozenSnapshot{Era: era, Delegate: delegate.String(), Snapshot: snap}, nil
 }
 
 // DestinationChange is one VoterRewardDestinationSet event.

@@ -220,3 +220,47 @@ func TestBucketIndexFromLogRejectsForeignAndMalformedLogs(t *testing.T) {
 	})
 	r.False(ok, "undecodable Staked data must not produce an index")
 }
+
+// TestNoSelfStakeRegistrationEmitsNoIndex pins the shape that has no bucket at
+// all, which neither the pre-#168 code nor #170 handled.
+//
+// core sets bucketIdx from `act.Amount().Sign() > 0`. With no self-stake there
+// is no bucket, and a BLS registration emits only CandidateRegistered -- Staked
+// and CandidateActivated sit inside the `if withSelfStake` branch. So no log
+// carries an index, and the plugin has to take the sentinel from the action.
+//
+// Testnet block 36,844,514 (action 523fb707…, amount 0) is exactly this: one
+// CandidateRegistered log, and a row that should never have been written.
+func TestNoSelfStakeRegistrationEmitsNoIndex(t *testing.T) {
+	r := require.New(t)
+	cand := mustAddr(t, wedgedCandidate)
+	other := mustAddr(t, "io1ph0u2psnd7muq5xv9623rmxdsxc4uapxhzpg02")
+	topics, data, err := action.PackCandidateRegisteredEvent(
+		cand, other, cand, "mmmmm", other, []byte{0x01})
+	r.NoError(err)
+
+	_, ok := bucketIndexFromLog(&action.Log{
+		Address: StakingProtocolAddress,
+		Topics:  topics,
+		Data:    data,
+	})
+	r.False(ok, "a self-stake-less registration carries no bucket index anywhere")
+
+	// The legacy shape does carry the sentinel, and it must survive the read so
+	// the caller's guard skips the row rather than writing bucket 0.
+	var sentinel hash.Hash256
+	for i := 24; i < 32; i++ {
+		sentinel[i] = 0xff
+	}
+	idx, ok := bucketIndexFromLog(&action.Log{
+		Address: StakingProtocolAddress,
+		Topics: action.Topics{
+			topic(t, realCandidateRegisterTopic0),
+			sentinel,
+			hash.BytesToHash256(cand.Bytes()),
+		},
+	})
+	r.True(ok)
+	r.Equal(uint64(0xffffffffffffffff), idx,
+		"the no-self-stake sentinel must read back intact, not be rejected")
+}

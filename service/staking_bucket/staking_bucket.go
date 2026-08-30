@@ -25,7 +25,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.2"
+const VERSION = "2.2.3"
 
 const (
 	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
@@ -408,7 +408,23 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		case *action.CandidateRegister:
 			bucketID, ok := bucketMap[actHash]
 			if !ok {
-				return errors.New("can not found bucketID with actHash:" + actHash)
+				// A registration with no self-stake creates no bucket, so no
+				// log carries an index for it: core sets bucketIdx to the
+				// no-self-stake sentinel from `act.Amount().Sign() > 0` alone.
+				// On the legacy shape that sentinel does reach Topics[1] and is
+				// read back here, but a BLS registration emits events instead,
+				// and in that case the only event is CandidateRegistered --
+				// Staked and CandidateActivated sit inside `if withSelfStake`.
+				//
+				// Deriving it from the action rather than from an absent log is
+				// what keeps the sentinel arriving at the guard below, which is
+				// what skips writing a row for a bucket that does not exist.
+				// Testnet block 36,844,514 is such a registration; before this
+				// it was recorded with the candidate's address as its bucket id.
+				if a.Amount().Sign() > 0 {
+					return errors.New("can not found bucketID with actHash:" + actHash)
+				}
+				bucketID = unSelfStake.Uint64()
 			}
 
 			if bucketID != unSelfStake.Uint64() {

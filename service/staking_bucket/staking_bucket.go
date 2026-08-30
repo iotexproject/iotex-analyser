@@ -2,6 +2,7 @@ package staking_bucket
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -13,6 +14,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
 	"github.com/iotexproject/iotex-core/v2/action"
+	"github.com/iotexproject/iotex-core/v2/action/protocol/staking"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
 	"github.com/iotexproject/iotex-core/v2/pkg/log"
@@ -23,7 +25,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.1"
+const VERSION = "2.2.2"
 
 const (
 	StakingProtocolAddress = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
@@ -165,7 +167,7 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		actionHash, _ := selp.Hash()
 		actHash := hex.EncodeToString(actionHash[:])
 		for _, l := range receipt.Logs() {
-			if idx, ok := stakedBucketIndex(l); ok {
+			if idx, ok := bucketIndexFromLog(l); ok {
 				bucketMap[actHash] = idx
 			}
 		}
@@ -549,34 +551,75 @@ func (b StakingBucketPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 	return nil
 }
 
-// stakedBucketIndex returns the index of the bucket a Staked event created.
+// legacyBucketTopics are the Topics[0] values of the two legacy staking logs
+// whose Topics[1] is a bucket index *and* whose action type this plugin looks
+// up in bucketMap.
 //
-// It is the only event on the staking protocol that carries one, and it carries
-// it in the data section: the topics are the signature, the voter and the
-// candidate, in that order. Every other staking event's Topics[1] is an address
-// too -- CandidateRegistered and CandidateUpdated start with the candidate,
-// Staked with the voter -- so reading Topics[1] as a bucket index does not
-// merely miss the value, it silently substitutes an address for it.
+// receiptLog.Build emits one of two shapes. The legacy one -- newReceiptLogLegacy
+// plus AddTopics -- puts the handler name in Topics[0] and then appends the
+// bucket index and the candidate, so Topics[1] really is the index. Around
+// eleven handlers use it, but only createStake and candidateRegister reach
+// bucketMap here, so matching just those two is both sufficient and the
+// narrowest filter that cannot mistake another handler's Topics[1].
 //
-// Truncated to 64 bits an address is a plausible-looking bucket id, which is why
-// this went unnoticed: rows landed in staking_buckets carrying the low 8 bytes
-// of a candidate identifier. It surfaced only when one of them exceeded int64
-// and Postgres refused the insert, wedging the plugin in a retry loop.
-func stakedBucketIndex(l *action.Log) (uint64, bool) {
+// The name is right-aligned into 32 bytes rather than hashed, which is what
+// hash.BytesToHash256 does for a post-FbkMigration receipt. Before that fork
+// AddTopics is a no-op, so those logs carry no bucket index at all -- and no
+// native-staking-v2 bucket exists to index yet either. Both chains' earliest
+// indexed rows are already past it (mainnet FbkMigration 5,157,001, earliest
+// staking_buckets row 5,160,923), so there is nothing older to support.
+var legacyBucketTopics = map[hash.Hash256]struct{}{
+	hash.BytesToHash256([]byte(staking.HandleCreateStake)):       {},
+	hash.BytesToHash256([]byte(staking.HandleCandidateRegister)): {},
+}
+
+// bucketIndexFromLog returns the index of the bucket a log created, from either
+// shape the staking protocol emits it in.
+//
+// The events shape is used by exactly one path -- a candidateRegister that
+// carries a BLS key and a self-stake -- and there the index is in the data
+// section of a Staked event, because that event's topics are the signature, the
+// voter and the candidate. Reading Topics[1] there yields the voter's address,
+// which truncated to 64 bits is a plausible-looking bucket id; six such rows
+// reached staking_buckets on testnet and the plugin wedged when one exceeded
+// int64 and Postgres refused the insert.
+//
+// Matching only the Staked event is the opposite mistake, and the more damaging
+// one: every createStake on both chains uses the legacy shape and emits no
+// Staked event at all, so bucketMap would miss and the CreateStake branch's
+// hard error would wedge the plugin on the first stake it saw.
+func bucketIndexFromLog(l *action.Log) (uint64, bool) {
 	if l == nil || l.Address != StakingProtocolAddress || len(l.Topics) == 0 {
 		return 0, false
 	}
-	ev, ok := stakedEvent()
-	if !ok || l.Topics[0] != hash.Hash256(ev.ID) {
+	if ev, ok := stakedEvent(); ok && l.Topics[0] == hash.Hash256(ev.ID) {
+		args, err := ev.Inputs.NonIndexed().Unpack(l.Data)
+		if err != nil || len(args) == 0 {
+			log.L().Warn("staking_bucket: cannot decode Staked event", zap.Error(err))
+			return 0, false
+		}
+		idx, ok := args[0].(uint64)
+		return idx, ok
+	}
+	if _, ok := legacyBucketTopics[l.Topics[0]]; !ok {
 		return 0, false
 	}
-	args, err := ev.Inputs.NonIndexed().Unpack(l.Data)
-	if err != nil || len(args) == 0 {
-		log.L().Warn("staking_bucket: cannot decode Staked event", zap.Error(err))
+	if len(l.Topics) < 2 {
 		return 0, false
 	}
-	idx, ok := args[0].(uint64)
-	return idx, ok
+	// A uint64 right-aligned into 32 bytes: everything above the low 8 must be
+	// zero. An address parked here would fail that, so a future handler change
+	// surfaces as a missing index -- which the caller turns into a loud error --
+	// rather than as an address silently recorded as a bucket id.
+	for _, b := range l.Topics[1][:24] {
+		if b != 0 {
+			log.L().Warn("staking_bucket: legacy staking log has a non-integer in Topics[1]",
+				zap.String("topic0", hex.EncodeToString(l.Topics[0][:])),
+				zap.String("topic1", hex.EncodeToString(l.Topics[1][:])))
+			return 0, false
+		}
+	}
+	return binary.BigEndian.Uint64(l.Topics[1][24:]), true
 }
 
 // stakedEvent resolves the Staked event from iotex-core's own ABI rather than a

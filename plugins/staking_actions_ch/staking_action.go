@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"math/big"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,6 +15,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/db"
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-analyser/service/stakinglog"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
@@ -23,7 +23,7 @@ import (
 	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 )
 
-const VERSION = "2.1.2"
+const VERSION = "2.1.3"
 
 const (
 	StakingProtocolAddress         = "io1qnpz47hx5q6r3w876axtrn6yz95d70cjl35r53"
@@ -125,16 +125,8 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 		act := selp.Action()
 		actionHash, _ := selp.Hash()
 		actHash := hex.EncodeToString(actionHash[:])
-		//cmpNum := big.NewInt(100000000)
-		for _, log := range receipt.Logs() {
-			if log.Address == StakingProtocolAddress && len(log.Topics) > 1 {
-				bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
-
-				//if bucketIndex.Cmp(cmpNum) > 0 {
-				//	continue
-				//}
-				bucketMap[actHash] = bucketIndex.Uint64()
-			}
+		if idx, ok := stakinglog.BucketIndex(receipt.Logs()); ok {
+			bucketMap[actHash] = idx
 		}
 		switch a := act.(type) {
 		case *action.CreateStake:
@@ -320,6 +312,13 @@ func (b *stakingActionChPlugin) putBlock(ctx context.Context, blk *block.Block) 
 			bucketID, ok := bucketMap[actHash]
 			if !ok {
 				return errors.New("can not found bucketID with actHash:" + actHash)
+			}
+			if bucketID == stakinglog.NoBucket {
+				// Registered without self-stake, so no bucket exists to record.
+				// The PG twin has always skipped this; without the guard 3 rows
+				// on testnet and 14 on mainnet were written carrying
+				// 18446744073709551615 as their bucket id.
+				continue
 			}
 			b.appendStakingActions(&StakingActions{
 				BlockHeight:  blk.Height(),

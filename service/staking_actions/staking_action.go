@@ -16,6 +16,7 @@ import (
 	"github.com/iotexproject/iotex-analyser/kernel"
 	"github.com/iotexproject/iotex-analyser/models"
 	"github.com/iotexproject/iotex-analyser/plugin"
+	"github.com/iotexproject/iotex-analyser/service/stakinglog"
 	"github.com/iotexproject/iotex-core/v2/action"
 	"github.com/iotexproject/iotex-core/v2/blockchain/block"
 	"github.com/iotexproject/iotex-core/v2/blockchain/genesis"
@@ -34,20 +35,6 @@ var (
 	topicDeactivationRequested = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivationRequested(address)")))
 	topicDeactivationScheduled = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivationScheduled(address,uint64)")))
 	topicDeactivated           = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateDeactivated(address)")))
-	// topic hashes for Solidity-style staking events that carry the bucket
-	// index in log.data (first 32 bytes), not in topic[1] like the legacy
-	// receipt-log format. Emitted by candidateRegisterWithBLS and friends
-	// once the chain stops emitting the legacy non-postFairbankMigration log.
-	topicStaked             = hash.Hash256(gethcrypto.Keccak256Hash([]byte("Staked(address,address,uint64,uint256,uint32,bool)")))
-	topicCandidateActivated = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateActivated(address,uint64)")))
-	// candidateRegisterWithBLS always emits CandidateRegistered. When called
-	// with amount==0 (v2.4.0 register-then-endorse flow) no Staked log
-	// follows and no bucket is created — see iotex-core
-	// action/protocol/staking/handlers.go where bucketIdx is set to
-	// candidateNoSelfStakeBucketIndex (= math.MaxUint64 = unSelfStake sentinel)
-	// and the Staked / CandidateActivated events are only appended when
-	// withSelfStake is true.
-	topicCandidateRegistered = hash.Hash256(gethcrypto.Keccak256Hash([]byte("CandidateRegistered(address,address,address,string,address,bytes)")))
 )
 
 const (
@@ -157,47 +144,8 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		act := selp.Action()
 		actionHash, _ := selp.Hash()
 		actHash := hex.EncodeToString(actionHash[:])
-		// cmpNum := big.NewInt(100000000)
-		for _, log := range receipt.Logs() {
-			if log.Address != StakingProtocolAddress || len(log.Topics) == 0 {
-				continue
-			}
-			// Solidity-style events (post-Fairbank/Yap, emitted by
-			// candidateRegisterWithBLS etc.): bucket index lives in the
-			// first 32 bytes of log.data — topic[1] is the indexed
-			// candidate/voter address instead.
-			switch log.Topics[0] {
-			case topicStaked, topicCandidateActivated:
-				if len(log.Data) >= 32 {
-					bucketIndex := new(big.Int).SetBytes(log.Data[:32])
-					if bucketID, ok := validBucketIndex(bucketIndex); ok {
-						bucketMap[actHash] = bucketID
-					}
-				}
-				continue
-			case topicCandidateRegistered:
-				// candidateRegisterWithBLS with amount==0: register only,
-				// no bucket. Mark with the unSelfStake sentinel so the
-				// CandidateRegister handler below skips the row instead of
-				// returning "can not found bucketID". If withSelfStake is
-				// true, a Staked log later in the same receipt will overwrite
-				// this sentinel with the real bucket index.
-				if _, exists := bucketMap[actHash]; !exists {
-					bucketMap[actHash] = unSelfStake.Uint64()
-				}
-				continue
-			}
-			// Legacy receipt-log format (newReceiptLog without events):
-			// topic[1] is the bucket index. Kept for backward compatibility
-			// with blocks indexed before the Solidity-events path.
-			if len(log.Topics) > 1 {
-				bucketIndex := new(big.Int).SetBytes(log.Topics[1][:])
-				bucketID, ok := validBucketIndex(bucketIndex)
-				if !ok {
-					continue
-				}
-				bucketMap[actHash] = bucketID
-			}
+		if idx, ok := stakinglog.BucketIndex(receipt.Logs()); ok {
+			bucketMap[actHash] = idx
 		}
 		switch a := act.(type) {
 		case *action.CreateStake:
@@ -557,17 +505,6 @@ func (b StakingActionPlugin) handleBlock(ctx context.Context, blk *block.Block, 
 		}
 	}
 	return nil
-}
-
-func validBucketIndex(bucketIndex *big.Int) (uint64, bool) {
-	if bucketIndex == nil || bucketIndex.Sign() < 0 || bucketIndex.BitLen() > 64 {
-		return 0, false
-	}
-	bucketID := bucketIndex.Uint64()
-	if bucketID == ^uint64(0) || bucketIndex.IsInt64() {
-		return bucketID, true
-	}
-	return 0, false
 }
 
 // candidateIdentityFromLogs extracts the candidate IoTeX address from staking protocol receipt logs.

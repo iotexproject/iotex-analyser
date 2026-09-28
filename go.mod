@@ -1,6 +1,6 @@
 module github.com/iotexproject/iotex-analyser
 
-go 1.25.7
+go 1.25.14
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
@@ -13,7 +13,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/iotexproject/go-pkgs v0.1.16-0.20250813090621-fc1c4ebefcb4
 	github.com/iotexproject/iotex-address v0.2.9-0.20251203033311-6e8aa4fd43ef
-	github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260826155111-e3bfc422e068
+	github.com/iotexproject/iotex-core/v2 v2.5.0
 	github.com/iotexproject/iotex-election v0.3.8-0.20251015031218-8df952babca1
 	github.com/iotexproject/iotex-proto v0.6.13
 	github.com/lib/pq v1.10.9
@@ -76,7 +76,7 @@ require (
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cilium/ebpf v0.11.0 // indirect
+	github.com/cilium/ebpf v0.22.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
@@ -91,7 +91,7 @@ require (
 	github.com/crate-crypto/go-eth-kzg v1.3.0 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
 	github.com/crate-crypto/go-kzg-4844 v1.1.0 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
@@ -267,7 +267,7 @@ require (
 	github.com/pion/turn/v4 v4.0.2 // indirect
 	github.com/pion/webrtc/v3 v3.3.5 // indirect
 	github.com/pion/webrtc/v4 v4.1.2 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/polydawn/refmt v0.89.1-0.20231129105047-37766d95467a // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -289,7 +289,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shirou/gopsutil/v4 v4.24.7 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/supranational/blst v0.3.15 // indirect
@@ -351,14 +351,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
-
-// iotex-core is pinned to the rc1_2.5.0 branch. Its pseudo-version derives from
-// base tag v2.4.0-rc0 (the highest release tag that is an ancestor of that
-// branch), so it sorts BELOW the released v2.4.x line. Without this replace,
-// `go get -u` would silently resolve to v2.4.4 -- and still compile -- shipping
-// an indexer that hard-fails on the first IIP-59 reward log after the fork.
-// Remove this once iotex-core cuts a real v2.5.0 tag and bump the require.
-replace github.com/iotexproject/iotex-core/v2 => github.com/iotexproject/iotex-core/v2 v2.4.0-rc0.0.20260826155111-e3bfc422e068
 
 replace github.com/ethereum/go-ethereum => github.com/iotexproject/go-ethereum v1.7.4-0.20260114032628-a8ad6229e289
 

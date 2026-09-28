@@ -10,7 +10,7 @@ import (
 
 func TestReadErc20(t *testing.T) {
 	require := require.New(t)
-	config.Default.Iotex.ChainInsecure = true
+	config.Default.Iotex.ChainInsecure = false
 	config.Default.Iotex.ChainEndPoint = "api.mainnet.iotex.one:443"
 	client := kernel.ChainClient()
 	require.NoError(initErc20())

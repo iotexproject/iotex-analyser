@@ -59,7 +59,7 @@ func TestReproduceBlock43063796(t *testing.T) {
 		endpoint = "api.testnet.iotex.one:443"
 	}
 	insecureStr := os.Getenv("LIVE_CHAIN_INSECURE")
-	chainInsecure := insecureStr == "" || insecureStr == "1" || insecureStr == "true"
+	chainInsecure := insecureStr == "1" || insecureStr == "true"
 
 	// 1. config — kernel.ChainClient() reads from config.Default.
 	config.Default.Iotex.ChainEndPoint = endpoint

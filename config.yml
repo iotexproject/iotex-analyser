@@ -32,6 +32,7 @@ database:
 iotex:
   #catchUpMode: true
   chainEndPoint: api.testnet.iotex.one:80
+  chainInsecure: true
 blockDB:
   dbPath: chain.db
 log:

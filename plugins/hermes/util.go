@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,6 +39,14 @@ const (
 	RewardportionContractDeployHeight        = 5095225
 	maxBlockRange                     uint64 = 1000000
 )
+// readStateTimeout bounds each chainClient.ReadState invocation. Without a
+// deadline a hung archive endpoint would leave the surrounding GORM
+// transaction in "idle in transaction" indefinitely (observed on testnet:
+// the leak persists until an operator kills the PG backend manually).
+// The mainnet hermes plugin keeps up at well under 30s/call in normal
+// operation; the value is chosen as a safety net rather than a tight SLO.
+const readStateTimeout = 30 * time.Second
+
 const (
 	// PollProtocolID is ID of poll protocol
 	PollProtocolID      = "poll"
@@ -109,7 +118,9 @@ func getStakingBuckets(chainClient iotexapi.APIServiceClient, offset, limit uint
 		Height:     fmt.Sprintf("%d", height),
 	}
 	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_COMPOSITE_BUCKETS)
+	ctx, cancel := context.WithTimeout(ctx, readStateTimeout)
 	readStateRes, err := chainClient.ReadState(ctx, readStateRequest)
+	cancel()
 	if err != nil {
 		return
 	}
@@ -171,7 +182,9 @@ func getStakingCandidates(chainClient iotexapi.APIServiceClient, offset, limit u
 		Height:     strconv.FormatUint(height, 10),
 	}
 	ctx := context.WithValue(context.Background(), &iotexapi.ReadStateRequest{}, iotexapi.ReadStakingDataMethod_CANDIDATES)
+	ctx, cancel := context.WithTimeout(ctx, readStateTimeout)
 	readStateRes, err := chainClient.ReadState(ctx, readStateRequest)
+	cancel()
 	if err != nil {
 		return
 	}
@@ -229,7 +242,9 @@ func fetchProbationList(cli iotexapi.APIServiceClient, epochNum uint64) (*iotext
 		MethodName: []byte("ProbationListByEpoch"),
 		Arguments:  [][]byte{[]byte(strconv.FormatUint(epochNum, 10))},
 	}
-	out, err := cli.ReadState(context.Background(), request)
+	ctx, cancel := context.WithTimeout(context.Background(), readStateTimeout)
+	defer cancel()
+	out, err := cli.ReadState(ctx, request)
 	if err != nil {
 		sta, ok := status.FromError(err)
 		if ok && sta.Code() == codes.NotFound {

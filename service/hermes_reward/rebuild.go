@@ -161,10 +161,6 @@ func RebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 	if err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error; err != nil {
 		return err
 	}
-	// Delegates that opted into IIP-59 no longer pay into their registered
-	// reward address, so they must not take a share of what is pooled there.
-	// Empty before Zanzibar, and empty on a host whose voter_reward plugin has
-	// written nothing yet, in which case nothing below filters anything.
 	optedIn, err := optedInDelegates(tx, lastEpoch)
 	if err != nil {
 		return errors.Wrap(err, "failed to get opted-in delegates")
@@ -252,21 +248,17 @@ func getVotingInfo(tx *gorm.DB, lastEpoch uint64) (map[string][]string, map[stri
 	return rewardAddrToNameMapping, weightedVotesMapping, nil
 }
 
-// optedInDelegates returns the delegates that had opted into IIP-59 for the era
-// covering epoch, as recorded by the voter_reward plugin.
+// optedInDelegates returns the delegates opted into IIP-59 for the era covering
+// epoch. Empty means "do not filter": before Zanzibar there is no
+// delegate_reward_config, and rebuilding those epochs must reproduce the old
+// numbers exactly.
 //
-// Which era covers an epoch is derived from the data rather than from a second
-// copy of EpochsPerRewardEra: era N settles epochs [N-EpochsPerRewardEra, N-1],
-// so the covering era is the smallest one greater than the epoch. While an
-// epoch is being indexed live that era has not been frozen yet, so this falls
-// back to the most recent era on record. Opt-in is a one-way transition, so a
-// set that is one era stale can only miss a delegate that opted in during it --
-// it can never wrongly mark one as opted in, which is the direction that would
-// move money.
-//
-// An empty result means "do not filter". Before Zanzibar there is no
-// delegate_reward_config at all and the old apportionment was correct, so
-// rebuilding pre-fork epochs must keep producing exactly what it did.
+// Era N settles epochs [N-EpochsPerRewardEra, N-1], so the covering era is the
+// smallest one greater than epoch -- derived from the data rather than from a
+// second copy of EpochsPerRewardEra. That era is not frozen yet while an epoch
+// is indexed live, hence the fallback to the latest on record. Opt-in is
+// one-way, so a stale set can only miss a delegate that just opted in; it
+// cannot wrongly mark one as opted in, which is the direction that moves money.
 func optedInDelegates(tx *gorm.DB, epoch uint64) (map[string]bool, error) {
 	var rows []struct{ DelegateName string }
 	if err := tx.Raw(`
@@ -284,25 +276,18 @@ func optedInDelegates(tx *gorm.DB, epoch uint64) (map[string]bool, error) {
 	return optedIn, nil
 }
 
-// contributorsTo drops the delegates that no longer pay into rewardAddress.
+// contributorsTo drops delegates that no longer pay into rewardAddress.
 //
-// Splitting across the full registered set is what let a pool funded by one
-// delegate be spread over every delegate sharing its reward address. After
-// Zanzibar an opted-in delegate's commission is credited to its owner address
-// (rewarding.delegateRewardRouting.PayoutAddress returns candidate.Owner), so
-// it puts nothing into the shared address while the vote/rank/productivity
-// split still hands it a share. Opting in does not touch candidate.Reward, so
-// it stays registered and stays in the set.
+// After Zanzibar an opted-in delegate's commission goes to its owner address
+// (rewarding.delegateRewardRouting.PayoutAddress), but opting in does not touch
+// candidate.Reward -- so it stays registered here and the vote/rank/productivity
+// split keeps handing it a share of a pool it no longer funds. Mainnet epochs
+// 65472-65495: one address received 14,842 IOTX, all from the four delegates
+// that had not opted in, split across all 37 registered to it.
 //
-// Measured on mainnet for epochs 65472-65495: one address received 14,842
-// IOTX, all of it from the four delegates that had not opted in, and it was
-// divided among all 37 registered to it.
-//
-// If filtering would empty the set, the unfiltered list is kept. A funded pool
-// with no contributor means the opt-in data disagrees with block_rewards --
-// most likely the era in hand is one behind -- and reproducing the old split is
-// less destructive than dropping an epoch's rewards entirely. It is logged
-// because it should stop happening once the two are in step.
+// Keeping the unfiltered list when filtering empties it is deliberate: a funded
+// pool with no contributor means the opt-in data is a step behind, and
+// reproducing the old split beats dropping an epoch's rewards.
 func contributorsTo(names []string, optedIn map[string]bool, rewardAddress string, epoch uint64) []string {
 	if len(optedIn) == 0 || len(names) <= 1 {
 		return names

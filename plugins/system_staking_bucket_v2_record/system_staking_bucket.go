@@ -26,7 +26,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const VERSION = "2.2.5"
+const VERSION = "2.2.6"
 
 const (
 	errBucketSumAmount             = "getBucketSumAmountByBucketID error, bucketID: %d"
@@ -669,15 +669,20 @@ func (b systemStakingBucketPlugin) getBucketSumAmountByBucketID(tx *gorm.DB, buc
 	return decmailAmount, nil
 }
 
+// revise appends, for every bucket still staked at the mute height, a copy of its latest
+// row with the duration converted to seconds. The copy only restates the bucket's state,
+// so it carries no amount: amount is a delta and sum(amount) is the bucket's balance. A
+// bucket whose latest row has nothing staked (unstaked, withdrawn, merged away) is closed
+// and gets no copy.
 func (b systemStakingBucketPlugin) revise(ctx context.Context, tx *gorm.DB) error {
 	var records []models.SystemStakingBucketV2Record
 	subQuery := tx.Model(&models.SystemStakingBucketV2Record{}).
 		Select("MAX(id)").
-		Where("staked_amount != 0 AND duration != 0 AND duration_type = 0").
 		Group("bucket_id")
 
 	if err := tx.Model(&models.SystemStakingBucketV2Record{}).
 		Where("id IN (?)", subQuery).
+		Where("staked_amount != 0 AND duration != 0 AND duration_type = 0").
 		Find(&records).Error; err != nil {
 		return err
 	}
@@ -694,6 +699,7 @@ func (b systemStakingBucketPlugin) revise(ctx context.Context, tx *gorm.DB) erro
 		record.Duration = systemstaking.DurationByType(duration, 1)
 		record.DurationType = 1
 		record.ID = 0 // reset ID to create a new record
+		record.Amount = decimal.Zero
 		record.BlockHeight = b.muteHeight
 		if err := tx.Create(&record).Error; err != nil {
 			return errors.Wrapf(err, "failed to revise record %d", record.ID)

@@ -80,7 +80,12 @@ func (b hermesPlugin) Type() plugin.Type {
 }
 
 func (b hermesPlugin) DependentPlugins() []string {
-	return []string{"block_meta", "block_reward", "probation", "candidatelist", "block_receipts"}
+	// voter_reward is required, not optional: hermes_reward.breakdownRewards
+	// needs the opt-in set to know who still funds a shared reward address, and
+	// without it the split hands one delegate's rewards to another's voters.
+	// Declaring it stalls the index with an error on a host missing the plugin
+	// rather than leaving a quietly wrong ledger.
+	return []string{"block_meta", "block_reward", "probation", "candidatelist", "block_receipts", "voter_reward"}
 }
 
 func (b hermesPlugin) Start(ctx context.Context) error {

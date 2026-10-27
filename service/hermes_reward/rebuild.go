@@ -161,10 +161,15 @@ func RebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 	if err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error; err != nil {
 		return err
 	}
+	optedIn, err := optedInDelegates(tx, lastEpoch)
+	if err != nil {
+		return errors.Wrap(err, "failed to get opted-in delegates")
+	}
+
 	for _, row := range rows {
 		epochNumber := row.EpochNumber
 		rewardAddress := row.RewardAddress
-		candidateNames := rewardAddrToNameMapping[rewardAddress]
+		candidateNames := contributorsTo(rewardAddrToNameMapping[rewardAddress], optedIn, rewardAddress, epochNumber)
 		// Multiple delegates share reward address
 		totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
 		if !ok {
@@ -241,6 +246,66 @@ func getVotingInfo(tx *gorm.DB, lastEpoch uint64) (map[string][]string, map[stri
 		weightedVotesMapping[row.DelegateName] = totalWeightedVotes
 	}
 	return rewardAddrToNameMapping, weightedVotesMapping, nil
+}
+
+// optedInDelegates returns the delegates opted into IIP-59 for the era covering
+// epoch. Empty means "do not filter": before Zanzibar there is no
+// delegate_reward_config, and rebuilding those epochs must reproduce the old
+// numbers exactly.
+//
+// Era N settles epochs [N-EpochsPerRewardEra, N-1], so the covering era is the
+// smallest one greater than epoch -- derived from the data rather than from a
+// second copy of EpochsPerRewardEra. That era is not frozen yet while an epoch
+// is indexed live, hence the fallback to the latest on record. Opt-in is
+// one-way, so a stale set can only miss a delegate that just opted in; it
+// cannot wrongly mark one as opted in, which is the direction that moves money.
+func optedInDelegates(tx *gorm.DB, epoch uint64) (map[string]bool, error) {
+	var rows []struct{ DelegateName string }
+	if err := tx.Raw(`
+		SELECT delegate_name FROM delegate_reward_config
+		WHERE opted_in AND era = COALESCE(
+			(SELECT MIN(era) FROM delegate_reward_config WHERE era > ?),
+			(SELECT MAX(era) FROM delegate_reward_config))`, epoch).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	optedIn := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		optedIn[r.DelegateName] = true
+	}
+	return optedIn, nil
+}
+
+// contributorsTo drops delegates that no longer pay into rewardAddress.
+//
+// After Zanzibar an opted-in delegate's commission goes to its owner address
+// (rewarding.delegateRewardRouting.PayoutAddress), but opting in does not touch
+// candidate.Reward -- so it stays registered here and the vote/rank/productivity
+// split keeps handing it a share of a pool it no longer funds. Mainnet epochs
+// 65472-65495: one address received 14,842 IOTX, all from the four delegates
+// that had not opted in, split across all 37 registered to it.
+//
+// Keeping the unfiltered list when filtering empties it is deliberate: a funded
+// pool with no contributor means the opt-in data is a step behind, and
+// reproducing the old split beats dropping an epoch's rewards.
+func contributorsTo(names []string, optedIn map[string]bool, rewardAddress string, epoch uint64) []string {
+	if len(optedIn) == 0 || len(names) <= 1 {
+		return names
+	}
+	kept := make([]string, 0, len(names))
+	for _, name := range names {
+		if !optedIn[name] {
+			kept = append(kept, name)
+		}
+	}
+	if len(kept) == 0 {
+		log.L().Warn("hermes: funded reward address has no un-opted-in delegate; keeping the unfiltered split",
+			zap.String("rewardAddress", rewardAddress),
+			zap.Uint64("epoch", epoch),
+			zap.Int("registered", len(names)))
+		return names
+	}
+	return kept
 }
 
 func breakdownRewards(

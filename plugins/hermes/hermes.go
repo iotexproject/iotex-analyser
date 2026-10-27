@@ -80,7 +80,16 @@ func (b hermesPlugin) Type() plugin.Type {
 }
 
 func (b hermesPlugin) DependentPlugins() []string {
-	return []string{"block_meta", "block_reward", "probation", "candidatelist", "block_receipts"}
+	// voter_reward is a hard dependency since Zanzibar, not a convenience.
+	// hermes_reward.breakdownRewards splits a shared reward address's pool
+	// among the delegates registered to it; an opted-in delegate stops paying
+	// into that address but keeps its vote/rank/productivity share, so without
+	// the opt-in set the split silently hands one delegate's rewards to
+	// another's voters. Declaring it here turns a host that is missing the
+	// plugin into a stalled hermes index with an error rather than a quietly
+	// wrong ledger -- getTipHeight clamps to each dependency's index height and
+	// GetIndexHeight fails outright for a plugin that was never loaded.
+	return []string{"block_meta", "block_reward", "probation", "candidatelist", "block_receipts", "voter_reward"}
 }
 
 func (b hermesPlugin) Start(ctx context.Context) error {

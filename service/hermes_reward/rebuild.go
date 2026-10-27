@@ -161,10 +161,19 @@ func RebuildAccountRewardTable(tx *gorm.DB, lastEpoch uint64) error {
 	if err := tx.Where("epoch_number = ?", lastEpoch).Delete(&models.HermesAccountReward{}).Error; err != nil {
 		return err
 	}
+	// Delegates that opted into IIP-59 no longer pay into their registered
+	// reward address, so they must not take a share of what is pooled there.
+	// Empty before Zanzibar, and empty on a host whose voter_reward plugin has
+	// written nothing yet, in which case nothing below filters anything.
+	optedIn, err := optedInDelegates(tx, lastEpoch)
+	if err != nil {
+		return errors.Wrap(err, "failed to get opted-in delegates")
+	}
+
 	for _, row := range rows {
 		epochNumber := row.EpochNumber
 		rewardAddress := row.RewardAddress
-		candidateNames := rewardAddrToNameMapping[rewardAddress]
+		candidateNames := contributorsTo(rewardAddrToNameMapping[rewardAddress], optedIn, rewardAddress, epochNumber)
 		// Multiple delegates share reward address
 		totalBlockReward, ok := big.NewInt(0).SetString(row.BlockReward, 10)
 		if !ok {
@@ -241,6 +250,77 @@ func getVotingInfo(tx *gorm.DB, lastEpoch uint64) (map[string][]string, map[stri
 		weightedVotesMapping[row.DelegateName] = totalWeightedVotes
 	}
 	return rewardAddrToNameMapping, weightedVotesMapping, nil
+}
+
+// optedInDelegates returns the delegates that had opted into IIP-59 for the era
+// covering epoch, as recorded by the voter_reward plugin.
+//
+// Which era covers an epoch is derived from the data rather than from a second
+// copy of EpochsPerRewardEra: era N settles epochs [N-EpochsPerRewardEra, N-1],
+// so the covering era is the smallest one greater than the epoch. While an
+// epoch is being indexed live that era has not been frozen yet, so this falls
+// back to the most recent era on record. Opt-in is a one-way transition, so a
+// set that is one era stale can only miss a delegate that opted in during it --
+// it can never wrongly mark one as opted in, which is the direction that would
+// move money.
+//
+// An empty result means "do not filter". Before Zanzibar there is no
+// delegate_reward_config at all and the old apportionment was correct, so
+// rebuilding pre-fork epochs must keep producing exactly what it did.
+func optedInDelegates(tx *gorm.DB, epoch uint64) (map[string]bool, error) {
+	var rows []struct{ DelegateName string }
+	if err := tx.Raw(`
+		SELECT delegate_name FROM delegate_reward_config
+		WHERE opted_in AND era = COALESCE(
+			(SELECT MIN(era) FROM delegate_reward_config WHERE era > ?),
+			(SELECT MAX(era) FROM delegate_reward_config))`, epoch).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	optedIn := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		optedIn[r.DelegateName] = true
+	}
+	return optedIn, nil
+}
+
+// contributorsTo drops the delegates that no longer pay into rewardAddress.
+//
+// Splitting across the full registered set is what let a pool funded by one
+// delegate be spread over every delegate sharing its reward address. After
+// Zanzibar an opted-in delegate's commission is credited to its owner address
+// (rewarding.delegateRewardRouting.PayoutAddress returns candidate.Owner), so
+// it puts nothing into the shared address while the vote/rank/productivity
+// split still hands it a share. Opting in does not touch candidate.Reward, so
+// it stays registered and stays in the set.
+//
+// Measured on mainnet for epochs 65472-65495: one address received 14,842
+// IOTX, all of it from the four delegates that had not opted in, and it was
+// divided among all 37 registered to it.
+//
+// If filtering would empty the set, the unfiltered list is kept. A funded pool
+// with no contributor means the opt-in data disagrees with block_rewards --
+// most likely the era in hand is one behind -- and reproducing the old split is
+// less destructive than dropping an epoch's rewards entirely. It is logged
+// because it should stop happening once the two are in step.
+func contributorsTo(names []string, optedIn map[string]bool, rewardAddress string, epoch uint64) []string {
+	if len(optedIn) == 0 || len(names) <= 1 {
+		return names
+	}
+	kept := make([]string, 0, len(names))
+	for _, name := range names {
+		if !optedIn[name] {
+			kept = append(kept, name)
+		}
+	}
+	if len(kept) == 0 {
+		log.L().Warn("hermes: funded reward address has no un-opted-in delegate; keeping the unfiltered split",
+			zap.String("rewardAddress", rewardAddress),
+			zap.Uint64("epoch", epoch),
+			zap.Int("registered", len(names)))
+		return names
+	}
+	return kept
 }
 
 func breakdownRewards(

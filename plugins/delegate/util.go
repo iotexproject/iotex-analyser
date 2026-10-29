@@ -87,12 +87,16 @@ func delegate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	systemStakingsV3, err := getSystemStakingV3(pluginHeight)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	delegateActives := getDelegateActive(pluginHeight)
 	candidates, err := models.GetAllCandidates()
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	delegateMap, err := getDelegateMap(epochNumber, pluginHeight, stakings, systemStakings, systemStakingsV2, candidates, delegateActives, bucketSumAmount)
+	delegateMap, err := getDelegateMap(epochNumber, pluginHeight, stakings, [][]*SystemStakingBucket{systemStakings, systemStakingsV2, systemStakingsV3}, candidates, delegateActives, bucketSumAmount)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -160,7 +164,7 @@ outerLoop:
 	return err
 }
 
-func getDelegateMap(epochNumber, pluginHeight uint64, stakings []*Staking, systemStakings, systemStakingsV2 []*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
+func getDelegateMap(epochNumber, pluginHeight uint64, stakings []*Staking, systemStakings [][]*SystemStakingBucket, candidates models.Candidates, delegateActives map[string]int, bucketAmount map[uint64]*big.Int) (map[string]*Delegate, error) {
 	delegateMap := make(map[string]*Delegate)
 	totalVotes := big.NewInt(0)
 	for _, cand := range getNotStakeCandidateList(candidates, stakings) {
@@ -234,29 +238,8 @@ func getDelegateMap(epochNumber, pluginHeight uint64, stakings []*Staking, syste
 		totalVotes = totalVotes.Add(totalVotes, voteWeight)
 		delegateMap[staking.Candidate] = delegate
 	}
-	for _, staking := range systemStakings {
-		delegate, ok := delegateMap[staking.DelegateOwnerAddress]
-		if !ok {
-			continue
-		}
-		stakeAmount, _ := big.NewInt(0).SetString(staking.StakedAmount, 0)
-		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
-		voteWeight, _ := big.NewInt(0).SetString(staking.VotingPower, 0)
-		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
-		totalVotes = totalVotes.Add(totalVotes, voteWeight)
-		delegateMap[staking.DelegateOwnerAddress] = delegate
-	}
-	for _, staking := range systemStakingsV2 {
-		delegate, ok := delegateMap[staking.DelegateOwnerAddress]
-		if !ok {
-			continue
-		}
-		stakeAmount, _ := big.NewInt(0).SetString(staking.StakedAmount, 0)
-		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
-		voteWeight, _ := big.NewInt(0).SetString(staking.VotingPower, 0)
-		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
-		totalVotes = totalVotes.Add(totalVotes, voteWeight)
-		delegateMap[staking.DelegateOwnerAddress] = delegate
+	for _, buckets := range systemStakings {
+		addSystemStakings(delegateMap, buckets, totalVotes)
 	}
 
 	candidateListv2, err := models.GetCandidateList(epochNumber)
@@ -457,9 +440,52 @@ func getSystemStaking(height uint64) ([]*SystemStakingBucket, error) {
 	return results, nil
 }
 
+// addSystemStakings adds each contract-staking bucket, given as its latest row, to the
+// delegate it votes for. Buckets voting for anyone else are skipped, which includes a v2
+// bucket migrated to v3: migration points it at the zero address and the stake votes
+// through its v3 bucket instead.
+func addSystemStakings(delegateMap map[string]*Delegate, buckets []*SystemStakingBucket, totalVotes *big.Int) {
+	for _, staking := range buckets {
+		delegate, ok := delegateMap[staking.DelegateOwnerAddress]
+		if !ok {
+			continue
+		}
+		stakeAmount, _ := big.NewInt(0).SetString(staking.StakedAmount, 0)
+		delegate.StakeAmount = delegate.StakeAmount.Add(delegate.StakeAmount, stakeAmount)
+		voteWeight, _ := big.NewInt(0).SetString(staking.VotingPower, 0)
+		delegate.VoteWeight = delegate.VoteWeight.Add(delegate.VoteWeight, voteWeight)
+		totalVotes.Add(totalVotes, voteWeight)
+	}
+}
+
 func getSystemStakingV2(height uint64) ([]*SystemStakingBucket, error) {
 	db := db.DB()
 	query := "select t1.* from system_staking_buckets_v2 t1 INNER JOIN (select MAX(id)AS max_id  from system_staking_buckets_v2 t4 where block_height<=? GROUP BY bucket_id) as t2 on t2.max_id=t1.id"
+	rows, err := db.Raw(query, height).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results []*SystemStakingBucket
+	for rows.Next() {
+		av := new(SystemStakingBucket)
+		if err := db.ScanRows(rows, av); err != nil {
+			return nil, err
+		}
+		results = append(results, av)
+	}
+	return results, nil
+}
+
+// getSystemStakingV3 reads the v3 contract's buckets, from the table the
+// system_staking_bucket_v3_record plugin writes. A deployment without that plugin has no
+// v3 stake to add.
+func getSystemStakingV3(height uint64) ([]*SystemStakingBucket, error) {
+	db := db.DB()
+	if !db.Migrator().HasTable("system_staking_buckets_v3_record") {
+		return nil, nil
+	}
+	query := "select t1.* from system_staking_buckets_v3_record t1 INNER JOIN (select MAX(id)AS max_id  from system_staking_buckets_v3_record t4 where block_height<=? GROUP BY bucket_id) as t2 on t2.max_id=t1.id"
 	rows, err := db.Raw(query, height).Rows()
 	if err != nil {
 		return nil, err

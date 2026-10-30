@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"sync"
 
 	"gorm.io/gorm"
@@ -55,6 +56,20 @@ func GetIndexHeight(name string) (uint64, error) {
 	}
 	indexCache.Store(name, idx.Height)
 	return idx.Height, nil
+}
+
+// GetCommittedIndexHeight reads name's index height from the database, skipping the
+// cache. UpdateIndexHeightByTx caches a height before its transaction commits, and keeps
+// it if the transaction rolls back. A plugin that must not read past name's committed data
+// reads name's height here. Unlike GetIndexHeight it does not create a missing row, and
+// reports 0 for it.
+func GetCommittedIndexHeight(name string) (uint64, error) {
+	var idx IndexHeight
+	err := db.Model(&IndexHeight{}).Where("name = ?", name).Take(&idx).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	return idx.Height, err
 }
 
 func (m *IndexHeight) ByName(name string) (*IndexHeight, error) {

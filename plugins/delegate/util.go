@@ -39,14 +39,16 @@ type Delegate struct {
 
 func delegate() error {
 	log.L().Debug("delegate start")
-	pluginHeight, err := db.GetIndexHeight("staking_actions")
+	// Every height here is the committed one: the cached height can run ahead of a
+	// plugin's transaction, and stay ahead if it rolls back.
+	pluginHeight, err := db.GetCommittedIndexHeight("staking_actions")
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// SelfStake is resolved from candidate_self_stake; only run once that plugin
 	// has indexed at least as far as staking_actions, so isSelfStake never
 	// queries beyond the data it has populated.
-	cssHeight, err := db.GetIndexHeight("candidate_self_stake")
+	cssHeight, err := db.GetCommittedIndexHeight("candidate_self_stake")
 	if err != nil || cssHeight < pluginHeight {
 		log.L().Warn("candidate_self_stake behind staking_actions, skipping delegate run",
 			zap.Uint64("css_height", cssHeight), zap.Uint64("plugin_height", pluginHeight), zap.Error(err))
@@ -61,7 +63,7 @@ func delegate() error {
 	if hasSystemStakingV3() {
 		stakingPlugins = append(stakingPlugins, "system_staking_bucket_v3_record")
 	}
-	if name, height, err := firstBehind(stakingPlugins, pluginHeight, db.GetIndexHeight); name != "" {
+	if name, height, err := firstBehind(stakingPlugins, pluginHeight, db.GetCommittedIndexHeight); name != "" {
 		log.L().Warn("system staking plugin behind staking_actions, skipping delegate run",
 			zap.String("plugin", name), zap.Uint64("height", height), zap.Uint64("plugin_height", pluginHeight), zap.Error(err))
 		return nil

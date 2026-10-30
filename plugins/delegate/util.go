@@ -52,6 +52,20 @@ func delegate() error {
 			zap.Uint64("css_height", cssHeight), zap.Uint64("plugin_height", pluginHeight), zap.Error(err))
 		return nil
 	}
+	// The system-staking plugins index independently of staking_actions and of each
+	// other. A v2 -> v3 migration changes the v2 bucket and opens the v3 one in a single
+	// tx: read one table past that tx and the other before it, and the stake counts
+	// twice, or not at all. So every contract table the run reads must have reached
+	// pluginHeight too.
+	stakingPlugins := []string{"system_staking_bucket_record", "system_staking_bucket_v2_record"}
+	if hasSystemStakingV3() {
+		stakingPlugins = append(stakingPlugins, "system_staking_bucket_v3_record")
+	}
+	if name, height, err := firstBehind(stakingPlugins, pluginHeight, db.GetIndexHeight); name != "" {
+		log.L().Warn("system staking plugin behind staking_actions, skipping delegate run",
+			zap.String("plugin", name), zap.Uint64("height", height), zap.Uint64("plugin_height", pluginHeight), zap.Error(err))
+		return nil
+	}
 	epochNumber := kernel.GetEpochNum(pluginHeight)
 	request := &iotexapi.GetEpochMetaRequest{EpochNumber: epochNumber}
 	chainClient := kernel.ChainClient()
@@ -477,14 +491,31 @@ func getSystemStakingV2(height uint64) ([]*SystemStakingBucket, error) {
 	return results, nil
 }
 
+// firstBehind returns the first plugin whose index height is below target, or whose
+// height cannot be read, with that height and error. It returns "" when all are there.
+func firstBehind(plugins []string, target uint64, indexHeight func(string) (uint64, error)) (string, uint64, error) {
+	for _, name := range plugins {
+		height, err := indexHeight(name)
+		if err != nil || height < target {
+			return name, height, err
+		}
+	}
+	return "", 0, nil
+}
+
+// hasSystemStakingV3 reports whether the system_staking_bucket_v3_record plugin runs here,
+// by the table it writes. A deployment without it has no v3 stake to add.
+func hasSystemStakingV3() bool {
+	return db.DB().Migrator().HasTable("system_staking_buckets_v3_record")
+}
+
 // getSystemStakingV3 reads the v3 contract's buckets, from the table the
-// system_staking_bucket_v3_record plugin writes. A deployment without that plugin has no
-// v3 stake to add.
+// system_staking_bucket_v3_record plugin writes.
 func getSystemStakingV3(height uint64) ([]*SystemStakingBucket, error) {
-	db := db.DB()
-	if !db.Migrator().HasTable("system_staking_buckets_v3_record") {
+	if !hasSystemStakingV3() {
 		return nil, nil
 	}
+	db := db.DB()
 	query := "select t1.* from system_staking_buckets_v3_record t1 INNER JOIN (select MAX(id)AS max_id  from system_staking_buckets_v3_record t4 where block_height<=? GROUP BY bucket_id) as t2 on t2.max_id=t1.id"
 	rows, err := db.Raw(query, height).Rows()
 	if err != nil {

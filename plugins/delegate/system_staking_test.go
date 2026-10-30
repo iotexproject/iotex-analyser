@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -38,4 +39,33 @@ func TestAddSystemStakings(t *testing.T) {
 	r.Equal("7110", delegateMap[delegateAddr].StakeAmount.String())
 	r.Equal("8011", delegateMap[delegateAddr].VoteWeight.String())
 	r.Equal("8011", totalVotes.String())
+}
+
+// The delegate run waits until every system-staking plugin it reads has indexed the
+// target height. Otherwise a v2 -> v3 migration indexed by v3 but not yet by v2 shows the
+// stake in both the old v2 bucket and the new v3 one.
+func TestFirstBehind(t *testing.T) {
+	r := require.New(t)
+	plugins := []string{"v1", "v2", "v3"}
+	heights := map[string]uint64{"v1": 100, "v2": 99, "v3": 100}
+	failed := errors.New("db down")
+	indexHeight := func(name string) (uint64, error) {
+		if name == "broken" {
+			return 0, failed
+		}
+		return heights[name], nil
+	}
+
+	name, height, err := firstBehind(plugins, 100, indexHeight)
+	r.Equal("v2", name)
+	r.EqualValues(99, height)
+	r.NoError(err)
+
+	name, _, err = firstBehind(plugins, 99, indexHeight)
+	r.Equal("", name)
+	r.NoError(err)
+
+	name, _, err = firstBehind([]string{"v1", "broken"}, 50, indexHeight)
+	r.Equal("broken", name)
+	r.ErrorIs(err, failed)
 }

@@ -106,6 +106,10 @@ type Plugin struct {
 	// halves of the era and both have to run.
 	eraStatePass        map[uint64]bool
 	pendingEraStatePass map[uint64]bool
+
+	// chainClient is kernel.ChainClient in production; tests swap in a fake
+	// to drive the state-read failures the runner retries on.
+	chainClient func() iotexapi.APIServiceClient
 }
 
 // New returns a plugin instance ready to be registered.
@@ -129,6 +133,8 @@ func New(shadow plugin.PluginShadow) Plugin {
 
 		eraStatePass:        map[uint64]bool{},
 		pendingEraStatePass: map[uint64]bool{},
+
+		chainClient: kernel.ChainClient,
 	}
 }
 
@@ -194,6 +200,7 @@ func (p *Plugin) rehydrateOptIns() error {
 
 func (p *Plugin) PutBlock(ctx context.Context, blk *block.Block) error {
 	if err := p.putBlock(ctx, blk); err != nil {
+		p.discardBatch()
 		return err
 	}
 	p.tipHeight = blk.Height()
@@ -203,6 +210,7 @@ func (p *Plugin) PutBlock(ctx context.Context, blk *block.Block) error {
 func (p *Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
 	for _, blk := range blks {
 		if err := p.putBlock(ctx, blk); err != nil {
+			p.discardBatch()
 			return err
 		}
 	}
@@ -258,7 +266,7 @@ func (p *Plugin) refreshChunkedEras(ctx context.Context, height uint64) error {
 	if !pending {
 		return nil
 	}
-	client := kernel.ChainClient()
+	client := p.chainClient()
 	if client == nil {
 		return errors.New("voter_reward: no chain client configured")
 	}
@@ -437,7 +445,7 @@ func (p *Plugin) ensureEraPlan(ctx context.Context, era uint64, height uint64) e
 	if p.isEraSeen(era) {
 		return nil
 	}
-	client := kernel.ChainClient()
+	client := p.chainClient()
 	if client == nil {
 		return errors.New("voter_reward: no chain client configured")
 	}
@@ -659,7 +667,7 @@ func (p *Plugin) indexFrozenEra(ctx context.Context, height, epoch uint64) error
 		p.isEraStatePassed(epoch) || p.isEraSeen(epoch) {
 		return nil
 	}
-	client := kernel.ChainClient()
+	client := p.chainClient()
 	if client == nil {
 		return errors.New("voter_reward: no chain client configured")
 	}
@@ -695,7 +703,7 @@ func (p *Plugin) refreshCandidatesIfNeeded(ctx context.Context, height, epoch ui
 	if height != kernel.GetEpochHeight(epoch) && p.candidates.Height() != 0 {
 		return nil
 	}
-	client := kernel.ChainClient()
+	client := p.chainClient()
 	if client == nil {
 		return errors.New("voter_reward: no chain client configured")
 	}
@@ -823,6 +831,30 @@ func (p *Plugin) dropPendingMemos() {
 	clear(p.pendingEraSeen)
 	clear(p.pendingEraDone)
 	clear(p.pendingEraStatePass)
+}
+
+// discardBatch throws away everything buffered for a batch that failed before
+// reaching commit().
+//
+// The runner replays a failed batch from its first block on this same plugin
+// instance (server/runner.go does not advance nextHeight). putBlock buffers a
+// block's rows and folds them into the era's running totals before it does
+// the state reads that can fail, so without this the replay buffers those
+// blocks a second time. The payout rows survive that -- the unique index
+// drops the duplicates -- but upsertEra adds voter_count and
+// total_distributed on top of what is stored, and the era summary ends up
+// overstated by every block that ran before the failure. On MainNet a
+// DeadlineExceeded from ReadDistributionState did exactly this to eras
+// 65760, 65784 and 65808.
+//
+// The memos go too: they describe work that lived in the discarded buffers,
+// and keeping them would make the replay skip ensureEraPlan for an era whose
+// plan is no longer buffered anywhere.
+func (p *Plugin) discardBatch() {
+	p.pendingRows, p.pendingDestinations, p.pendingConfigs = nil, nil, nil
+	p.pendingEras = map[uint64]*models.VoterRewardEra{}
+	clear(p.chunkEras)
+	p.dropPendingMemos()
 }
 
 // assignmentsFor builds the ON CONFLICT assignment map for the given columns,

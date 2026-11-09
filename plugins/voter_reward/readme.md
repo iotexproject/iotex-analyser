@@ -47,3 +47,11 @@ some middle value. `voter_reward_distribution` carries a unique index on
 but `voter_reward_era` accumulates `voter_count` and `total_distributed` as
 chunks land — a partial re-run inflates them, and the inflation is not
 detectable from the table afterwards.
+
+The runner's own retry is the same kind of re-run: when `PutBlocks` fails
+part-way (typically a `ReadState` timeout), it replays the batch from its
+first block on the same instance. `PutBlock`/`PutBlocks` therefore discard
+everything the failed attempt buffered before returning the error. If an era
+total ever disagrees with its rows again, compare `voter_count` with
+`count(*)` of the era's `voter_reward_distribution` rows: on a double-count
+the gap equals the row count of the duplicated blocks.

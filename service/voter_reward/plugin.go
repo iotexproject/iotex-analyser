@@ -199,23 +199,32 @@ func (p *Plugin) rehydrateOptIns() error {
 }
 
 func (p *Plugin) PutBlock(ctx context.Context, blk *block.Block) error {
-	if err := p.putBlock(ctx, blk); err != nil {
-		p.discardBatch()
-		return err
-	}
-	p.tipHeight = blk.Height()
-	return p.commit()
+	return p.PutBlocks(ctx, []*block.Block{blk})
 }
 
+// PutBlocks indexes a batch and commits it as one transaction.
+//
+// Any exit other than a successful commit -- an error or a panic, which the
+// runner recovers from and retries just like an error -- discards what the
+// batch buffered. See discardBatch.
 func (p *Plugin) PutBlocks(ctx context.Context, blks []*block.Block) error {
+	committed := false
+	defer func() {
+		if !committed {
+			p.discardBatch()
+		}
+	}()
 	for _, blk := range blks {
 		if err := p.putBlock(ctx, blk); err != nil {
-			p.discardBatch()
 			return err
 		}
 	}
 	p.tipHeight = blks[len(blks)-1].Height()
-	return p.commit()
+	if err := p.commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 func (p *Plugin) putBlock(ctx context.Context, blk *block.Block) error {
@@ -555,7 +564,13 @@ func (p *Plugin) snapshotDelegateConfigs(
 		}
 		if routing.OnchainRewardEnabled {
 			optedIn++
-			if h, ok := p.optInSeen[info.Identifier]; ok {
+			// h <= height: an opt-in action observed after this block cannot
+			// explain this era's opt-in. Without the bound, a batch replay
+			// after a redundant SetVoterRewardOptIn later in the failed
+			// attempt (the protocol emits the event even when the delegate
+			// is already opted in) would relabel a migrated delegate's
+			// earlier era as an action at a height after the snapshot.
+			if h, ok := p.optInSeen[info.Identifier]; ok && h <= height {
 				cfg.OptInSource, cfg.OptInHeight = optInSourceAction, h
 			} else {
 				// Opted in with no SetVoterRewardOptIn ever observed. This
@@ -833,8 +848,8 @@ func (p *Plugin) dropPendingMemos() {
 	clear(p.pendingEraStatePass)
 }
 
-// discardBatch throws away everything buffered for a batch that failed before
-// reaching commit().
+// discardBatch throws away everything buffered for a batch that did not
+// commit.
 //
 // The runner replays a failed batch from its first block on this same plugin
 // instance (server/runner.go does not advance nextHeight). putBlock buffers a
